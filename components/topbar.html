@@ -1,0 +1,38 @@
+  <!-- ── Topbar (Raycast / Arc) ── -->
+  <header class="topbar">
+    <div class="logo">Interview<span>Prep</span></div>
+    <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
+      <button type="button" class="topic-tab" data-tab="android">Android</button>
+      <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
+      <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
+      <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
+    </nav>
+    <div class="topbar-search-wrap">
+      <span class="search-icon" aria-hidden="true">⌘</span>
+      <input type="search" id="search-input" class="topbar-search" placeholder="Filter list…" autocomplete="off" spellcheck="false">
+    </div>
+    <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" title="Search all questions (⌘E)">
+      <span>Search questions…</span>
+      <kbd class="kbd-mini">⌘E</kbd>
+    </button>
+    <div class="topbar-spacer"></div>
+    <label class="sr-only" for="topic-select">Topic (sync)</label>
+    <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
+      <option value="android">Android</option>
+      <option value="behavioral">Behaviour</option>
+      <option value="data-structures">Data Structures</option>
+      <option value="system-design">System Design</option>
+    </select>
+    <div class="mode-controls">
+      <div class="toggle-wrapper">
+        <div class="mode-toggle-inline">
+          <span class="mode-label-sm">Learn</span>
+          <button type="button" class="toggle-switch" id="toggle-switch" onclick="toggleLearningMode()" title="Quiz: ratings in header; Learn: content visible"><span class="toggle-knob"></span></button>
+          <span class="mode-label-sm">Quiz</span>
+        </div>
+      </div>
+      <button type="button" id="reset-memory-btn" class="reset-btn" title="Reset all questions to unseen">
+        <span class="reset-icon">↺</span>
+      </button>
+    </div>
+  </header>

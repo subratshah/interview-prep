@@ -1,0 +1,88 @@
+    <!-- Detail + Notion blocks -->
+    <main class="detail main-panel" id="main-panel">
+
+      <div class="empty-state" id="detail-empty">
+        <div class="empty-icon">📋</div>
+        <h3 class="empty-title">Select a question</h3>
+        <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill">⌘E</kbd> to search everything.</p>
+        <div class="kbd-hint">
+          <div class="kbd-hint-item"><kbd>J</kbd> / <kbd>K</kbd> Navigate</div>
+          <div class="kbd-hint-item"><kbd>Space</kbd> Reveal</div>
+          <div class="kbd-hint-item"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Rate</div>
+        </div>
+      </div>
+
+      <div class="detail-inner hidden" id="detail-question">
+
+        <div class="detail-hd">
+          <div class="q-header">
+            <div class="hist-nav">
+              <button type="button" class="hist-btn" id="hist-back" onclick="historyBack()" disabled title="Back">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <button type="button" class="hist-btn" id="hist-fwd" onclick="historyForward()" disabled title="Forward">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+            <span class="q-header-num" id="qv-num">#1</span>
+            <span class="diff-badge" id="qv-diff">Easy</span>
+            <span class="q-header-star" id="qv-star"></span>
+            <div class="rating-bar memory-detail-rating hidden" id="rating-bar">
+              <div class="memory-detail-field">
+                <label class="sr-only" for="detail-memory-range">How well you remembered this answer</label>
+                <input type="range" id="detail-memory-range" class="memory-range" min="0" max="3" step="1" value="1" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1" aria-valuetext="Forgot" />
+                <div class="memory-range-labels" aria-hidden="true">
+                  <span class="memory-range-lbl" data-step="0">Unseen</span>
+                  <span class="memory-range-lbl" data-step="1">Forgot</span>
+                  <span class="memory-range-lbl" data-step="2">Shaky</span>
+                  <span class="memory-range-lbl" data-step="3">Knew</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <h1 class="detail-title" id="detail-title"></h1>
+          <div class="detail-meta" id="detail-meta"></div>
+        </div>
+
+        <button type="button" class="quiz-reveal-cover hidden" id="quiz-reveal-cover" aria-label="Reveal answer">
+          <span class="quiz-reveal-icon" aria-hidden="true">🃏</span>
+          <span class="quiz-reveal-title">Reveal answer</span>
+          <span class="quiz-reveal-hint">Click or press <kbd class="kbd-pill">Space</kbd></span>
+        </button>
+
+        <div class="detail-body" id="detail-body"></div>
+
+        <div class="bottom-bar" id="bottom-bar">
+          <div class="bb-col bb-tags-wrap">
+            <div class="bb-label">Tags</div>
+            <div class="bb-tags" id="bb-tags"></div>
+          </div>
+          <div class="bb-col bb-related-wrap">
+            <div class="bb-label">Related</div>
+            <div class="bb-related" id="bb-related"></div>
+          </div>
+        </div>
+
+        <div class="flashcard legacy-flashcard hidden" id="flashcard" aria-hidden="true">
+          <div class="card-hidden" id="card-hidden-face">
+            <div class="card-reveal-icon">🃏</div>
+            <div class="card-reveal-text">Reveal</div>
+          </div>
+          <div class="card-content hidden" id="card-revealed-face">
+            <div class="answer-content" id="answer-content"></div>
+            <div id="detail-sections"></div>
+          </div>
+        </div>
+
+        <div class="meta-section hidden" id="meta-section" aria-hidden="true">
+          <div class="meta-row">
+            <span class="meta-label">Tags</span>
+            <div class="meta-chips" id="meta-tags"></div>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Related</span>
+            <div class="related-list" id="meta-related"></div>
+          </div>
+        </div>
+      </div>
+    </main>

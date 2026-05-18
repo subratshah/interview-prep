@@ -1,0 +1,53 @@
+    <aside class="sidebar">
+      <div class="sb-header">
+        <div class="sb-label">Sections</div>
+      </div>
+      <div id="sb-list" class="sb-list"></div>
+
+      <div class="divider"></div>
+
+      <div class="filter-group">
+        <div class="sb-label">Difficulty</div>
+        <div id="diff-chips" class="filter-chips filter-chips-diff">
+          <button type="button" class="chip" data-diff="E" data-chip-label="Easy" title="Easy">
+            <span class="chip-label">Easy</span>
+            <span class="chip-count">(0)</span>
+          </button>
+          <button type="button" class="chip" data-diff="M" data-chip-label="Medium" title="Medium">
+            <span class="chip-label">Medium</span>
+            <span class="chip-count">(0)</span>
+          </button>
+          <button type="button" class="chip" data-diff="H" data-chip-label="Hard" title="Hard">
+            <span class="chip-label">Hard</span>
+            <span class="chip-count">(0)</span>
+          </button>
+        </div>
+        <div class="sb-label sb-label-spaced">Importance</div>
+        <div id="importance-chips" class="filter-chips filter-chips-importance">
+          <button type="button" class="chip importance-chip" data-status="star" data-chip-label="Important" title="Important questions">
+            <span class="importance-icon">⭐</span>
+            <span class="importance-label">Important</span>
+            <span class="chip-count">(0)</span>
+          </button>
+        </div>
+        <div class="sb-label sb-label-spaced">Memory</div>
+        <div class="memory-indicator-container">
+          <div class="memory-progress-bar">
+            <div class="memory-track"></div>
+            <input type="range" id="sidebar-memory-range" class="memory-range enhanced-memory-range" min="0" max="3" step="1" value="0" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-valuetext="Unseen" title="Double-click to clear filter" />
+          </div>
+          <div class="memory-labels-enhanced" aria-hidden="true">
+            <span class="memory-lbl-enhanced" data-step="0">UNSEEN</span>
+            <span class="memory-lbl-enhanced" data-step="1">FORGOT</span>
+            <span class="memory-lbl-enhanced" data-step="2">SHAKY</span>
+            <span class="memory-lbl-enhanced" data-step="3">KNEW</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tag-filter-bar hidden" id="tag-filter-bar">
+        <span class="tag-filter-label">Tag</span>
+        <span class="tag-filter-chip" id="tag-filter-chip-label"></span>
+        <button type="button" class="tag-filter-clear" id="tag-filter-clear">✕</button>
+      </div>
+    </aside>

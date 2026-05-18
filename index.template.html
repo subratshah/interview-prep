@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Prep</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="stylesheet" href="view/style.css">
+  
+</head>
+<body>
+<div class="app shell">
+
+<!-- @include components/topbar.html -->
+  <!-- ── Main workspace ── -->
+  <div class="workspace">
+
+<!-- @include components/sidebar.html -->
+<!-- @include components/feed.html -->
+<!-- @include components/detail-panel.html -->  </div>
+
+<!-- @include components/statusbar.html --></div>
+
+<!-- @include components/command-palette.html -->
+  <script src="view/app.js"></script>
+  <script src="data/android.js"></script>
+  <script src="data/behavioral.js"></script>
+  <script src="data/data-structures.js"></script>
+  <script src="data/system-design.js"></script>
+  <script>
+    document.getElementById('cmd-launch')?.addEventListener('click', function () {
+      if (typeof toggleCmdPalette === 'function') toggleCmdPalette();
+    });
+  </script>
+</body>
+</html>
