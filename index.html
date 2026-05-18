@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Android Interview Prep</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <style>
+    :root {
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: #1e293b;
+      --accent: #3b82f6;
+      --accent-light: #dbeafe;
+      --panel-bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text-primary: #1e293b;
+      --text-muted: #64748b;
+      --easy: #22c55e;
+      --easy-bg: #f0fdf4;
+      --easy-dark: #166534;
+      --easy-dark-bg: #14532d;
+      --medium: #f59e0b;
+      --medium-bg: #fffbeb;
+      --medium-dark: #78350f;
+      --medium-dark-bg: #451a03;
+      --hard: #ef4444;
+      --hard-bg: #fef2f2;
+      --hard-dark: #7f1d1d;
+      --hard-dark-bg: #450a0a;
+      --know: #22c55e;
+      --shaky: #f59e0b;
+      --review: #ef4444;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: var(--text-primary);
+      background: var(--panel-bg);
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid #1e293b;
+    }
+
+    .sidebar-header {
+      padding: 16px 16px 0;
+      flex-shrink: 0;
+    }
+
+    .app-title {
+      color: #f1f5f9;
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .app-title span {
+      color: var(--accent);
+    }
+
+    /* Search icon button in topic bar */
+    .search-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #64748b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .search-icon-btn:hover { background: #1e293b; color: #f1f5f9; border-color: #475569; }
+    .search-icon-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* Expanding search bar */
+    .search-expand {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 0 0 8px;
+    }
+    .search-expand.open {
+      display: flex;
+    }
+    .search-expand-input {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-expand-input:focus { border-color: var(--accent); }
+    .search-expand-input::placeholder { color: #475569; }
+    .search-clear-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 4px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .search-clear-btn:hover { color: #f1f5f9; }
+
+    /* Filter pills */
+    .filter-row {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+
+    .pill {
+      flex: 1;
+      padding: 6px 4px;
+      border-radius: 20px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #94a3b8;
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .pill:hover {
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+
+    .pill.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Diff filter pills — always flat-colored like the sidebar badges */
+    #diff-filters .pill[data-diff="E"] {
+      background: var(--easy-dark-bg);
+      color: #4ade80;
+      border-color: transparent;
+    }
+    #diff-filters .pill[data-diff="M"] {
+      background: var(--medium-dark-bg);
+      color: #fbbf24;
+      border-color: transparent;
+    }
+    #diff-filters .pill[data-diff="H"] {
+      background: var(--hard-dark-bg);
+      color: #f87171;
+      border-color: transparent;
+    }
+    /* Selected state: brighter bg + colored ring */
+    #diff-filters .pill[data-diff="E"].active {
+      background: #166534;
+      box-shadow: 0 0 0 2px #4ade80;
+    }
+    #diff-filters .pill[data-diff="M"].active {
+      background: #92400e;
+      box-shadow: 0 0 0 2px #fbbf24;
+    }
+    #diff-filters .pill[data-diff="H"].active {
+      background: #7f1d1d;
+      box-shadow: 0 0 0 2px #f87171;
+    }
+
+    .pill.active-know {
+      background: var(--know);
+      border-color: var(--know);
+      color: #fff;
+    }
+
+    .pill.active-shaky {
+      background: var(--shaky);
+      border-color: var(--shaky);
+      color: #fff;
+    }
+
+    .pill.active-review {
+      background: var(--review);
+      border-color: var(--review);
+      color: #fff;
+    }
+
+    .pill.active-star {
+      background: #fbbf24;
+      border-color: #fbbf24;
+      color: #1e293b;
+    }
+
+    .pill.active-unseen {
+      background: #64748b;
+      border-color: #64748b;
+      color: #fff;
+    }
+
+    /* Results count */
+    .results-count {
+      font-size: 11px;
+      color: #475569;
+      padding: 4px 2px 6px;
+      flex-shrink: 0;
+    }
+
+    /* Question list */
+    .question-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 0 16px;
+    }
+
+    .question-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .question-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .question-list::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 2px;
+    }
+
+    .section-label {
+      padding: 10px 16px 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #475569;
+      position: sticky;
+      top: 0;
+      background: var(--sidebar-bg);
+      z-index: 1;
+    }
+
+    .section-divider {
+      height: 1px;
+      background: #1e293b;
+      margin: 0 16px 2px;
+    }
+
+    .q-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-left: 2px solid transparent;
+    }
+
+    .q-item:hover {
+      background: var(--sidebar-hover);
+    }
+
+    .q-item.selected {
+      background: #1e293b;
+      border-left-color: var(--accent);
+    }
+
+    .q-num {
+      font-size: 10px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: #475569;
+      min-width: 26px;
+      text-align: right;
+    }
+
+    .q-diff-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 4px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .q-diff-badge.E {
+      background: var(--easy-dark-bg);
+      color: #4ade80;
+    }
+
+    .q-diff-badge.M {
+      background: var(--medium-dark-bg);
+      color: #fbbf24;
+    }
+
+    .q-diff-badge.H {
+      background: var(--hard-dark-bg);
+      color: #f87171;
+    }
+
+    .q-title {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      color: #cbd5e1;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      line-height: 1.4;
+    }
+
+    .q-item.selected .q-title {
+      color: #f1f5f9;
+    }
+
+    .q-star {
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #334155;
+    }
+
+    .status-dot.know { background: var(--know); }
+    .status-dot.shaky { background: var(--shaky); }
+    .status-dot.review { background: var(--review); }
+
+    .empty-list {
+      padding: 40px 16px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    /* Tag filter indicator */
+    .tag-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      background: #162032;
+      border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+
+    .tag-filter-bar.hidden {
+      display: none;
+    }
+
+    .tag-filter-label {
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .tag-filter-chip {
+      font-size: 11px;
+      background: var(--accent);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .tag-filter-clear {
+      font-size: 11px;
+      color: #64748b;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .tag-filter-clear:hover {
+      color: #ef4444;
+    }
+
+    /* ── Main Panel ── */
+    .main-panel {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--panel-bg);
+    }
+
+    .main-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .main-panel::-webkit-scrollbar-track {
+      background: var(--panel-bg);
+    }
+
+    .main-panel::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 48px;
+      opacity: 0.5;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      color: #94a3b8;
+      text-align: center;
+      max-width: 280px;
+      line-height: 1.6;
+    }
+
+    .kbd-hint {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .kbd-hint-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    kbd {
+      background: #e2e8f0;
+      color: var(--text-primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      border: 1px solid #cbd5e1;
+    }
+
+    /* Question view */
+    .question-view {
+      padding: 32px 40px;
+    }
+
+    /* Question header */
+    .q-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .hist-nav {
+      display: flex;
+      gap: 4px;
+      margin-right: 8px;
+    }
+    .hist-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: all 0.15s;
+      padding: 0;
+    }
+    .hist-btn:hover:not(:disabled) { background: var(--accent-light); color: var(--accent); border-color: #93c5fd; }
+    .hist-btn:disabled { opacity: 0.3; cursor: default; }
+
+    .q-header-num {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+    }
+
+    .diff-badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+
+    .diff-badge.E {
+      background: var(--easy-bg);
+      color: #15803d;
+    }
+
+    .diff-badge.M {
+      background: var(--medium-bg);
+      color: #b45309;
+    }
+
+    .diff-badge.H {
+      background: var(--hard-bg);
+      color: #b91c1c;
+    }
+
+    .q-header-star {
+      font-size: 14px;
+    }
+
+    .q-header-section {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .q-main-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.35;
+      flex: 1;
+      letter-spacing: -0.01em;
+    }
+
+    /* Flashcard */
+    .flashcard {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+      transition: box-shadow 0.15s;
+    }
+
+    .flashcard:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .card-hidden {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 56px 32px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+
+    .card-hidden:hover {
+      background: #f1f5f9;
+    }
+
+    .card-reveal-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      opacity: 0.6;
+    }
+
+    .card-reveal-text {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .card-reveal-hint {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .card-content {
+      padding: 28px 32px;
+    }
+
+    /* Rating bar — inline in q-header, pushed to the right */
+    .rating-bar {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .rate-btn {
+      padding: 6px 18px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      white-space: nowrap;
+      color: var(--text-muted);
+    }
+    .rate-know { border-left: 3px solid var(--know); }
+    .rate-shaky { border-left: 3px solid var(--shaky); }
+    .rate-review { border-left: 3px solid var(--review); }
+
+    .rate-btn:hover {
+      border-color: #94a3b8;
+      color: var(--text-primary);
+    }
+    .rate-know:hover { border-left-color: var(--know); color: #15803d; }
+    .rate-shaky:hover { border-left-color: var(--shaky); color: #b45309; }
+    .rate-review:hover { border-left-color: var(--review); color: #b91c1c; }
+
+    .rate-btn.active-know {
+      border-color: var(--know);
+      background: #f0fdf4;
+      color: #15803d;
+    }
+
+    .rate-btn.active-shaky {
+      border-color: var(--shaky);
+      background: #fffbeb;
+      color: #b45309;
+    }
+
+    .rate-btn.active-review {
+      border-color: var(--review);
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    /* Meta section */
+    .meta-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      min-width: 60px;
+      padding-top: 3px;
+    }
+
+    .meta-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag-chip {
+      padding: 4px 10px;
+      background: var(--accent-light);
+      color: #1d4ed8;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+
+    .tag-chip:hover {
+      background: #bfdbfe;
+      border-color: #93c5fd;
+    }
+
+    .tag-chip.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .related-chip {
+      padding: 4px 10px;
+      background: #f1f5f9;
+      color: var(--text-primary);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+
+    .related-chip:hover {
+      background: var(--accent-light);
+      color: #1d4ed8;
+      border-color: #93c5fd;
+    }
+
+    /* Resize handle */
+    .resize-handle {
+      width: 5px;
+      cursor: col-resize;
+      background: #1e293b;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      z-index: 10;
+    }
+    .resize-handle:hover,
+    .resize-handle.dragging { background: var(--accent); }
+
+    /* Related questions — full-width stacked */
+    .related-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+    .related-chip {
+      display: block !important;
+      width: 100% !important;
+      white-space: normal !important;
+      text-align: left;
+      box-sizing: border-box;
+    }
+
+    .no-related {
+      font-size: 12px;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* Answer content markdown styles */
+    .answer-content {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-primary);
+    }
+
+    .answer-content h3 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin: 20px 0 8px;
+    }
+
+    .answer-content h3:first-child {
+      margin-top: 0;
+    }
+
+    .answer-content h4 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin: 16px 0 6px;
+    }
+
+    .answer-content p {
+      margin-bottom: 10px;
+    }
+
+    .answer-content ul, .answer-content ol {
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    .answer-content li {
+      margin-bottom: 4px;
+    }
+
+    .answer-content code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      background: #fef2f2;
+      color: #be123c;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .answer-content pre {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+
+    .answer-content pre code {
+      background: transparent;
+      color: #e2e8f0;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .answer-content blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--accent-light);
+      padding: 10px 16px;
+      border-radius: 0 6px 6px 0;
+      margin: 12px 0;
+      color: #1e40af;
+      font-style: normal;
+    }
+
+    .answer-content blockquote p {
+      margin: 0;
+    }
+
+    .answer-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+
+    .answer-content th {
+      background: #f1f5f9;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .answer-content td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+    }
+
+    .answer-content tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    .answer-content strong {
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    /* Hidden util */
+    .hidden {
+      display: none !important;
+    }
+
+
+    /* Topic + mode bar */
+    .topic-mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .topic-select {
+      flex: 1;
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    .topic-select:focus { border-color: var(--accent); }
+
+    .mode-toggle-inline {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .mode-label-sm {
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      border-radius: 100px;
+      background: #334155;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle-switch.on { background: #3b82f6; }
+    .toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s;
+      display: block;
+    }
+    .toggle-switch.on .toggle-knob { transform: translateX(16px); }
+
+    /* In learning mode, highlight the sidebar header slightly */
+    .sidebar.learning-mode .sidebar-header { border-bottom-color: #3b82f6; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <!-- Topic + mode bar -->
+      <div class="topic-mode-bar" id="topic-mode-bar">
+        <button class="search-icon-btn" id="search-icon-btn" onclick="toggleSearch()" title="Search all questions">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </button>
+        <select class="topic-select" id="topic-select" onchange="onTopicChange(this.value)">
+          <option value="technical">Android</option>
+          <option value="behavioral">Behaviour</option>
+          <option value="ds" disabled>Data Structures</option>
+        </select>
+        <div class="mode-toggle-inline">
+          <span class="mode-label-sm">Quiz</span>
+          <button class="toggle-switch" id="toggle-switch" onclick="toggleLearningMode()" title="Switch between Quiz and Learning mode">
+            <span class="toggle-knob"></span>
+          </button>
+          <span class="mode-label-sm">Learn</span>
+        </div>
+      </div>
+
+      <!-- Expanding search overlay -->
+      <div class="search-expand" id="search-expand">
+        <input class="search-expand-input" type="text" id="search-input" placeholder="Search all questions…" autocomplete="off">
+        <button class="search-clear-btn" id="search-clear-btn" onclick="closeSearch()">✕</button>
+      </div>
+
+      <!-- Difficulty filter -->
+      <div class="filter-row" id="diff-filters">
+        <button class="pill" data-diff="E">Easy</button>
+        <button class="pill" data-diff="M">Medium</button>
+        <button class="pill" data-diff="H">Hard</button>
+      </div>
+
+      <!-- Status / signal filters -->
+      <div class="filter-row" id="status-filters">
+        <button class="pill" data-status="know" id="pill-know">🟢 Knew</button>
+        <button class="pill" data-status="shaky" id="pill-shaky">🟡 Confused</button>
+        <button class="pill" data-status="review" id="pill-review">🔴 Forgot</button>
+        <button class="pill" data-status="star" id="pill-star">⭐ Signal</button>
+        <button class="pill" data-status="unseen" id="pill-unseen">⬜ Unseen</button>
+      </div>
+
+      <div class="results-count" id="results-count">0 questions</div>
+    </div>
+
+    <!-- Tag filter indicator -->
+    <div class="tag-filter-bar hidden" id="tag-filter-bar">
+      <span class="tag-filter-label">Tag:</span>
+      <span class="tag-filter-chip" id="tag-filter-chip-label"></span>
+      <button class="tag-filter-clear" id="tag-filter-clear">✕ Clear</button>
+    </div>
+
+    <!-- Question list -->
+    <div class="question-list" id="question-list">
+      <div class="empty-list" id="empty-list-msg">No questions loaded.</div>
+    </div>
+  </aside>
+
+  <div class="resize-handle" id="resize-handle"></div>
+
+  <!-- ── Main Panel ── -->
+  <main class="main-panel" id="main-panel">
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>Select a question</h3>
+      <p>Choose a question from the sidebar to begin your review session.</p>
+      <div class="kbd-hint">
+        <div class="kbd-hint-item"><kbd>J</kbd> / <kbd>K</kbd> Navigate</div>
+        <div class="kbd-hint-item"><kbd>Space</kbd> Reveal</div>
+        <div class="kbd-hint-item"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Rate</div>
+      </div>
+    </div>
+
+    <!-- Question view (hidden until selected) -->
+    <div class="question-view hidden" id="question-view">
+
+      <!-- Header: hist-nav | #1 | Easy | ⭐ | → rating buttons (right) -->
+      <div class="q-header">
+        <div class="hist-nav">
+          <button class="hist-btn" id="hist-back" onclick="historyBack()" disabled title="Back">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="hist-btn" id="hist-fwd" onclick="historyForward()" disabled title="Forward">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <span class="q-header-num" id="qv-num">#1</span>
+        <span class="diff-badge" id="qv-diff">Easy</span>
+        <span class="q-header-star" id="qv-star"></span>
+        <!-- Rating bar lives here, pushes to the right -->
+        <div class="rating-bar hidden" id="rating-bar">
+          <button class="rate-btn rate-know" data-rating="know" id="rate-know">1 · Knew</button>
+          <button class="rate-btn rate-shaky" data-rating="shaky" id="rate-shaky">2 · Confused</button>
+          <button class="rate-btn rate-review" data-rating="review" id="rate-review">3 · Forgot</button>
+        </div>
+      </div>
+
+      <!-- Title row: question title + section tag inline -->
+      <div class="title-row">
+        <div class="q-main-title" id="qv-title"></div>
+        <span class="q-header-section" id="qv-section"></span>
+      </div>
+
+      <!-- Flashcard -->
+      <div class="flashcard" id="flashcard">
+        <!-- Hidden face -->
+        <div class="card-hidden" id="card-hidden-face">
+          <div class="card-reveal-icon">🃏</div>
+          <div class="card-reveal-text">Click to reveal answer</div>
+          <div class="card-reveal-hint">or press <kbd>Space</kbd></div>
+        </div>
+        <!-- Revealed face -->
+        <div class="card-content hidden" id="card-revealed-face">
+          <div class="answer-content" id="answer-content"></div>
+        </div>
+      </div>
+
+      <!-- Meta section (hidden until revealed) -->
+      <div class="meta-section hidden" id="meta-section">
+        <div class="meta-row">
+          <span class="meta-label">Tags</span>
+          <div class="meta-chips" id="meta-tags"></div>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Related</span>
+          <div class="related-list" id="meta-related"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+
+<script>
+  // ─────────────────────────────────────────────
+  const questions = [{"id": "tech-1", "type": "technical", "num": 1, "difficulty": "E", "star": true, "section": "Kotlin Language", "title": "What is the difference between `val` and `var`?", "answer": "**Expected Answer:**\n- `val` = read-only reference (immutable reference, not necessarily immutable object)\n- `var` = mutable reference\n- `val list = mutableListOf(...)` — the reference is fixed but the list contents can change\n\n**Follow-up:** Can a `val` property change its value?\n> Yes — if it's a `var` property inside a `val` object, or a delegated property\n\n**Red flags:**\n- Says `val` means the object is immutable (conflates reference vs. content)\n- Doesn't know about delegated properties at all", "tags": ["kotlin", "basics"], "related": ["tech-2", "tech-5"]}, {"id": "tech-2", "type": "technical", "num": 2, "difficulty": "M", "star": true, "section": "Kotlin Language", "title": "Explain `data class` vs a regular class. When would you use each?", "answer": "**Expected Answer:**\n- `data class` auto-generates: `equals()`, `hashCode()`, `toString()`, `copy()`, `componentN()`\n- Use for DTOs, API response models, UI state objects\n- Avoid for classes with identity semantics (e.g., a `View`, a `ViewModel`)\n\n**Follow-up:** What's the problem with using a `data class` for a `ViewModel`?\n> `equals()` compares field values — two VMs with same state would be \"equal\" even though they're different instances. Also, `copy()` on a VM that holds coroutine scopes is dangerous.\n\n**Red flags:**\n- Doesn't know what `copy()` does\n- Says \"always use data class for everything\"", "tags": ["kotlin", "classes"], "related": ["tech-1", "tech-4"]}, {"id": "tech-3", "type": "technical", "num": 3, "difficulty": "M", "star": true, "section": "Kotlin Language", "title": "What do `apply`, `let`, `run`, `also`, `with` do? When do you reach for each?", "answer": "**Expected Answer:**\n\n| Function | Receiver | Returns | Typical use |\n|---|---|---|---|\n| `apply` | `this` | receiver | Builder-style object config |\n| `also` | `it` | receiver | Side-effects (logging, validation) |\n| `let` | `it` | lambda result | Null checks, transforms |\n| `run` | `this` | lambda result | Object config + compute result |\n| `with` | `this` | lambda result | Non-extension, group ops on object |\n\n**Follow-up:** Show me how you'd use `let` for null safety.\n```kotlin\nuser?.let { sendEmail(it.email) }\n```\n\n**Red flags:**\n- Can only name 2-3, can't explain the receiver/return distinction\n- Uses `!!` instead of `let` for null handling", "tags": ["kotlin", "functional", "null-safety"], "related": ["tech-5"]}, {"id": "tech-4", "type": "technical", "num": 4, "difficulty": "M", "star": false, "section": "Kotlin Language", "title": "Explain sealed classes. How are they different from enums?", "answer": "**Expected Answer:**\n- `sealed class` = closed type hierarchy, subclasses defined in same package/file\n- Each subclass can hold **different data**; enum instances all have the same shape\n- Used for: UI state (`Loading`, `Success(data)`, `Error(message)`), Result types, navigation events\n\n**Follow-up:** Why does `when` on a sealed class not need an `else` branch?\n> Compiler knows all subclasses at compile time → exhaustive check\n\n**Red flags:**\n- Confuses sealed class with abstract class\n- Doesn't know about exhaustive `when`", "tags": ["kotlin", "classes", "state"], "related": ["tech-2", "tech-11"]}, {"id": "tech-5", "type": "technical", "num": 5, "difficulty": "E", "star": false, "section": "Kotlin Language", "title": "Explain Kotlin null safety — `?.`, `!!`, `?:`.", "answer": "**Expected Answer:**\n- `?.` = safe call, returns null if receiver is null\n- `!!` = non-null assertion, throws `NullPointerException` if null\n- `?:` = Elvis operator, provides a default value when null\n\n**Follow-up:** When is `!!` acceptable?\n> Only when you have a guarantee outside the type system (e.g., a field always set by framework before use, test code). Even then, prefer a clear error message.\n\n**Red flags:**\n- Uses `!!` liberally without acknowledging the risk\n- Doesn't know what `?:` is called or does", "tags": ["kotlin", "null-safety"], "related": ["tech-1", "tech-3"]}, {"id": "tech-6", "type": "technical", "num": 6, "difficulty": "M", "star": true, "section": "Android Fundamentals", "title": "Walk me through the Activity lifecycle. What happens on screen rotation?", "answer": "**Expected Answer:**\n- `onCreate → onStart → onResume` (visible, interactive)\n- `onPause → onStop → onDestroy` (going away)\n- On rotation: `onPause → onStop → onDestroy → onCreate → onStart → onResume`\n- `ViewModel` survives rotation; `onSaveInstanceState` for lightweight UI state\n\n**Follow-up:** When does `onDestroy` NOT get called?\n> System process kill (OOM, force stop) — OS kills process directly\n\n**Follow-up:** Difference between `onSaveInstanceState` and `ViewModel` for state?\n> `onSaveInstanceState`: small, serializable data, survives process death. `ViewModel`: survives config changes only, can hold large objects\n\n**Red flags:**\n- Doesn't know ViewModel survives rotation\n- Thinks `onDestroy` is always called", "tags": ["lifecycle", "activity"], "related": ["tech-7", "tech-10"]}, {"id": "tech-7", "type": "technical", "num": 7, "difficulty": "M", "star": true, "section": "Android Fundamentals", "title": "What is MVVM? What belongs in each layer?", "answer": "**Expected Answer:**\n- **Model:** data, business logic, repository\n- **ViewModel:** UI state, exposes `StateFlow`/`LiveData`, calls repository, no Android framework imports ideally\n- **View:** observes state, renders UI, sends events to VM\n\n**Follow-up:** What should NOT be in a ViewModel?\n> Context references (memory leak), View references, any direct UI manipulation\n\n**Follow-up:** How is MVVM different from MVP?\n> MVP has a Presenter with a reference to the View interface. MVVM uses observable state — View observes, no direct reference.\n\n**Red flags:**\n- Puts network calls directly in Activity/Fragment\n- Passes `Context` into `ViewModel` constructor (should use `AndroidViewModel` if needed)", "tags": ["architecture", "mvvm", "viewmodel"], "related": ["tech-6", "tech-21"]}, {"id": "tech-8", "type": "technical", "num": 8, "difficulty": "M", "star": false, "section": "Android Fundamentals", "title": "What is `RecyclerView` recycling? How does `ViewHolder` help?", "answer": "**Expected Answer:**\n- `RecyclerView` keeps a pool of `ViewHolder`s; when a view scrolls off screen it's recycled\n- `ViewHolder` caches `findViewById` calls — avoids repeated inflation and lookup\n- `DiffUtil` / `ListAdapter` calculates minimal changes to avoid full rebind\n\n**Follow-up:** What's the difference between `notifyDataSetChanged()` and `DiffUtil`?\n> `notifyDataSetChanged` redraws everything (no animations, poor performance). `DiffUtil` computes the diff and animates only changed rows.\n\n**Red flags:**\n- Doesn't know what `ViewHolder` solves\n- Has never heard of `DiffUtil`", "tags": ["ui", "recyclerview", "performance"], "related": ["tech-35"]}, {"id": "tech-9", "type": "technical", "num": 9, "difficulty": "E", "star": false, "section": "Android Fundamentals", "title": "What is an ANR? How do you investigate one?", "answer": "**Expected Answer:**\n- ANR = Application Not Responding — triggered when main thread is blocked >5s (or BroadcastReceiver >10s)\n- Caused by: network/DB on main thread, long synchronous computation, deadlock\n- Investigation: pull ANR trace from `data/anr/traces.txt`, use Android Vitals in Play Console, StrictMode in debug\n\n**Follow-up:** How do you prevent ANRs proactively?\n> StrictMode, move IO to coroutines with `Dispatchers.IO`, profile with Systrace/Perfetto\n\n**Red flags:**\n- Can't explain what causes an ANR\n- Has never used StrictMode", "tags": ["performance", "threading"], "related": ["tech-15", "tech-35"]}, {"id": "tech-10", "type": "technical", "num": 10, "difficulty": "M", "star": true, "section": "Android Fundamentals", "title": "What are common memory leak causes in Android? How do you find them?", "answer": "**Expected Answer:**\nCommon causes:\n- Holding `Activity` context in a static field or singleton\n- Anonymous inner class / lambda capturing `Activity`\n- Unregistered listeners/callbacks\n- `Handler` with delayed messages holding Activity reference\n\nDetection:\n- LeakCanary (automatic detection)\n- Android Studio Memory Profiler\n- `weak references` for context in long-lived objects\n\n**Red flags:**\n- Can't name a single leak cause\n- Doesn't know LeakCanary exists", "tags": ["memory", "lifecycle"], "related": ["tech-6", "tech-9"]}, {"id": "tech-11", "type": "technical", "num": 11, "difficulty": "M", "star": true, "section": "Jetpack Compose", "title": "What triggers recomposition? How do you minimize unnecessary recompositions?", "answer": "**Expected Answer:**\n- Recomposition triggered when `State` read inside composable changes\n- Minimize by: hoisting state, using `remember`, `derivedStateOf` for computed values, making lambdas stable, `key()` for list items\n\n**Follow-up:** What is `derivedStateOf` and when would you use it?\n> Derives state from other state, only recomposes when the derived value actually changes (not every time source state changes)\n\n**Red flags:**\n- Thinks Compose re-draws everything like `invalidate()`\n- Doesn't know `remember`", "tags": ["compose", "state", "performance"], "related": ["tech-12", "tech-13"]}, {"id": "tech-12", "type": "technical", "num": 12, "difficulty": "M", "star": false, "section": "Jetpack Compose", "title": "`remember` vs `rememberSaveable` — when does each apply?", "answer": "**Expected Answer:**\n- `remember`: survives recomposition, lost on config change or process death\n- `rememberSaveable`: persists across config changes via `Bundle` (like `onSaveInstanceState`)\n- Use `rememberSaveable` for UI state that should survive rotation (text input, scroll position)\n\n**Red flags:**\n- Uses `rememberSaveable` everywhere \"just in case\"\n- Doesn't know either survives recomposition", "tags": ["compose", "state"], "related": ["tech-11", "tech-6"]}, {"id": "tech-13", "type": "technical", "num": 13, "difficulty": "H", "star": false, "section": "Jetpack Compose", "title": "Explain `LaunchedEffect`, `SideEffect`, `DisposableEffect`.", "answer": "**Expected Answer:**\n\n| Effect | Trigger | Cleanup | Use case |\n|---|---|---|---|\n| `LaunchedEffect(key)` | key changes | coroutine cancelled | Async work tied to state (fetch on ID change) |\n| `SideEffect` | every recomposition | none | Sync Compose state to non-Compose code |\n| `DisposableEffect(key)` | key changes | `onDispose` block | Register/unregister listeners |\n\n**Red flags:**\n- Puts network calls directly in composable body (outside any effect)\n- Doesn't know about cleanup / `onDispose`", "tags": ["compose", "effects", "coroutines"], "related": ["tech-11", "tech-14"]}, {"id": "tech-14", "type": "technical", "num": 14, "difficulty": "M", "star": true, "section": "Concurrency", "title": "What does `suspend` actually mean? What happens when a coroutine suspends?", "answer": "**Expected Answer:**\n- `suspend` marks a function that can be paused without blocking the thread\n- Under the hood: CPS (continuation-passing style) transformation by compiler\n- Thread is released while suspended, resumed on a different thread (or same, depending on dispatcher)\n\n**Follow-up:** Does suspending a coroutine block the thread?\n> No — that's the entire point. Thread is free to do other work.\n\n**Red flags:**\n- Thinks `suspend` = runs on background thread automatically\n- Confuses blocking with suspending", "tags": ["coroutines", "concurrency"], "related": ["tech-15", "tech-16", "tech-17"]}, {"id": "tech-15", "type": "technical", "num": 15, "difficulty": "M", "star": true, "section": "Concurrency", "title": "`Dispatchers.IO` vs `Dispatchers.Default` vs `Dispatchers.Main` — when do you use each?", "answer": "**Expected Answer:**\n- `Main`: UI updates, observing state\n- `IO`: network, database, file I/O (optimized for blocking, large thread pool)\n- `Default`: CPU-intensive work (sorting, JSON parsing, computation) — thread pool = CPU count\n\n**Follow-up:** What's `Dispatchers.Unconfined`?\n> Runs in caller's thread until first suspension, then resumes in whatever thread. Mostly for testing.\n\n**Red flags:**\n- Uses `Dispatchers.IO` for everything including computation\n- Doesn't know `Main` is needed for UI", "tags": ["coroutines", "threading"], "related": ["tech-14", "tech-16"]}, {"id": "tech-16", "type": "technical", "num": 16, "difficulty": "M", "star": false, "section": "Concurrency", "title": "`launch` vs `async` — what's the difference?", "answer": "**Expected Answer:**\n- `launch`: fire-and-forget, returns `Job`\n- `async`: returns `Deferred<T>`, call `.await()` to get result\n- Use `async` when you need the return value or want to run things in parallel and join results\n\n**Follow-up:** How do you run two network calls in parallel and wait for both?\n```kotlin\nval a = async { fetchUserProfile() }\nval b = async { fetchUserFeed() }\nval profile = a.await()\nval feed = b.await()\n```\n\n**Red flags:**\n- Uses `async` + `await` immediately (equivalent to sequential, defeats the purpose)\n- Doesn't know `Job` vs `Deferred`", "tags": ["coroutines", "concurrency"], "related": ["tech-14", "tech-17"]}, {"id": "tech-17", "type": "technical", "num": 17, "difficulty": "M", "star": false, "section": "Concurrency", "title": "What is structured concurrency?", "answer": "**Expected Answer:**\n- Coroutines are scoped — child coroutines inherit parent scope\n- If parent is cancelled, all children are cancelled\n- If child fails (unhandled exception), parent and siblings are cancelled\n- Prevents leaked coroutines\n\n**Follow-up:** What is a `SupervisorScope` and when would you use it?\n> Child failures don't propagate to parent or siblings. Use when you want siblings to be independent (e.g., parallel independent tasks where one failing shouldn't cancel others).\n\n**Red flags:**\n- Doesn't know what structured concurrency is\n- Uses `GlobalScope` (leaks coroutines)", "tags": ["coroutines", "concurrency"], "related": ["tech-14", "tech-16"]}, {"id": "tech-18", "type": "technical", "num": 18, "difficulty": "M", "star": true, "section": "Networking & Data", "title": "How does Retrofit work?", "answer": "**Expected Answer:**\n- Retrofit uses a `ServiceInterface` with annotations (`@GET`, `@POST`, etc.)\n- At runtime, `Proxy` creates implementation, delegates to `OkHttp` for actual HTTP\n- Converters (Gson, Moshi, Kotlinx Serialization) handle JSON ↔ model mapping\n- Can return `Call<T>`, `Flow<T>`, `suspend T` depending on adapter\n\n**Follow-up:** What's the role of `OkHttp` interceptors?\n> Intercept requests/responses — add auth headers, log, retry, modify\n\n**Red flags:**\n- Thinks Retrofit does the HTTP call itself\n- Has never added an interceptor", "tags": ["networking", "retrofit"], "related": ["tech-19", "tech-20"]}, {"id": "tech-19", "type": "technical", "num": 19, "difficulty": "M", "star": false, "section": "Networking & Data", "title": "When would you use Room vs DataStore vs SharedPreferences?", "answer": "**Expected Answer:**\n- `SharedPreferences`: simple key-value, small amount of data, but synchronous and not type-safe\n- `DataStore` (Proto or Preferences): async, coroutines-based, type-safe, replaces SharedPreferences\n- `Room`: relational data, queries, migrations, large datasets\n\n**Follow-up:** What's the problem with `SharedPreferences` on the main thread?\n> `commit()` is synchronous and blocks. `apply()` is async but has no error handling. `DataStore` is fully async.\n\n**Red flags:**\n- Doesn't know DataStore exists\n- Uses SharedPreferences for large datasets", "tags": ["storage", "data"], "related": ["tech-18"]}, {"id": "tech-20", "type": "technical", "num": 20, "difficulty": "H", "star": false, "section": "Networking & Data", "title": "How do you handle auth token refresh without race conditions?", "answer": "**Expected Answer:**\n- `Mutex` or `synchronized` to ensure only one refresh happens at a time\n- OkHttp `Authenticator` interface for automatic retry on 401\n- Queue subsequent requests while refresh is in progress, release all after success\n\n**Red flags:**\n- Doesn't know race conditions are a concern\n- Proposes refreshing token inside every request independently", "tags": ["networking", "concurrency", "security"], "related": ["tech-18", "tech-37"]}, {"id": "tech-21", "type": "technical", "num": 21, "difficulty": "M", "star": true, "section": "System Design (Light)", "title": "Design a news feed screen — walk me through data flow from API to UI.", "answer": "**Expected answer path:**\n1. `ViewModel` calls `Repository`\n2. `Repository` checks cache (in-memory or Room), otherwise calls `ApiService` (Retrofit)\n3. `Repository` returns `Flow<Result<List<FeedItem>>>`\n4. `ViewModel` maps to `UiState` (Loading, Success, Error)\n5. Compose UI observes `StateFlow<UiState>`, renders `LazyColumn` with items\n\n**What I'm listening for:**\n- Do they mention caching?\n- Do they separate concerns (no network call in ViewModel)?\n- Do they handle error state?\n\n**Red flags:**\n- Network call directly in composable or ViewModel\n- No mention of error handling", "tags": ["architecture", "system-design", "mvvm"], "related": ["tech-7", "tech-18", "tech-22"]}, {"id": "tech-22", "type": "technical", "num": 22, "difficulty": "M", "star": false, "section": "System Design (Light)", "title": "How would you paginate a large list?", "answer": "**Expected Answer:**\n- Jetpack Paging 3: `PagingSource` defines how to load pages, `Pager` creates `Flow<PagingData>`, `LazyPagingItems` in Compose\n- Manual: cursor-based or offset-based, load next page when near bottom of list\n\n**Follow-up:** What's the difference between offset and cursor-based pagination?\n> Offset can miss/duplicate items if data changes between pages. Cursor (stable ID) is consistent.\n\n**Red flags:**\n- Has never heard of Paging 3\n- Proposes loading all data and paginating locally", "tags": ["networking", "ui", "system-design"], "related": ["tech-21", "tech-18"]}, {"id": "tech-23", "type": "technical", "num": 23, "difficulty": "M", "star": true, "section": "Testing", "title": "How do you unit test a ViewModel?", "answer": "**Expected Answer:**\n- Use `TestCoroutineDispatcher` / `StandardTestDispatcher` with `runTest`\n- Inject fake/mock repository\n- Assert on `StateFlow` values using `Turbine` or `toList()`\n- `TestCoroutineScheduler` to control time\n\n```kotlin\n@Test\nfun `shows error state when fetch fails`() = runTest {\n    val vm = FeedViewModel(FakeRepository(shouldFail = true))\n    vm.uiState.test {\n        assertEquals(UiState.Loading, awaitItem())\n        assertEquals(UiState.Error, awaitItem())\n    }\n}\n```\n\n**Red flags:**\n- Tests ViewModel without injecting dependencies (can't mock)\n- Has never written a VM test", "tags": ["testing", "coroutines", "viewmodel"], "related": ["tech-24", "tech-7"]}, {"id": "tech-24", "type": "technical", "num": 24, "difficulty": "E", "star": false, "section": "Testing", "title": "Mockito vs MockK — which do you prefer and why?", "answer": "**Expected Answer:**\n- MockK: Kotlin-native, supports `object`, `companion object`, `extension functions`, coroutines. Better for Kotlin projects.\n- Mockito: Java-first, but has `mockito-kotlin` wrapper\n- Preference: MockK for Kotlin codebases\n\n**Red flags:**\n- Has never used either\n- Uses Mockito with Java-style mock setup in Kotlin", "tags": ["testing", "mocking"], "related": ["tech-23"]}, {"id": "tech-25", "type": "technical", "num": 25, "difficulty": "M", "star": true, "section": "Dependency Injection", "title": "What is dependency injection and why use it?", "answer": "**Expected Answer:**\n- DI = providing dependencies to a class rather than having it create them\n- Benefits: testability (swap real for fake), decoupling, single source of truth for object creation\n- Android options: Koin (service locator), Hilt (compile-time DI via Dagger)\n\n**Follow-up:** What's the difference between a service locator and true DI?\n> Service locator: class pulls its dependencies from a global registry (`get()`). True DI: dependencies are pushed in (constructor injection). Koin is technically a service locator.\n\n**Red flags:**\n- Thinks DI = using a framework (not the pattern itself)\n- Can't explain why testability improves with DI", "tags": ["di", "koin", "testing"], "related": ["tech-26", "tech-27"]}, {"id": "tech-26", "type": "technical", "num": 26, "difficulty": "M", "star": false, "section": "Dependency Injection", "title": "In Koin, what is the difference between `single`, `factory`, and `scoped`?", "answer": "**Expected Answer:**\n- `single`: one instance for the entire app lifetime (singleton)\n- `factory`: new instance every time it's requested\n- `scoped`: one instance per scope lifetime (e.g., per screen, per user session)\n\n**Follow-up:** When would you use `factory` over `single`?\n> When each caller needs its own isolated state — e.g., a ViewModel, a presenter that holds screen-specific state\n\n**Follow-up:** What happens if you inject a `factory` dependency into a `single`?\n> The `single` captures the first factory instance and holds it — effectively becomes a singleton. Classic scoping bug.\n\n**Red flags:**\n- Thinks `single` and `factory` behave the same\n- Has never thought about what happens when scopes mismatch", "tags": ["di", "koin"], "related": ["tech-25", "tech-27"]}, {"id": "tech-27", "type": "technical", "num": 27, "difficulty": "M", "star": false, "section": "Dependency Injection", "title": "How do you structure Koin modules in a multi-module Android project?", "answer": "**Expected Answer:**\n- Each feature module exports its own `Module` via a top-level function (e.g., `getFeedKoinModule()`)\n- App module collects and loads all modules: `startKoin { modules(getFeatureAModule(), getFeatureBModule()) }`\n- Avoid cross-module direct dependencies — depend on interfaces defined in contract modules\n\n**Follow-up:** How do you avoid circular module dependencies?\n> Contract/interface modules that neither module owns. Feature A and B both depend on the contract, not each other.\n\n**Red flags:**\n- Puts all DI in one giant module file\n- Doesn't know how `startKoin` works", "tags": ["di", "koin", "modularization"], "related": ["tech-25", "tech-26"]}, {"id": "tech-28", "type": "technical", "num": 28, "difficulty": "M", "star": false, "section": "Jetpack Navigation", "title": "What is Jetpack Navigation and what problem does it solve?", "answer": "**Expected Answer:**\n- Navigation component provides a graph-based approach to screen transitions\n- Handles backstack management, deep links, transition animations, safe args\n- Single `NavController` per nav graph; avoids manual `FragmentTransaction` management\n\n**Follow-up:** How do you pass data between destinations safely?\n> Safe Args plugin generates typed argument classes, avoiding stringly-typed bundles and runtime crashes\n\n**Red flags:**\n- Still manually doing `supportFragmentManager.beginTransaction()`\n- Doesn't know Safe Args exists", "tags": ["navigation", "architecture"], "related": ["tech-29"]}, {"id": "tech-29", "type": "technical", "num": 29, "difficulty": "M", "star": false, "section": "Jetpack Navigation", "title": "How do you handle deep links in Android?", "answer": "**Expected Answer:**\n- Declare `<deepLink>` in nav graph or `<intent-filter>` in manifest\n- Navigation component handles matching URL → destination automatically\n- Handle in `Activity.onCreate` and `onNewIntent` for single-task activities\n\n**Follow-up:** What's the difference between explicit and implicit deep links?\n> Explicit: programmatic navigation via `NavController`. Implicit: triggered by external URL (web, push notification) via intent matching.\n\n**Red flags:**\n- Has never implemented a deep link\n- Doesn't know about `onNewIntent`", "tags": ["navigation", "deep-links"], "related": ["tech-28"]}, {"id": "tech-30", "type": "technical", "num": 30, "difficulty": "M", "star": true, "section": "Background Work", "title": "WorkManager vs Service vs JobScheduler — when do you use each?", "answer": "**Expected Answer:**\n- `WorkManager`: deferrable, guaranteed execution even after app restart or reboot. Best for: sync, upload, cleanup\n- `Service` (Foreground): user-visible long-running work (music playback, location tracking)\n- `JobScheduler`: system-level job scheduling (API 21+); WorkManager wraps it internally\n- Coroutines/threads: for work that only needs to run while app is alive\n\n**Follow-up:** What guarantees does WorkManager provide that a plain coroutine doesn't?\n> WorkManager persists work to a database — survives process death, reboots, and OOM kills. Coroutines die with the process.\n\n**Red flags:**\n- Uses WorkManager for everything including real-time work\n- Doesn't know WorkManager survives process death", "tags": ["background", "workmanager"], "related": ["tech-31", "tech-32"]}, {"id": "tech-31", "type": "technical", "num": 31, "difficulty": "M", "star": false, "section": "Background Work", "title": "How do you chain work in WorkManager?", "answer": "**Expected Answer:**\n```kotlin\nWorkManager.getInstance(context)\n    .beginWith(uploadWorker)\n    .then(notifyWorker)\n    .enqueue()\n```\n- `beginWith` + `then` creates sequential chain\n- `beginWith(listOf(...))` runs multiple workers in parallel then joins\n- Output of one worker can be passed as input to the next via `Data`\n\n**Red flags:**\n- Has only used one-off `enqueue`, never chained\n- Doesn't know workers can pass data to each other", "tags": ["background", "workmanager"], "related": ["tech-30"]}, {"id": "tech-32", "type": "technical", "num": 32, "difficulty": "E", "star": false, "section": "Android Components", "title": "What are the different types of Android Services?", "answer": "**Expected Answer:**\n- **Started service**: runs until it stops itself or is stopped (`startService`)\n- **Bound service**: clients bind to it, lifecycle tied to bound clients (`bindService`)\n- **Foreground service**: shows a persistent notification, higher process priority (music, navigation)\n- **IntentService** (deprecated): was a started service that handles work on a background thread — replaced by WorkManager + coroutines\n\n**Follow-up:** When would you use a foreground service vs WorkManager?\n> Foreground for ongoing user-visible work where the user expects it to keep running (music, navigation). WorkManager for fire-and-forget guaranteed work.\n\n**Red flags:**\n- Doesn't know the difference between started and bound\n- Has never created a foreground service", "tags": ["services", "background"], "related": ["tech-30", "tech-33"]}, {"id": "tech-33", "type": "technical", "num": 33, "difficulty": "E", "star": false, "section": "Android Components", "title": "What is a BroadcastReceiver? What are the two ways to register one?", "answer": "**Expected Answer:**\n- `BroadcastReceiver`: responds to system-wide or app-level broadcast events (network change, boot completed, battery low)\n- **Manifest registration**: receives broadcasts even when app is not running (limited by Android 8+ background restrictions)\n- **Dynamic registration**: register in code (`registerReceiver`), only active while registered, must unregister to avoid leaks\n\n**Follow-up:** What did Android 8 change about broadcast receivers?\n> Manifest-registered receivers for implicit broadcasts are mostly blocked. Apps must use dynamic registration or JobScheduler/WorkManager.\n\n**Red flags:**\n- Doesn't unregister dynamically registered receivers\n- Doesn't know Android 8 restrictions", "tags": ["broadcast", "android-components"], "related": ["tech-32"]}, {"id": "tech-34", "type": "technical", "num": 34, "difficulty": "M", "star": false, "section": "Performance & Profiling", "title": "What is overdraw and how do you fix it?", "answer": "**Expected Answer:**\n- Overdraw = pixel drawn more than once per frame (background stacked under background)\n- Detected with \"Debug GPU Overdraw\" in developer options (red = 4x overdraw)\n- Fix by: removing unnecessary backgrounds, using `clipRect` in custom views, flattening view hierarchy\n\n**Follow-up:** How does Compose help with overdraw vs View system?\n> Compose's layout system naturally avoids overdraw because it composites correctly; also no XML backgrounds stacked unintentionally.\n\n**Red flags:**\n- Has never heard of overdraw\n- Doesn't know developer options has visual debugging", "tags": ["performance", "rendering", "ui"], "related": ["tech-35", "tech-36"]}, {"id": "tech-35", "type": "technical", "num": 35, "difficulty": "M", "star": true, "section": "Performance & Profiling", "title": "What is jank? How do you detect and fix it?", "answer": "**Expected Answer:**\n- Jank = dropped frames, UI stutters when frame takes >16ms (60fps budget)\n- Detection: Android Studio Profiler (CPU trace), Perfetto, `FrameMetrics` API\n- Common causes: main-thread IO, expensive `onDraw`, deep view hierarchy, layout inflation on scroll\n\n**Follow-up:** What tools do you use in production to catch jank?\n> Firebase Performance, custom `FrameMetricsAggregator` reporting, Android Vitals (Play Console)\n\n**Red flags:**\n- Doesn't know the 16ms frame budget\n- Has never profiled an app", "tags": ["performance", "rendering", "profiling"], "related": ["tech-34", "tech-9"]}, {"id": "tech-36", "type": "technical", "num": 36, "difficulty": "M", "star": false, "section": "Performance & Profiling", "title": "How do you optimize app startup time?", "answer": "**Expected Answer:**\n- Measure with: Android Studio Profiler, `reportFullyDrawn()`, Perfetto\n- Fix: move heavy `Application.onCreate()` work to background, lazy-initialize libraries, use App Startup library\n- Avoid: synchronous network calls, heavy DI initialization on main thread\n\n**Follow-up:** What is the App Startup library?\n> Jetpack library that initializes components lazily and in dependency order via a single `ContentProvider`, avoiding multiple providers that each block startup.\n\n**Red flags:**\n- Puts network calls in `Application.onCreate`\n- Has never measured startup time", "tags": ["performance", "startup"], "related": ["tech-35"]}, {"id": "tech-37", "type": "technical", "num": 37, "difficulty": "M", "star": false, "section": "Security", "title": "How do you securely store sensitive data on Android?", "answer": "**Expected Answer:**\n- **Keystore**: store cryptographic keys, never extracted from hardware-backed storage\n- **EncryptedSharedPreferences** / **EncryptedFile** (Jetpack Security): AES-256 encryption backed by Keystore\n- Never store tokens in plain SharedPreferences or files\n- Don't hardcode secrets in source — use server-side token exchange\n\n**Follow-up:** What's wrong with storing auth tokens in SharedPreferences?\n> Unencrypted on rooted devices. On Android 6+, use EncryptedSharedPreferences or Keystore-backed storage.\n\n**Red flags:**\n- Stores tokens in plain SharedPreferences or hardcoded strings\n- Has never heard of Android Keystore", "tags": ["security", "storage"], "related": ["tech-38", "tech-39"]}, {"id": "tech-38", "type": "technical", "num": 38, "difficulty": "M", "star": false, "section": "Security", "title": "What is certificate pinning and when would you use it?", "answer": "**Expected Answer:**\n- Pinning validates the server's certificate matches a known expected certificate/public key\n- Prevents MITM attacks even if a rogue CA is trusted\n- Implemented via OkHttp `CertificatePinner` or `network-security-config.xml`\n\n**Follow-up:** What's the downside of certificate pinning?\n> Certificate rotation — when the server rotates its cert, the app breaks until updated. Requires careful pin management and backup pins.\n\n**Red flags:**\n- Thinks HTTPS alone prevents MITM\n- Has never implemented or heard of certificate pinning", "tags": ["security", "networking"], "related": ["tech-20", "tech-37"]}, {"id": "tech-39", "type": "technical", "num": 39, "difficulty": "E", "star": false, "section": "Security", "title": "What does ProGuard / R8 do?", "answer": "**Expected Answer:**\n- **Minification**: removes unused code and resources\n- **Obfuscation**: renames classes/methods to short names (harder to reverse engineer)\n- **Optimization**: inlines methods, removes dead code\n- R8 is the modern replacement for ProGuard (faster, better optimization, built into AGP)\n\n**Follow-up:** What's a common ProGuard mistake that causes crashes in release builds?\n> Missing `@Keep` annotations or rules for classes accessed via reflection (Gson models, Firebase, Retrofit). Classes get renamed/removed and reflection fails at runtime.\n\n**Red flags:**\n- Has never seen a ProGuard-caused crash\n- Doesn't know the difference between minification and obfuscation", "tags": ["security", "build"], "related": ["tech-37"]}, {"id": "behav-1", "type": "behavioral", "num": 1, "difficulty": "M", "star": true, "section": "Ownership & Accountability", "title": "Tell me about a bug you owned end-to-end — from discovery to resolution.", "answer": "**What to listen for:**\n- Takes full ownership (not \"we fixed it\" without personal action)\n- Describes how they found root cause, not just the symptom fix\n- Mentions communication — did they notify stakeholders, update a post-mortem?\n- Shows systematic approach: reproduce → isolate → fix → verify → prevent\n\n**STAR hint:** \"Walk me through the Situation, what you personally did, and what changed as a result.\"\n\n**Red flags:**\n- Vague \"we\" language with no personal ownership\n- No mention of root cause analysis\n- Fixed the symptom but not the underlying issue\n- Never shipped a bug or claims bugs were always caught in review", "tags": ["ownership", "debugging"], "related": ["behav-2", "behav-3"]}, {"id": "behav-2", "type": "behavioral", "num": 2, "difficulty": "M", "star": true, "section": "Ownership & Accountability", "title": "Tell me about a time you missed a deadline or shipped something broken.", "answer": "**What to listen for:**\n- Owns the miss without blame-shifting to teammates, tools, or circumstances\n- Articulates what they would do differently with the benefit of hindsight\n- Demonstrates a concrete lesson learned that changed their behavior\n- Shows accountability to stakeholders (notified them proactively, provided a revised timeline)\n\n**STAR hint:** \"What was the original deadline, what happened, and what did you personally do to address it?\"\n\n**Red flags:**\n- Blames others entirely (\"the PM changed requirements\", \"CI was flaky\")\n- Minimizes the impact (\"it wasn't a big deal\")\n- No lesson learned or behavior change after the incident\n- Claims they have never missed a deadline or shipped anything broken", "tags": ["ownership", "delivery"], "related": ["behav-1", "behav-11"]}, {"id": "behav-3", "type": "behavioral", "num": 3, "difficulty": "E", "star": false, "section": "Ownership & Accountability", "title": "When something went wrong in production, how did you handle it?", "answer": "**What to listen for:**\n- Stays calm and prioritizes user impact over assigning blame\n- Clear triage order: contain the blast radius → communicate status → diagnose → fix → post-mortem\n- Communicates proactively with stakeholders during the incident, not just after\n- Post-mortem mindset: writes up what happened and how to prevent recurrence\n\n**STAR hint:** \"Tell me about a specific production incident. What did you do first, and what did you do after it was resolved?\"\n\n**Red flags:**\n- Panic-driven response with no prioritization\n- No communication to users or team during the incident\n- No follow-up to prevent recurrence (\"we fixed it and moved on\")\n- Waited for someone else to take the lead on a problem they owned", "tags": ["ownership", "incident"], "related": ["behav-1", "behav-2"]}, {"id": "behav-4", "type": "behavioral", "num": 4, "difficulty": "M", "star": true, "section": "Collaboration & Conflict", "title": "Tell me about a code review where you strongly disagreed with feedback.", "answer": "**What to listen for:**\n- Stays curious — asks \"why\" before defending their approach\n- Separates ego from code; discusses the tradeoffs on merit\n- Finds common ground or an alternative that satisfies both concerns\n- Knows when to escalate calmly (e.g., ask a third engineer) vs. when to commit\n\n**STAR hint:** \"What was the feedback, why did you disagree, and how did the conversation go?\"\n\n**Red flags:**\n- Dismisses the reviewer without genuinely engaging with their concern\n- Becomes defensive or takes the criticism personally\n- Caves immediately without understanding the reviewer's reasoning (\"I just changed it to make them happy\")\n- Has never disagreed with a reviewer (suggests low engagement or conflict-avoidance)", "tags": ["collaboration", "code-review"], "related": ["behav-5", "behav-6"]}, {"id": "behav-5", "type": "behavioral", "num": 5, "difficulty": "M", "star": true, "section": "Collaboration & Conflict", "title": "Describe a time you had friction with a cross-team stakeholder or peer.", "answer": "**What to listen for:**\n- Proactive communication — addressed the friction directly rather than letting it fester\n- Genuinely understands the other side's constraints, incentives, or context\n- Reached resolution without requiring manager intervention\n- Takes partial ownership even if the other party was more at fault\n\n**STAR hint:** \"What was the source of the friction, what did you do to address it, and how did it end?\"\n\n**Red flags:**\n- \"They were just wrong\" — no empathy or attempt to understand the other perspective\n- The conflict was never resolved\n- Required manager escalation for every interpersonal disagreement\n- Blames entirely without acknowledging any role they played", "tags": ["collaboration", "communication"], "related": ["behav-4", "behav-6"]}, {"id": "behav-6", "type": "behavioral", "num": 6, "difficulty": "E", "star": false, "section": "Collaboration & Conflict", "title": "Tell me about a time you had to push back on a product requirement.", "answer": "**What to listen for:**\n- Frames pushback with data or user impact, not just personal preference\n- Proposes a concrete alternative rather than just saying \"no\"\n- Understands when to escalate vs. when to commit even if they disagree\n- Communicates concerns early (before estimation, not after implementation)\n\n**STAR hint:** \"What was the requirement, why did you push back, and what happened?\"\n\n**Red flags:**\n- Always agrees with product regardless of feasibility or quality concerns\n- Pushes back aggressively or emotionally without a constructive alternative\n- No examples of ever pushing back (suggests passivity or conflict-avoidance)\n- Pushes back as a default without engaging with the underlying goal", "tags": ["collaboration", "product"], "related": ["behav-5", "behav-12"]}, {"id": "behav-7", "type": "behavioral", "num": 7, "difficulty": "M", "star": true, "section": "Learning & Adaptability", "title": "Tell me about ramping on an unfamiliar codebase or system.", "answer": "**What to listen for:**\n- Reads existing patterns and conventions before writing new code\n- Asks targeted questions (not \"how does everything work?\")\n- Builds a mental model systematically — understands the why, not just the how\n- Ships something small and validated early before going deeper\n\n**STAR hint:** \"Walk me through your first week or two. What did you do to get oriented?\"\n\n**Red flags:**\n- Jumped straight to writing code without understanding the system\n- Did not read existing patterns and ended up reinventing or breaking conventions\n- Relied entirely on others and never developed independent understanding\n- Skipped reading documentation or tests as a source of understanding", "tags": ["learning", "onboarding"], "related": ["behav-8", "behav-9"]}, {"id": "behav-8", "type": "behavioral", "num": 8, "difficulty": "M", "star": false, "section": "Learning & Adaptability", "title": "Tell me about a technology or tool you had to learn fast under pressure.", "answer": "**What to listen for:**\n- Structured self-learning approach: reads official docs → studies examples → experiments in isolation\n- Timeboxes spikes and knows when to ask for help vs. keep digging\n- Delivered something functional within the constraint, even if not perfect\n- Retained and applied the learning beyond the immediate need\n\n**STAR hint:** \"What was the deadline, what did you not know, and how did you get up to speed?\"\n\n**Red flags:**\n- Cannot recall learning anything new in the last year\n- \"I just Googled it\" without describing any depth of understanding\n- Relied entirely on a colleague to explain everything without personal effort\n- Learned just enough to unblock themselves and never went deeper", "tags": ["learning", "adaptability"], "related": ["behav-7", "behav-9"]}, {"id": "behav-9", "type": "behavioral", "num": 9, "difficulty": "E", "star": false, "section": "Learning & Adaptability", "title": "Tell me about critical feedback you received and how you responded.", "answer": "**What to listen for:**\n- Remembers specific, concrete feedback (not vague generalities)\n- Describes a concrete behavior change they made as a result\n- Follow-through is visible — the change actually stuck over time\n- Shows they actively sought follow-up to confirm improvement\n\n**STAR hint:** \"What exactly did they tell you, how did you feel about it, and what did you change?\"\n\n**Red flags:**\n- Cannot recall specific critical feedback (suggests low self-awareness or feedback-avoidant environment)\n- Defensiveness — explains why the feedback was wrong rather than what they did with it\n- Made a surface change but the underlying behavior didn't stick\n- Feedback was so mild it doesn't really qualify as critical", "tags": ["learning", "growth"], "related": ["behav-8", "behav-15", "behav-16"]}, {"id": "behav-10", "type": "behavioral", "num": 10, "difficulty": "M", "star": true, "section": "Delivery & Prioritization", "title": "When is code good enough to ship?", "answer": "**What to listen for:**\n- Balances quality with delivery — understands this is a context-dependent tradeoff\n- Names concrete factors: test coverage, blast radius, reversibility, user-facing risk\n- Has a framework for tech debt: ship now, document the debt, revisit with a ticket\n- Knows when to refactor before shipping vs. after\n\n**STAR hint:** \"Give me a specific example of a decision you made to ship something that wasn't perfect. What was your reasoning?\"\n\n**Red flags:**\n- Perfectionism that blocks delivery: \"I never ship unless it's fully refactored and tested\"\n- No quality bar at all: \"Just ship it, we can fix it later\" with no risk assessment\n- Cannot articulate what factors they weigh\n- Has never shipped anything they weren't 100% happy with", "tags": ["delivery", "quality"], "related": ["behav-11", "behav-18"]}, {"id": "behav-11", "type": "behavioral", "num": 11, "difficulty": "M", "star": true, "section": "Delivery & Prioritization", "title": "Tell me about a time you had to cut scope to meet a deadline.", "answer": "**What to listen for:**\n- Identifies what to cut vs. what is non-negotiable based on user value and risk\n- Communicates cuts proactively to stakeholders — no surprises\n- Documents deferred work (ticket, comment, TODO with context)\n- Revisits and completes the deferred work after the release\n\n**STAR hint:** \"What was the original scope, what got cut, how did you decide, and who did you tell?\"\n\n**Red flags:**\n- Cut scope without communicating the decision to PM or stakeholders\n- Never revisited the deferred work — it just disappeared\n- Refused to cut anything and either missed the deadline or burned out\n- Let the deadline pass without raising the scope conflict early enough", "tags": ["delivery", "prioritization"], "related": ["behav-10", "behav-12"]}, {"id": "behav-12", "type": "behavioral", "num": 12, "difficulty": "E", "star": false, "section": "Delivery & Prioritization", "title": "How do you handle competing priorities from multiple stakeholders?", "answer": "**What to listen for:**\n- Uses an explicit prioritization framework (user impact, deadline, dependencies)\n- Communicates constraints proactively — surfaces conflicts before they become crises\n- Escalates when genuinely blocked rather than silently context-switching\n- Negotiates timelines and scope openly rather than over-promising\n\n**STAR hint:** \"Give me a specific example where you had two urgent things at once. What did you do?\"\n\n**Red flags:**\n- Tries to do everything simultaneously and burns out or delivers nothing well\n- Picks a priority without communicating the decision to the other stakeholders\n- No escalation path — just figures it out alone until something slips\n- Over-promises to both parties and misses both deadlines", "tags": ["delivery", "communication"], "related": ["behav-11", "behav-5"]}, {"id": "behav-13", "type": "behavioral", "num": 13, "difficulty": "M", "star": true, "section": "Ambiguity & Initiative", "title": "Tell me about a time you drove improvement that nobody asked for.", "answer": "**What to listen for:**\n- Identified the problem themselves — not assigned or prompted by a manager\n- Made a case for why it mattered (time saved, reliability improved, toil reduced)\n- Shipped something concrete, not just filed a ticket and moved on\n- Got buy-in from others without having authority to mandate the change\n\n**STAR hint:** \"What was the problem you noticed, how did you decide it was worth fixing, and what did you actually ship?\"\n\n**Red flags:**\n- Waits to be assigned everything — no examples of self-directed improvement work\n- \"I thought about it but didn't have time\" — ideas without execution\n- Made a change without coordinating with the team it affected\n- The improvement was trivial or only benefited themselves", "tags": ["initiative", "growth"], "related": ["behav-14", "behav-15"]}, {"id": "behav-14", "type": "behavioral", "num": 14, "difficulty": "M", "star": false, "section": "Ambiguity & Initiative", "title": "Tell me about working on a project where requirements were unclear or kept changing.", "answer": "**What to listen for:**\n- Drives clarity proactively — asks questions, writes down assumptions, gets explicit sign-off\n- Adapts the implementation without losing focus on the core goal\n- Keeps stakeholders aligned through the changes so there are no surprises at demo time\n- Designs for change when uncertainty is high (smaller commits, reversible decisions)\n\n**STAR hint:** \"What made the requirements unclear, what did you do about it, and how did the project end up?\"\n\n**Red flags:**\n- Waits passively for clarity — blocked without pushing for resolution\n- Gets blocked on ambiguity and stops making progress\n- Ignores the ambiguity and builds the wrong thing (\"I assumed X and nobody told me otherwise\")\n- Becomes frustrated or disengaged when requirements shift", "tags": ["initiative", "ambiguity"], "related": ["behav-13", "behav-12"]}, {"id": "behav-15", "type": "behavioral", "num": 15, "difficulty": "M", "star": true, "section": "Growth & Self-Awareness", "title": "What's a weakness or blind spot you're actively working on?", "answer": "**What to listen for:**\n- Genuinely self-aware — names a real weakness, not a strength in disguise (\"I care too much\")\n- Specific behavior they are actively changing, not vague intention\n- Concrete evidence of progress (e.g., \"my last three code reviews had no feedback on X\")\n- Understands why the weakness matters for their effectiveness\n\n**STAR hint:** \"What's something a manager or peer has pointed out more than once? What are you doing differently?\"\n\n**Red flags:**\n- No real weakness — interview-polished answer with zero substance\n- Vague answer that doesn't name a specific behavior (\"I'm still learning\")\n- Weakness that would be disqualifying for this role with no mitigation plan\n- Describes a weakness but shows no active effort to address it", "tags": ["growth", "self-awareness"], "related": ["behav-16", "behav-9"]}, {"id": "behav-16", "type": "behavioral", "num": 16, "difficulty": "E", "star": false, "section": "Growth & Self-Awareness", "title": "Looking back on a project, what would you do differently?", "answer": "**What to listen for:**\n- Honest retrospective — names a real decision they regret, not a minor polish item\n- Articulates a concrete alternative approach they would take today\n- Shows growth: the retrospective reflects a lesson they actually internalized\n- Applies the learning to subsequent work (not just insight without transfer)\n\n**STAR hint:** \"Think of a project that felt finished at the time but in retrospect had a decision you'd change. What would you do now?\"\n\n**Red flags:**\n- \"Everything was great\" — no real retrospective or genuine reflection\n- Blames the team, the tools, or the timeline without owning any part of it\n- Cannot identify a specific decision — only vague \"we could have communicated better\"\n- The lesson is one they had to learn but still haven't applied", "tags": ["growth", "retrospective"], "related": ["behav-15", "behav-9"]}, {"id": "behav-17", "type": "behavioral", "num": 17, "difficulty": "M", "star": true, "section": "Company Culture Fit", "title": "Tell me about a time you used data to make or change a decision.", "answer": "**What to listen for:**\n- Defines the right metric upfront — not just \"looked at analytics\"\n- Interprets data critically and doesn't cherry-pick results that confirm their prior view\n- Changes course when data contradicts their assumption (this is the key signal)\n- Understands the limits of the data (sample size, selection bias, lagging indicators)\n\n**STAR hint:** \"What decision were you trying to make, what data did you look at, and did it change your mind?\"\n\n**Red flags:**\n- Relies purely on gut with no data to support technical or product decisions\n- Cannot name a specific metric they tracked or instrument they used\n- Ignores data that contradicts their assumption (\"the metric was wrong\")\n- Uses data only to confirm a decision already made, not to inform it", "tags": ["culture", "data"], "related": ["behav-18", "behav-10"]}, {"id": "behav-18", "type": "behavioral", "num": 18, "difficulty": "M", "star": false, "section": "Company Culture Fit", "title": "Tell me about a time you balanced moving fast with quality.", "answer": "**What to listen for:**\n- Understands the tradeoff explicitly — names what they traded and why it was acceptable\n- Has a framework for assessing risk: blast radius, reversibility, user exposure\n- Ships with appropriate safety nets (feature flags, gradual rollout, monitoring)\n- Revisits quality after the fast ship — doesn't leave tech debt permanently\n\n**STAR hint:** \"What was the pressure to move fast, what did you do to manage the quality risk, and what happened?\"\n\n**Red flags:**\n- Always moves fast and breaks things with no quality guardrails\n- Never ships because \"it's not ready yet\" — perfectionism blocks delivery\n- No framework for deciding which corners to cut vs. which to protect\n- Ships fast and never cleans up the resulting debt", "tags": ["culture", "delivery"], "related": ["behav-17", "behav-10"]}, {"id": "behav-19", "type": "behavioral", "num": 19, "difficulty": "E", "star": false, "section": "Company Culture Fit", "title": "How do you think about customer impact when making technical decisions?", "answer": "**What to listen for:**\n- Centers user experience in technical choices — e.g., \"I cared about startup time because it affects first-session retention\"\n- Thinks through error states and edge cases from the user's perspective, not just the happy path\n- Has used user-facing metrics (crash rate, latency, retention) to guide technical priorities\n- Understands that technical debt and reliability directly affect users\n\n**STAR hint:** \"Give me an example of a technical decision where the right answer was driven by what users would experience.\"\n\n**Red flags:**\n- \"That's the PM's job\" — abdication of any responsibility for user outcomes\n- Purely inward-facing technical thinking: performance matters because it's elegant, not because it affects users\n- No mention of users, customers, or the end experience in technical reasoning\n- Optimizes for developer experience exclusively with no connection to user impact", "tags": ["culture", "product"], "related": ["behav-17", "behav-6"]}];
+  // ─────────────────────────────────────────────
+
+  // ── State ──────────────────────────────────────────────────
+  const state = {
+    activeTab: 'technical',
+    searchQuery: '',
+    diffFilters: new Set(),  // empty = show all
+    statusFilter: null,    // null | 'star' | 'know' | 'shaky' | 'review' | 'unseen'
+    tagFilter: null,       // null | string
+    selectedId: null,
+    cardRevealed: false,
+    learningMode: false,
+    ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
+    history: [],           // array of question IDs visited
+    historyIdx: -1,        // current position in history
+  };
+
+  // ── Persistence ─────────────────────────────────────────────
+  function loadRatings() {
+    try {
+      const raw = localStorage.getItem('interview-ratings');
+      if (raw) state.ratings = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  function saveRatings() {
+    try {
+      localStorage.setItem('interview-ratings', JSON.stringify(state.ratings));
+    } catch (e) {}
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function getRating(id) {
+    return state.ratings[id] || null;
+  }
+
+  function getQuestionById(id) {
+    return questions.find(q => q.id === id) || null;
+  }
+
+  function getFilteredQuestions() {
+    return questions.filter(q => {
+      // When searching, show all types; otherwise filter by active tab
+      if (!state.searchQuery && q.type !== state.activeTab) return false;
+      if (state.diffFilters.size > 0 && !state.diffFilters.has(q.difficulty)) return false;
+      if (state.searchQuery) {
+        const lower = state.searchQuery.toLowerCase();
+        if (!q.title.toLowerCase().includes(lower) &&
+            !q.section.toLowerCase().includes(lower) &&
+            !(q.tags || []).some(t => t.toLowerCase().includes(lower))) {
+          return false;
+        }
+      }
+      if (state.statusFilter) {
+        if (state.statusFilter === 'star') {
+          if (!q.star) return false;
+        } else if (state.statusFilter === 'unseen') {
+          if (getRating(q.id) !== null) return false;
+        } else {
+          if (getRating(q.id) !== state.statusFilter) return false;
+        }
+      }
+      if (state.tagFilter) {
+        if (!(q.tags || []).includes(state.tagFilter)) return false;
+      }
+      return true;
+    });
+  }
+
+  function sortBySectionRelevance(items) {
+    if (items.length <= 2) return items;
+    const ids = new Set(items.map(q => q.id));
+    const intraDegree = id => (items.find(q => q.id === id)?.related || []).filter(r => ids.has(r)).length;
+
+    const placed = [];
+    const remaining = new Set(items.map(q => q.id));
+
+    // Seed: most intra-connections first, then original order as tiebreak
+    const seed = [...remaining].sort((a, b) => intraDegree(b) - intraDegree(a))[0];
+    placed.push(seed);
+    remaining.delete(seed);
+
+    while (remaining.size > 0) {
+      let best = null, bestScore = -1;
+      for (const id of remaining) {
+        const score = (items.find(q => q.id === id)?.related || []).filter(r => placed.includes(r)).length;
+        if (score > bestScore) { bestScore = score; best = id; }
+      }
+      // If no connections found, pick first remaining (preserves original order for disconnected Qs)
+      if (!best) best = [...remaining][0];
+      placed.push(best);
+      remaining.delete(best);
+    }
+
+    const order = new Map(placed.map((id, i) => [id, i]));
+    return [...items].sort((a, b) => order.get(a.id) - order.get(b.id));
+  }
+
+  function getSortedFilteredQuestions() {
+    const filtered = getFilteredQuestions();
+    const groups = groupBySection(filtered); // already applies relevance sort
+    return groups.flatMap(g => g.items);
+  }
+
+  function groupBySection(qs) {
+    const groups = {};
+    const order = [];
+    qs.forEach(q => {
+      if (!groups[q.section]) {
+        groups[q.section] = [];
+        order.push(q.section);
+      }
+      groups[q.section].push(q);
+    });
+    return order.map(sec => ({ section: sec, items: sortBySectionRelevance(groups[sec]) }));
+  }
+
+  // ── Render sidebar list ────────────────────────────────────────
+  function renderList() {
+    const list = document.getElementById('question-list');
+    const countEl = document.getElementById('results-count');
+    const emptyMsg = document.getElementById('empty-list-msg');
+
+    const filtered = getFilteredQuestions();
+    countEl.textContent = `${filtered.length} question${filtered.length !== 1 ? 's' : ''}`;
+
+    // Update dropdown option label with count
+    const opt = document.querySelector(`#topic-select option[value="${state.activeTab}"]`);
+    if (opt) {
+      const base = state.activeTab === 'technical' ? 'Android' : 'Behaviour';
+      opt.textContent = `${base} (${filtered.length})`;
+    }
+
+    // Clear
+    list.innerHTML = '';
+
+    if (filtered.length === 0) {
+      const div = document.createElement('div');
+      div.className = 'empty-list';
+      div.textContent = questions.length === 0 ? 'No questions loaded.' : 'No questions match your filters.';
+      list.appendChild(div);
+      return;
+    }
+
+    const groups = groupBySection(filtered);
+
+    groups.forEach(({ section, items }) => {
+      const label = document.createElement('div');
+      label.className = 'section-label';
+      label.textContent = state.searchQuery ? `[${items[0].type === 'technical' ? 'Android' : 'Behaviour'}] ${section}` : section;
+      list.appendChild(label);
+
+      const divider = document.createElement('div');
+      divider.className = 'section-divider';
+      list.appendChild(divider);
+
+      items.forEach(q => {
+        const rating = getRating(q.id);
+        const item = document.createElement('div');
+        item.className = 'q-item' + (q.id === state.selectedId ? ' selected' : '');
+        item.dataset.id = q.id;
+        item.innerHTML = `
+          <span class="q-num">#${q.num}</span>
+          <span class="q-diff-badge ${q.difficulty}">${q.difficulty}</span>
+          <span class="q-title">${escapeHtml(q.title)}</span>
+          ${q.star ? '<span class="q-star">⭐</span>' : ''}
+          <span class="status-dot ${rating || ''}"></span>
+        `;
+        item.addEventListener('click', () => selectQuestion(q.id));
+        list.appendChild(item);
+      });
+    });
+  }
+
+  // ── Select a question ──────────────────────────────────────────
+  function selectQuestion(id) {
+    // Push to history (only if not navigating via history buttons)
+    if (!state._historyNav) {
+      // Truncate forward history
+      state.history = state.history.slice(0, state.historyIdx + 1);
+      state.history.push(id);
+      state.historyIdx = state.history.length - 1;
+    }
+    state._historyNav = false;
+
+    state.selectedId = id;
+    state.cardRevealed = false;
+    renderList();
+    renderMainPanel();
+    // Auto-reveal in learning mode
+    if (state.learningMode) {
+      setTimeout(() => revealCard(), 0);
+    }
+    // Scroll selected into view
+    const el = document.querySelector('.q-item.selected');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+    updateHistoryButtons();
+  }
+
+  // ── Render main panel ──────────────────────────────────────────
+  function renderMainPanel() {
+    const emptyState = document.getElementById('empty-state');
+    const questionView = document.getElementById('question-view');
+
+    if (!state.selectedId) {
+      emptyState.classList.remove('hidden');
+      questionView.classList.add('hidden');
+      return;
+    }
+
+    const q = getQuestionById(state.selectedId);
+    if (!q) {
+      emptyState.classList.remove('hidden');
+      questionView.classList.add('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+    questionView.classList.remove('hidden');
+
+    // Header
+    document.getElementById('qv-num').textContent = `#${q.num}`;
+    const diffBadge = document.getElementById('qv-diff');
+    diffBadge.className = `diff-badge ${q.difficulty}`;
+    const diffMap = { E: 'Easy', M: 'Medium', H: 'Hard' };
+    diffBadge.textContent = diffMap[q.difficulty] || q.difficulty;
+    document.getElementById('qv-star').textContent = q.star ? '⭐' : '';
+    document.getElementById('qv-section').textContent = q.section;
+    document.getElementById('qv-title').textContent = q.title;
+
+    // Flashcard faces
+    const hiddenFace = document.getElementById('card-hidden-face');
+    const revealedFace = document.getElementById('card-revealed-face');
+    const ratingBar = document.getElementById('rating-bar');
+    const metaSection = document.getElementById('meta-section');
+
+    if (state.cardRevealed) {
+      hiddenFace.classList.add('hidden');
+      revealedFace.classList.remove('hidden');
+      ratingBar.classList.remove('hidden');
+      metaSection.classList.remove('hidden');
+
+      // Render answer
+      document.getElementById('answer-content').innerHTML = typeof marked !== 'undefined'
+        ? marked.parse(q.answer || '')
+        : `<p>${escapeHtml(q.answer || '')}</p>`;
+
+      // Render tags
+      const tagsEl = document.getElementById('meta-tags');
+      tagsEl.innerHTML = '';
+      (q.tags || []).forEach(tag => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip' + (state.tagFilter === tag ? ' active' : '');
+        chip.textContent = tag;
+        chip.addEventListener('click', () => filterByTag(tag));
+        tagsEl.appendChild(chip);
+      });
+      if ((q.tags || []).length === 0) {
+        tagsEl.innerHTML = '<span class="no-related">None</span>';
+      }
+
+      // Render related
+      const relatedEl = document.getElementById('meta-related');
+      relatedEl.innerHTML = '';
+      (q.related || []).forEach(relId => {
+        const rel = getQuestionById(relId);
+        if (!rel) return;
+        const chip = document.createElement('span');
+        chip.className = 'related-chip';
+        chip.textContent = `#${rel.num} — ${rel.title}`;
+        chip.addEventListener('click', () => selectQuestion(relId));
+        relatedEl.appendChild(chip);
+      });
+      if ((q.related || []).length === 0) {
+        relatedEl.innerHTML = '<span class="no-related">None</span>';
+      }
+
+      // Rating state
+      updateRatingButtons(q.id);
+    } else {
+      hiddenFace.classList.remove('hidden');
+      revealedFace.classList.add('hidden');
+      ratingBar.classList.add('hidden');
+      metaSection.classList.add('hidden');
+    }
+  }
+
+  function revealCard() {
+    if (state.cardRevealed) return;
+    if (!state.selectedId) return;
+    state.cardRevealed = true;
+    renderMainPanel();
+  }
+
+  function toggleLearningMode() {
+    state.learningMode = !state.learningMode;
+    const btn = document.getElementById('toggle-switch');
+    const sidebar = document.querySelector('.sidebar');
+    if (btn) btn.classList.toggle('on', state.learningMode);
+    if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
+
+    // If switching TO learning mode and a question is already selected, reveal it
+    if (state.learningMode && state.selectedId) {
+      revealCard();
+    }
+  }
+
+  function updateRatingButtons(id) {
+    const rating = getRating(id);
+    ['know', 'shaky', 'review'].forEach(r => {
+      const btn = document.getElementById(`rate-${r}`);
+      btn.className = 'rate-btn' + (rating === r ? ` active-${r}` : '');
+    });
+  }
+
+  function setRating(id, rating) {
+    const current = getRating(id);
+    if (current === rating) {
+      // Toggle off
+      delete state.ratings[id];
+    } else {
+      state.ratings[id] = rating;
+    }
+    saveRatings();
+    updateRatingButtons(id);
+    // Re-render list to update dot
+    renderList();
+  }
+
+  // ── Tag filter ─────────────────────────────────────────────────
+  function filterByTag(tag) {
+    if (state.tagFilter === tag) {
+      state.tagFilter = null;
+    } else {
+      state.tagFilter = tag;
+    }
+    updateTagFilterBar();
+    renderList();
+    renderMainPanel(); // refresh chips highlight
+  }
+
+  function updateTagFilterBar() {
+    const bar = document.getElementById('tag-filter-bar');
+    const chipLabel = document.getElementById('tag-filter-chip-label');
+    if (state.tagFilter) {
+      bar.classList.remove('hidden');
+      chipLabel.textContent = state.tagFilter;
+    } else {
+      bar.classList.add('hidden');
+    }
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────
+  function navigateList(direction) {
+    const filtered = getSortedFilteredQuestions();
+    if (filtered.length === 0) return;
+    let idx = filtered.findIndex(q => q.id === state.selectedId);
+    if (idx === -1) {
+      idx = direction === 1 ? 0 : filtered.length - 1;
+    } else {
+      idx = (idx + direction + filtered.length) % filtered.length;
+    }
+    selectQuestion(filtered[idx].id);
+  }
+
+  function onTopicChange(value) {
+    if (value === 'ds') return; // disabled
+    state.activeTab = value;
+    state.selectedId = null;
+    state.cardRevealed = false;
+    renderList();
+    renderMainPanel(null);
+  }
+
+  // ── History navigation ─────────────────────────────────────────
+  function historyBack() {
+    if (state.historyIdx <= 0) return;
+    state.historyIdx--;
+    state._historyNav = true;
+    selectQuestion(state.history[state.historyIdx]);
+    updateHistoryButtons();
+  }
+
+  function historyForward() {
+    if (state.historyIdx >= state.history.length - 1) return;
+    state.historyIdx++;
+    state._historyNav = true;
+    selectQuestion(state.history[state.historyIdx]);
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    const backBtn = document.getElementById('hist-back');
+    const fwdBtn = document.getElementById('hist-fwd');
+    if (backBtn) backBtn.disabled = state.historyIdx <= 0;
+    if (fwdBtn) fwdBtn.disabled = state.historyIdx >= state.history.length - 1;
+  }
+
+  // ── Search toggle ──────────────────────────────────────────────
+  function toggleSearch() {
+    const expand = document.getElementById('search-expand');
+    const iconBtn = document.getElementById('search-icon-btn');
+    const input = document.getElementById('search-input');
+    if (expand.classList.contains('open')) {
+      closeSearch();
+    } else {
+      expand.classList.add('open');
+      iconBtn.classList.add('active');
+      setTimeout(() => input.focus(), 50);
+    }
+  }
+
+  function closeSearch() {
+    const expand = document.getElementById('search-expand');
+    const iconBtn = document.getElementById('search-icon-btn');
+    const input = document.getElementById('search-input');
+    expand.classList.remove('open');
+    iconBtn.classList.remove('active');
+    input.value = '';
+    state.searchQuery = '';
+    renderList();
+  }
+
+  // ── Event wiring ───────────────────────────────────────────────
+  function init() {
+    loadRatings();
+
+    // Topic dropdown
+    const topicSelect = document.getElementById('topic-select');
+    if (topicSelect) {
+      topicSelect.value = state.activeTab;
+    }
+
+    // Search
+    document.getElementById('search-input').addEventListener('input', e => {
+      state.searchQuery = e.target.value.trim();
+      renderList();
+    });
+
+    // Difficulty filter — multi-select, click to toggle
+    document.querySelectorAll('#diff-filters .pill[data-diff]').forEach(btn => {
+      const diff = btn.dataset.diff;
+      if (!diff || diff === 'all') return;
+      btn.addEventListener('click', () => {
+        if (state.diffFilters.has(diff)) {
+          state.diffFilters.delete(diff);
+          btn.classList.remove('active');
+        } else {
+          state.diffFilters.add(diff);
+          btn.classList.add('active');
+        }
+        renderList();
+      });
+    });
+
+    // Status filter (single select, click again to deselect)
+    document.querySelectorAll('#status-filters .pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.status;
+        if (state.statusFilter === val) {
+          state.statusFilter = null;
+        } else {
+          state.statusFilter = val;
+        }
+        // Update all pill classes
+        document.querySelectorAll('#status-filters .pill').forEach(b => {
+          b.classList.remove('active', 'active-know', 'active-shaky', 'active-review', 'active-star', 'active-unseen');
+        });
+        if (state.statusFilter) {
+          const activeMap = {
+            star: 'active-star',
+            know: 'active-know',
+            shaky: 'active-shaky',
+            review: 'active-review',
+            unseen: 'active-unseen',
+          };
+          btn.classList.add(activeMap[state.statusFilter] || 'active');
+        }
+        renderList();
+      });
+    });
+
+    // Tag filter clear
+    document.getElementById('tag-filter-clear').addEventListener('click', () => {
+      state.tagFilter = null;
+      updateTagFilterBar();
+      renderList();
+      renderMainPanel();
+    });
+
+    // Flashcard reveal
+    document.getElementById('card-hidden-face').addEventListener('click', revealCard);
+
+    // Rating buttons
+    ['know', 'shaky', 'review'].forEach(r => {
+      document.getElementById(`rate-${r}`).addEventListener('click', () => {
+        if (state.selectedId) setRating(state.selectedId, r);
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      // Don't fire when typing in search
+      if (e.target === document.getElementById('search-input')) return;
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown':
+          e.preventDefault();
+          navigateList(1);
+          break;
+        case 'k':
+        case 'ArrowUp':
+          e.preventDefault();
+          navigateList(-1);
+          break;
+        case ' ':
+          e.preventDefault();
+          revealCard();
+          break;
+        case '1':
+          if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'know');
+          break;
+        case '2':
+          if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'shaky');
+          break;
+        case '3':
+          if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'review');
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          historyBack();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          historyForward();
+          break;
+        case 'Escape':
+          closeSearch();
+          break;
+      }
+    });
+
+    renderList();
+    renderMainPanel();
+  }
+
+  // ── Utility ────────────────────────────────────────────────────
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Resizable Sidebar ──────────────────────────────────────────
+  function initResize() {
+    const handle = document.getElementById('resize-handle');
+    const sidebar = document.querySelector('.sidebar');
+    if (!handle || !sidebar) return;
+
+    // Restore saved width
+    const saved = localStorage.getItem('sidebar-width');
+    if (saved) sidebar.style.width = saved + 'px';
+
+    let startX, startW;
+
+    handle.addEventListener('mousedown', e => {
+      startX = e.clientX;
+      startW = sidebar.offsetWidth;
+      handle.classList.add('dragging');
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+
+      const onMove = e => {
+        const dx = e.clientX - startX;
+        const newW = Math.min(520, Math.max(220, startW + dx));
+        sidebar.style.width = newW + 'px';
+      };
+
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        localStorage.setItem('sidebar-width', sidebar.offsetWidth);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => { init(); initResize(); });
+</script>
+</body>
+</html>
