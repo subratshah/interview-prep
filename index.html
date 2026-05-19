@@ -4,6 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Prep</title>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('interview-theme');
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+        var zoomRaw = localStorage.getItem('interview-ui-zoom');
+        var zoom = zoomRaw != null ? parseFloat(zoomRaw) : 1;
+        if (zoom >= 0.75 && zoom <= 1.75) document.documentElement.style.zoom = String(zoom);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -48,8 +64,35 @@
           <span class="mode-label-sm">Quiz</span>
         </div>
       </div>
-      <button type="button" id="reset-memory-btn" class="reset-btn" title="Reset all questions to unseen">
-        <span class="reset-icon">↺</span>
+      <div class="toggle-wrapper">
+        <div class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme">
+          <div class="minimal-track">
+            <span class="minimal-text">Light</span>
+            <div class="minimal-knob">
+              <div class="minimal-icon-container">
+                <div class="minimal-sun-icon">
+                  <div class="sun-center"></div>
+                  <div class="sun-ray sun-ray-1"></div>
+                  <div class="sun-ray sun-ray-2"></div>
+                  <div class="sun-ray sun-ray-3"></div>
+                  <div class="sun-ray sun-ray-4"></div>
+                  <div class="sun-ray sun-ray-5"></div>
+                  <div class="sun-ray sun-ray-6"></div>
+                  <div class="sun-ray sun-ray-7"></div>
+                  <div class="sun-ray sun-ray-8"></div>
+                </div>
+                <div class="minimal-moon-icon">
+                  <div class="moon-crescent"></div>
+                  <div class="moon-star moon-star-1"></div>
+                  <div class="moon-star moon-star-2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" title="Reset all questions to unseen">
+        RESET
       </button>
     </div>
   </header>

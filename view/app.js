@@ -30,6 +30,8 @@ const state = {
   selectedId: null,
   cardRevealed: false,
   learningMode: true,
+  theme: 'dark',         // resolved: 'light' | 'dark'
+  uiZoom: 1.5,
   ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
   seen: new Set(),       // IDs of questions ever opened
   history: [],           // array of question IDs visited
@@ -37,6 +39,213 @@ const state = {
 };
 
 const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
+const THEME_STORAGE_KEY = 'interview-theme';
+const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
+const ZOOM_LEVELS = [0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5];
+const ZOOM_DEFAULT = 1.5;
+const ZOOM_DEFAULT_PCT = Math.round(ZOOM_DEFAULT * 100);
+
+// ── UI zoom ───────────────────────────────────────────────────
+function getStoredZoom() {
+  try {
+    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
+    if (raw == null) return null;
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return null;
+    return ZOOM_LEVELS.reduce((best, level) =>
+      Math.abs(level - n) < Math.abs(best - n) ? level : best
+    );
+  } catch (e) {
+    return null;
+  }
+}
+
+function clampZoom(level) {
+  const min = ZOOM_LEVELS[0];
+  const max = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+  return Math.min(max, Math.max(min, level));
+}
+
+function applyZoom(level, { persist = false } = {}) {
+  const snapped = ZOOM_LEVELS.includes(level)
+    ? level
+    : ZOOM_LEVELS.reduce((best, z) =>
+        Math.abs(z - level) < Math.abs(best - level) ? z : best
+      );
+  const zoom = clampZoom(snapped);
+  state.uiZoom = zoom;
+  document.documentElement.style.zoom = String(zoom);
+
+  if (persist) {
+    try {
+      localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
+    } catch (e) {}
+  }
+
+  syncZoomUI();
+}
+
+function stepZoom(delta) {
+  const current = state.uiZoom ?? ZOOM_DEFAULT;
+  let idx = ZOOM_LEVELS.indexOf(current);
+  if (idx < 0) {
+    idx = ZOOM_LEVELS.findIndex(z => z >= current);
+    if (idx < 0) idx = ZOOM_LEVELS.length - 1;
+  }
+  const next = ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, Math.max(0, idx + delta))];
+  if (next === current) return;
+  applyZoom(next, { persist: true });
+}
+
+function resetZoom() {
+  applyZoom(ZOOM_DEFAULT, { persist: true });
+}
+
+function syncZoomUI() {
+  const label = document.getElementById('zoom-reset');
+  if (!label) return;
+  const pct = Math.round((state.uiZoom ?? ZOOM_DEFAULT) * 100);
+  label.textContent = `${pct}%`;
+  label.setAttribute('aria-label', `Zoom ${pct}%. Click to reset to ${ZOOM_DEFAULT_PCT}%`);
+  label.title = pct === ZOOM_DEFAULT_PCT
+    ? `Zoom ${ZOOM_DEFAULT_PCT}%`
+    : `Reset zoom to ${ZOOM_DEFAULT_PCT}% (currently ${pct}%, ⌘0)`;
+
+  const outBtn = document.getElementById('zoom-out');
+  const inBtn = document.getElementById('zoom-in');
+  if (outBtn) outBtn.disabled = (state.uiZoom ?? ZOOM_DEFAULT) <= ZOOM_LEVELS[0];
+  if (inBtn) inBtn.disabled = (state.uiZoom ?? ZOOM_DEFAULT) >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+}
+
+function initZoom() {
+  applyZoom(getStoredZoom() ?? ZOOM_DEFAULT);
+
+  document.getElementById('zoom-out')?.addEventListener('click', () => stepZoom(-1));
+  document.getElementById('zoom-in')?.addEventListener('click', () => stepZoom(1));
+  document.getElementById('zoom-reset')?.addEventListener('click', () => {
+    if ((state.uiZoom ?? ZOOM_DEFAULT) !== ZOOM_DEFAULT) resetZoom();
+  });
+}
+
+function handleZoomShortcut(e) {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return false;
+  if (isShortcutSuppressedTarget(e.target)) return false;
+
+  const key = e.key;
+  if (key === '=' || key === '+') {
+    e.preventDefault();
+    stepZoom(1);
+    return true;
+  }
+  if (key === '-' || key === '_') {
+    e.preventDefault();
+    stepZoom(-1);
+    return true;
+  }
+  if (key === '0') {
+    e.preventDefault();
+    resetZoom();
+    return true;
+  }
+  return false;
+}
+
+// ── Theme ─────────────────────────────────────────────────────
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function getStoredTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch (e) {}
+  return null;
+}
+
+function getResolvedTheme() {
+  return getStoredTheme() || getSystemTheme();
+}
+
+function getMermaidTheme() {
+  return getResolvedTheme() === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(theme, { persist = false } = {}) {
+  const resolved = theme === 'light' || theme === 'dark' ? theme : getSystemTheme();
+  state.theme = resolved;
+  document.documentElement.dataset.theme = resolved;
+
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, resolved);
+    } catch (e) {}
+  }
+
+  if (typeof mermaid !== 'undefined') {
+    mermaid.initialize({ startOnLoad: false, theme: getMermaidTheme() });
+  }
+
+  syncThemeToggleUI();
+}
+
+function toggleTheme() {
+  const current = getResolvedTheme();
+  const next = current === 'light' ? 'dark' : 'light';
+  console.log('Toggling theme from', current, 'to', next); // Debug log
+  console.log('Theme toggle function called');
+  applyTheme(next, { persist: true });
+  if (state.selectedId) renderMainPanel();
+}
+
+function syncThemeToggleUI() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) {
+    console.log('Theme toggle button not found');
+    return;
+  }
+  
+  const currentTheme = getResolvedTheme();
+  const isLight = currentTheme === 'light';
+  const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+  btn.setAttribute('aria-label', label);
+  btn.title = label;
+  
+  // Update minimal toggle visual state based on theme
+  const themeToggle = document.getElementById('theme-toggle');
+  const textElement = themeToggle?.querySelector('.minimal-text');
+  
+  if (themeToggle && textElement) {
+    const isDark = currentTheme === 'dark';
+    console.log('Syncing theme toggle UI - current theme:', currentTheme, 'isDark:', isDark);
+    
+    if (isDark) {
+      themeToggle.classList.add('active');
+      textElement.textContent = 'Dark';
+    } else {
+      themeToggle.classList.remove('active');
+      textElement.textContent = 'Light';
+    }
+    
+    console.log('Theme toggle classes:', themeToggle.classList.toString());
+    console.log('Text content:', textElement.textContent);
+  } else {
+    console.log('Theme toggle elements not found:', { themeToggle: !!themeToggle, textElement: !!textElement });
+  }
+}
+
+function initTheme() {
+  applyTheme(getResolvedTheme());
+
+  const mq = window.matchMedia('(prefers-color-scheme: light)');
+  mq.addEventListener('change', () => {
+    if (getStoredTheme()) return;
+    applyTheme(getSystemTheme());
+    if (state.selectedId) renderMainPanel();
+  });
+
+  // Theme toggle uses onclick attribute in HTML
+}
 
 // ── Persistence ─────────────────────────────────────────────
 function loadRatings() {
@@ -1591,9 +1800,8 @@ function wireResetMemoryButton() {
 }
 
 function init() {
-  if (typeof mermaid !== 'undefined') {
-    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-  }
+  initTheme();
+  initZoom();
 
   questions = QuestionDB.all();
 
@@ -1757,6 +1965,8 @@ function init() {
   wireExportImport();
 
   document.addEventListener('keydown', e => {
+    if (handleZoomShortcut(e)) return;
+
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
       e.preventDefault();
       toggleCmdPalette();

@@ -2,6 +2,8 @@
 
 These files are **HTML snippets** included into `index.html` by `scripts/compose-html.mjs` via `index.template.html`. Edit fragments and the template, then run `node scripts/compose-html.mjs`. Use `node scripts/compose-html.mjs --check` in CI to ensure `index.html` is up to date.
 
+To preview changes locally, run `./start-server.sh` from the repo root and open http://localhost:8888.
+
 | File | Responsibility | Notable IDs / hooks |
 |------|----------------|----------------------|
 | `topbar.html` | Topic tabs, list filter search, command palette launcher, hidden `topic-select` sync, Learn/Quiz toggle | `topic-tabs`, `search-input`, `cmd-launch`, `topic-select`, `toggle-switch` |

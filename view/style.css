@@ -8,42 +8,207 @@
 }
 
 :root {
+  /* Surfaces */
   --bg: #0a0a0a;
   --surface: #111;
   --surface2: #181818;
+  --surface3: #1f1f1f;
   --surface-elevated: #1c1c1c;
+
+  /* Text - Improved contrast for accessibility */
+  --text: #f0f0f0; /* Increased brightness for better contrast */
+  --text-secondary: #b0b0b0; /* Improved from #888 for better contrast */
+  --muted: #a0a0a0; /* Improved from #888 for better readability */
+  --dim: #808080; /* Improved from #555 for better contrast */
+  --dimmer: #606060; /* Improved from #3a3a3a for accessibility */
+  --strong-text: #ffffff; /* Pure white for maximum contrast */
+
+  /* Borders & chrome */
   --border: #1e1e1e;
   --border2: #252525;
-  --text: #e0e0e0;
-  --muted: #888;
-  --dim: #555;
-  --dimmer: #3a3a3a;
+  --hover-border: #3a3a3a;
+  --topbar-shadow: rgba(0, 0, 0, 0.35);
+
+  /* Accent */
   --accent: #3b82f6;
+  --accent-gradient-end: #60a5fa;
   --accent-soft: #79b8ff;
   --accent-bg: #0d1b2e;
   --accent-bg-strong: #1a2e50;
+  --accent-border: #1e3a5a;
+  --accent-border-soft: rgba(96, 165, 250, 0.35);
+  --accent-inset: rgba(96, 165, 250, 0.12);
   --ring: rgba(59, 130, 246, 0.35);
 
+  /* Semantic difficulty */
   --easy: #4ec994;
   --medium: #ddb456;
   --hard: #f87171;
   --easy-bg: #0d2a1a;
   --medium-bg: #2a2010;
   --hard-bg: #2a1010;
+  --easy-border: #1a4a2a;
+  --medium-border: #4a3a10;
+  --hard-border: #4a1a1a;
 
+  /* Memory scale */
   --mem-lit: #c8c8c8;
   --mem-mid: #888;
   --mem-dark: #444;
   --dot-empty: #2a2a2a;
-
   --knew-bg: #0d2a1a;
   --shaky-bg: #2a2010;
   --forgot-bg: #2a1010;
   --imp: #f59e0b;
+  --imp-bg: rgba(245, 158, 11, 0.12);
+  --imp-border: rgba(245, 158, 11, 0.35);
+
+  /* Selection & code */
+  --code-bg: #0d1117;
+  --selected-bg-start: #15202e;
+  --selected-bg-end: #141a22;
+  --selected-border: #2a4a72;
+  --selected-shadow: rgba(59, 130, 246, 0.15);
+  --selected-title: #eaf2ff;
+  --unseen-title: #c4c4c4;
+  --starred-bg: #1a1e28;
+  --starred-border: #2a3a55;
+
+  /* Gradients */
+  --cmd-launch-gradient-start: #141414;
+  --cmd-launch-gradient-end: #101010;
+  --cmd-panel-gradient-start: #1a1a1a;
+  --cmd-panel-gradient-end: #141414;
+
+  /* Controls */
+  --toggle-track: #2a2a2a;
+  --toggle-track-hover: #444;
+  --toggle-on-border: #274a7a;
+  --toggle-knob: #f1f5f9;
+  --toggle-knob-on: #fff;
+  --toggle-knob-shadow: rgba(0, 0, 0, 0.4);
+
+  /* Overlays */
+  --overlay-bg: rgba(0, 0, 0, 0.58);
+  --cmd-footer-bg: rgba(0, 0, 0, 0.25);
+  --panel-shadow: 0 28px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --elevation-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+
 
   --font-sans: 'Inter', -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  
+  /* Notion text colors for accessibility */
+  --notion-body-text: var(--text-secondary); /* Use consistent secondary text color */
+  --notion-list-text: var(--text-secondary); /* Use consistent secondary text color */
+  
   color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f8f9fa;
+  --surface2: #f1f3f4;
+  --surface3: #e8eaed;
+  --surface-elevated: #ffffff;
+
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --muted: #6b7280;
+  --dim: #9ca3af;
+  --dimmer: #d1d5db;
+  --strong-text: #111827;
+
+  --border: #e5e7eb;
+  --border2: #d1d5db;
+  --hover-border: #9ca3af;
+  --topbar-shadow: rgba(0, 0, 0, 0.06);
+
+  --accent: #2563eb;
+  --accent-gradient-end: #3b82f6;
+  --accent-soft: #1d4ed8;
+  --accent-bg: #eff6ff;
+  --accent-bg-strong: #dbeafe;
+  --accent-border: #93c5fd;
+  --accent-border-soft: rgba(37, 99, 235, 0.35);
+  --accent-inset: rgba(37, 99, 235, 0.08);
+  --ring: rgba(37, 99, 235, 0.25);
+
+  --easy: #059669;
+  --medium: #d97706;
+  --hard: #dc2626;
+  --easy-bg: #ecfdf5;
+  --medium-bg: #fffbeb;
+  --hard-bg: #fef2f2;
+  --easy-border: #6ee7b7;
+  --medium-border: #fcd34d;
+  --hard-border: #fca5a5;
+
+  --mem-lit: #374151;
+  --mem-mid: #6b7280;
+  --mem-dark: #9ca3af;
+  --dot-empty: #e5e7eb;
+  --knew-bg: #ecfdf5;
+  --shaky-bg: #fffbeb;
+  --forgot-bg: #fef2f2;
+  --imp: #d97706;
+  --imp-bg: rgba(217, 119, 6, 0.1);
+  --imp-border: rgba(217, 119, 6, 0.35);
+
+  --code-bg: #f3f4f6;
+  --selected-bg-start: #eff6ff;
+  --selected-bg-end: #dbeafe;
+  --selected-border: #93c5fd;
+  --selected-shadow: rgba(37, 99, 235, 0.12);
+  --selected-title: #1e3a8a;
+  --unseen-title: #4b5563;
+  --starred-bg: #fffbeb;
+  --starred-border: #fcd34d;
+
+  --cmd-launch-gradient-start: #f9fafb;
+  --cmd-launch-gradient-end: #f3f4f6;
+  --cmd-panel-gradient-start: #ffffff;
+  --cmd-panel-gradient-end: #f9fafb;
+
+  --toggle-track: #e5e7eb;
+  --toggle-track-hover: #d1d5db;
+  --toggle-on-border: #93c5fd;
+  --toggle-knob: #ffffff;
+  --toggle-knob-on: #ffffff;
+  --toggle-knob-shadow: rgba(0, 0, 0, 0.15);
+
+  --overlay-bg: rgba(15, 23, 42, 0.35);
+  --cmd-footer-bg: rgba(0, 0, 0, 0.04);
+  --panel-shadow: 0 28px 80px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --elevation-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+
+  /* Notion text colors for accessibility in light mode */
+  --notion-body-text: var(--text-secondary);
+  --notion-list-text: var(--text-secondary);
+
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Enhanced focus indicators for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Improve text selection contrast */
+::selection {
+  background: var(--accent);
+  color: white;
 }
 
 html,
@@ -52,10 +217,11 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14px; /* Increased from 13px for better readability */
+  line-height: 1.5; /* Improved line height for accessibility */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale; /* Better font rendering on Firefox */
 }
 
 .sr-only {
@@ -95,7 +261,7 @@ body {
   padding: 0 14px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 0 var(--topbar-shadow);
 }
 
 .logo {
@@ -135,22 +301,28 @@ body {
 .topic-tab:hover {
   color: var(--text);
   background: var(--surface2);
+  border: 1px solid var(--border2);
+}
+
+/* Ensure active state takes precedence over hover */
+.topic-tab.active:hover {
+  color: white;
+  background: linear-gradient(135deg, var(--accent), var(--accent-gradient-end));
+  border: 1px solid var(--accent-border-soft);
 }
 
 .topic-tab.active {
-  color: var(--text);
-  background: var(--surface2);
+  color: white;
+  background: linear-gradient(135deg, var(--accent), var(--accent-gradient-end));
+  box-shadow: 
+    0 1px 3px rgba(59, 130, 246, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--accent-border-soft);
 }
 
+/* Remove the bottom indicator - entire tab is now filled */
 .topic-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  background: linear-gradient(90deg, var(--accent), #60a5fa);
-  border-radius: 2px 2px 0 0;
+  display: none;
 }
 
 .topbar-search-wrap {
@@ -196,7 +368,7 @@ body {
   min-width: 0;
   flex: 1;
   max-width: 340px;
-  background: linear-gradient(180deg, #141414 0%, #101010 100%);
+  background: linear-gradient(180deg, var(--cmd-launch-gradient-start) 0%, var(--cmd-launch-gradient-end) 100%);
   border: 1px solid var(--border2);
   border-radius: 8px;
   color: var(--dim);
@@ -207,7 +379,7 @@ body {
 }
 
 .cmd-launch:hover {
-  border-color: #3a3a3a;
+  border-color: var(--hover-border);
   color: var(--muted);
   box-shadow: 0 0 0 1px var(--ring);
 }
@@ -225,7 +397,8 @@ body {
   min-width: 8px;
 }
 
-.mode-toggle-inline {
+.mode-toggle-inline,
+.theme-toggle-inline {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -240,12 +413,42 @@ body {
   letter-spacing: 0.04em;
 }
 
+.theme-label-sm {
+  font-size: 16px;
+  font-weight: normal;
+  color: var(--dim);
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+/* Theme label active states - highlight based on current theme */
+[data-theme="light"] .theme-toggle-inline .theme-label-sm:first-child {
+  color: #ffc107;
+  filter: drop-shadow(0 0 4px rgba(255, 193, 7, 0.4));
+}
+
+[data-theme="dark"] .theme-toggle-inline .theme-label-sm:last-child {
+  color: #6c5ce7;
+  filter: drop-shadow(0 0 4px rgba(108, 92, 231, 0.4));
+}
+
+/* Dim the inactive theme label */
+[data-theme="light"] .theme-toggle-inline .theme-label-sm:last-child {
+  color: var(--dimmer);
+  filter: none;
+}
+
+[data-theme="dark"] .theme-toggle-inline .theme-label-sm:first-child {
+  color: var(--dimmer);
+  filter: none;
+}
+
 .toggle-switch {
   position: relative;
   width: 36px;
   height: 20px;
   border-radius: 100px;
-  background: #2a2a2a;
+  background: var(--toggle-track);
   border: 1px solid var(--border2);
   cursor: pointer;
   padding: 0;
@@ -254,12 +457,43 @@ body {
 }
 
 .toggle-switch:hover {
-  border-color: #444;
+  border-color: var(--toggle-track-hover);
 }
 
 .toggle-switch.on {
   background: var(--accent-bg-strong);
-  border-color: #274a7a;
+  border-color: var(--toggle-on-border);
+}
+
+/* Theme toggle styling */
+.theme-toggle-switch {
+  background: var(--toggle-track);
+  border-color: var(--border2);
+}
+
+.theme-toggle-switch:hover {
+  border-color: var(--toggle-track-hover);
+}
+
+/* Theme toggle active states */
+[data-theme="light"] .theme-toggle-switch {
+  background: linear-gradient(90deg, #fff9c4, #ffeaa7);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+[data-theme="dark"] .theme-toggle-switch {
+  background: linear-gradient(90deg, #2c3e50, #34495e);
+  border-color: rgba(139, 69, 19, 0.3);
+}
+
+/* Remove this rule - theme toggle uses theme-based colors, not generic toggle colors */
+
+[data-theme="light"] .theme-toggle-switch:hover {
+  border-color: rgba(255, 193, 7, 0.5);
+}
+
+[data-theme="dark"] .theme-toggle-switch:hover {
+  border-color: rgba(139, 69, 19, 0.5);
 }
 
 .toggle-knob {
@@ -269,8 +503,8 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #f1f5f9;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  background: var(--toggle-knob);
+  box-shadow: 0 1px 3px var(--toggle-knob-shadow);
   transition: transform 0.2s ease;
   display: block;
   pointer-events: none;
@@ -278,40 +512,400 @@ body {
 
 .toggle-switch.on .toggle-knob {
   transform: translateX(16px);
-  background: #fff;
+  background: var(--toggle-knob-on);
 }
 
-/* ═══ Mode Controls (Learn/Quiz + Reset) ═══ */
+/* Theme toggle knob positioning and colors */
+.theme-toggle-switch .toggle-knob {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, #ffeb3b, #ffc107);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 8px rgba(255, 193, 7, 0.3);
+}
+
+/* Override default knob position for theme toggle - default to left (sun) */
+
+.theme-toggle-switch.on .toggle-knob {
+  transform: translateX(16px); /* Dark mode: moon position (right) */
+  background: linear-gradient(135deg, #6c5ce7, #5a4fcf);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 0 8px rgba(108, 92, 231, 0.3);
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+}
+
+.zoom-btn,
+.zoom-level-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.zoom-level-btn {
+  min-width: 44px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-btn:hover:not(:disabled),
+.zoom-level-btn:hover {
+  color: var(--text);
+  background: var(--surface3);
+}
+
+.zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Old circular theme button styles - now using toggle switch */
+.theme-toggle-btn {
+  display: none; /* Hide old circular button */
+}
+
+/* Old theme button hover states - removed for toggle switch design */
+
+/* Old theme button active state - removed */
+
+/* Old theme icon effects - removed for toggle switch design */
+
+/* Old theme icons - now using labels with toggle switch */
+
+/* Reset icon styles removed - using text "RESET" instead */
+
+/*
+=== MODERN UI CONTROL DESIGN ===
+
+MODE TOGGLE: Learn/Quiz pill switch
+- Pill-shaped toggle with knob animation
+- Blue accent colors and smooth transitions
+
+THEME TOGGLE: ☀/☽ pill switch (matches mode toggle)
+- Same pill design as mode toggle for consistency
+- Sun (☀) and Moon (☽) icon labels
+- Golden knob for light theme, purple knob for dark theme
+- Theme-aware track colors and glows
+- Knob slides left (sun) for light, right (moon) for dark
+
+RESET BUTTON: Classic red pill design
+- Text: "RESET" in white uppercase
+- Shape: Pill/capsule with rounded corners
+- Colors: Red gradient (#e53e3e → #c53030 → #9c2626)
+- Effects: 3D gradient, text shadow, inset highlights
+- Animation: Subtle lift on hover, press on active
+
+DESIGN CONSISTENCY:
+- All controls use pill/rounded shapes
+- Consistent spacing and proportions
+- Professional, accessible, contemporary UI
+*/
+
+/* Old icon style alternatives - removed for toggle switch design */
+
+/* Old theme icon visibility rules - removed for toggle switch */
+
+/* ═══ Mode Controls (Mode + Theme + Reset) ═══ */
 .mode-controls {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
+/* Hide zoom controls if they exist anywhere */
+.zoom-controls {
+  display: none;
+}
+
+/* Ensure buttons are properly aligned */
+.reset-btn,
+.toggle-switch {
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Theme toggle transitions handled by toggle switch styles */
+
+/* Reset text styling */
 .reset-btn {
-  padding: 6px 8px;
+  user-select: none;
+}
+
+/* Old theme icon active states - removed */
+
+/* Reset button uses text, no icon animations needed */
+
+/* Old icon visibility rules - now using toggle switch with labels */
+
+.reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 20px; /* Pill shape */
   cursor: pointer;
-  font-size: 16px;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1;
   color: var(--text-secondary);
-  transition: all 0.15s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .reset-btn:hover {
   background: var(--surface);
   color: var(--text);
   border-color: var(--border2);
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .reset-btn:active {
-  transform: scale(0.95);
+  transform: translateY(0);
+  transition: transform 0.1s ease;
+}
+
+/* Red pill styling matching reference image */
+.reset-btn-danger {
+  background: linear-gradient(135deg, #e53e3e 0%, #c53030 50%, #9c2626 100%);
+  border: 1px solid #c53030;
+  color: white;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    0 2px 4px rgba(197, 48, 48, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.reset-btn-danger:hover {
+  background: linear-gradient(135deg, #f56565 0%, #e53e3e 50%, #c53030 100%);
+  border-color: #e53e3e;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 8px rgba(197, 48, 48, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 0 20px rgba(229, 62, 62, 0.3);
+}
+
+.reset-btn-danger:active {
+  background: linear-gradient(135deg, #c53030 0%, #9c2626 50%, #822727 100%);
+  transform: translateY(0);
+  box-shadow: 
+    0 1px 2px rgba(197, 48, 48, 0.4),
+    inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .reset-icon {
   display: inline-block;
+}
+
+/* Minimal Theme Toggle */
+.minimal-toggle {
+  position: relative;
+  width: 100px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.minimal-track {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.minimal-text {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  position: absolute;
+  z-index: 1;
+  transition: all 0.3s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.minimal-knob {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.minimal-icon-container {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+/* Sun Icon */
+.minimal-sun-icon {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  opacity: 1;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.sun-center {
+  width: 6px;
+  height: 6px;
+  background: #f6ad55;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+}
+
+.sun-ray {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #f6ad55;
+  border-radius: 50%;
+}
+
+.sun-ray-1 { top: 0; left: 5px; }
+.sun-ray-2 { top: 2px; right: 0; }
+.sun-ray-3 { right: 0; top: 5px; }
+.sun-ray-4 { bottom: 2px; right: 0; }
+.sun-ray-5 { bottom: 0; left: 5px; }
+.sun-ray-6 { bottom: 2px; left: 0; }
+.sun-ray-7 { left: 0; top: 5px; }
+.sun-ray-8 { top: 2px; left: 0; }
+
+/* Moon Icon */
+.minimal-moon-icon {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.moon-crescent {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+}
+
+.moon-crescent::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--surface2);
+}
+
+.moon-star {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  background: #9ca3af;
+  border-radius: 50%;
+}
+
+.moon-star-1 { top: 1px; right: 2px; }
+.moon-star-2 { bottom: 3px; right: 1px; }
+
+/* Active state - Dark mode */
+.minimal-toggle.active {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  border-color: #4a5568;
+}
+
+.minimal-toggle.active .minimal-knob {
+  transform: translateX(76px);
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+  border-color: #4a5568;
+}
+
+.minimal-toggle.active .minimal-text {
+  color: #e2e8f0;
+}
+
+.minimal-toggle.active .minimal-sun-icon {
+  opacity: 0;
+  transform: rotate(180deg);
+}
+
+.minimal-toggle.active .minimal-moon-icon {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+/* Hover effects */
+.minimal-toggle:hover {
+  background: var(--surface);
+  border-color: var(--border2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.minimal-toggle.active:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
+  border-color: #5a67d8;
+  box-shadow: 0 2px 8px rgba(90, 103, 216, 0.2);
 }
 
 .kbd-mini,
@@ -349,7 +943,7 @@ body {
 }
 
 .sb-label {
-  font-size: 10px;
+  font-size: 11px; /* Increased from 10px for better readability */
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -484,7 +1078,7 @@ body {
 }
 
 .sb-item-label {
-  font-size: 12px;
+  font-size: 13px; /* Increased from 12px for better accessibility */
   font-weight: 500;
   color: var(--muted);
   flex: 1;
@@ -517,7 +1111,7 @@ body {
 .sb-progress-fill {
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  background: linear-gradient(90deg, var(--accent), var(--accent-gradient-end));
   transition: width 0.25s ease;
 }
 
@@ -1183,7 +1777,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .feed-title {
-  font-size: 11px;
+  font-size: 12px; /* Increased from 11px for better accessibility */
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1263,18 +1857,18 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .qcard:hover {
-  border-color: #3a3a3a;
+  border-color: var(--hover-border);
   background: var(--surface-elevated);
 }
 
 .qcard.selected {
-  background: linear-gradient(135deg, #15202e 0%, #141a22 100%);
-  border-color: #2a4a72;
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
+  background: linear-gradient(135deg, var(--selected-bg-start) 0%, var(--selected-bg-end) 100%);
+  border-color: var(--selected-border);
+  box-shadow: 0 0 0 1px var(--selected-shadow);
 }
 
 .qcard.unseen .qcard-title {
-  color: #c4c4c4;
+  color: var(--unseen-title);
 }
 
 /* Important: same ⭐ as detail header (#qv-star) and sidebar star-chip */
@@ -1385,14 +1979,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .qcard-title {
-  font-size: 12px;
+  font-size: 14px; /* Increased from 12px for better accessibility */
   font-weight: 500;
-  line-height: 1.38;
+  line-height: 1.4; /* Improved line height */
   color: var(--text);
-}
-
-.qcard.selected .qcard-title {
-  color: #e8f4ff;
 }
 
 .qcard-footer {
@@ -1754,11 +2344,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 #detail-title.detail-title {
-  font-size: 19px;
+  font-size: 22px; /* Increased from 19px for better prominence */
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.35; /* Improved line height */
   letter-spacing: -0.02em;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  color: var(--text);
 }
 
 .detail-meta {
@@ -1924,9 +2515,9 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .notion-block-body {
   padding: 12px 16px 16px;
   border-top: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 1.7;
-  color: #a8a8a8;
+  font-size: 13px; /* Increased from 12px for better accessibility */
+  line-height: 1.6; /* Improved line height */
+  color: var(--notion-body-text);
 }
 
 .notion-block-body.collapsed,
@@ -1944,17 +2535,18 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .notion-block-body li {
   margin-bottom: 0.35em;
+  color: var(--notion-list-text);
 }
 
 .notion-block-body strong {
-  color: #d4d4d4;
+  color: var(--strong-text);
   font-weight: 600;
 }
 
 .notion-block-body code {
   font-family: var(--font-mono);
   font-size: 11px;
-  background: #0d1117;
+  background: var(--code-bg);
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--accent-soft);
@@ -1962,7 +2554,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .notion-block-body pre {
-  background: #0d1117;
+  background: var(--code-bg);
   border: 1px solid var(--border2);
   border-left: 3px solid var(--accent);
   border-radius: 8px;
@@ -2423,17 +3015,17 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .cmd-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.58);
+  background: var(--overlay-bg);
   backdrop-filter: blur(6px);
 }
 
 .cmd-panel {
   position: relative;
   width: min(520px, calc(100vw - 32px));
-  background: linear-gradient(180deg, #1a1a1a 0%, #141414 100%);
+  background: linear-gradient(180deg, var(--cmd-panel-gradient-start) 0%, var(--cmd-panel-gradient-end) 100%);
   border: 1px solid var(--border2);
   border-radius: 14px;
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: var(--panel-shadow);
   overflow: hidden;
 }
 
@@ -2519,18 +3111,19 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .cmd-result-item.qcard:hover {
   background: var(--surface-elevated);
-  border-color: #3a3a3a;
+  border-color: var(--hover-border);
 }
 
 .cmd-result-item.qcard.selected {
-  background: linear-gradient(135deg, #15202e 0%, #141a22 100%);
-  border-color: #2a4a72;
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15);
+  background: linear-gradient(135deg, var(--selected-bg-start) 0%, var(--selected-bg-end) 100%);
+  border-color: var(--selected-border);
+  box-shadow: 0 0 0 1px var(--selected-shadow);
 }
 
-/* Override qcard title color when selected in command palette */
+/* Selected qcard title contrast (feed + command palette) */
+.qcard.selected .qcard-title,
 .cmd-result-item.qcard.selected .qcard-title {
-  color: #eaf2ff;
+  color: var(--selected-title);
 }
 
 /* Adjust qcard styling for command palette context */
@@ -2574,7 +3167,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
   gap: 16px;
   padding: 10px 16px;
   border-top: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--cmd-footer-bg);
 }
 
 .cmd-hint {
@@ -2589,7 +3182,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .mermaid-container {
   margin: 14px 0;
   padding: 14px;
-  background: #0d1117;
+  background: var(--code-bg);
   border-radius: 10px;
   border: 1px solid var(--border2);
   overflow-x: auto;
