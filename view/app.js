@@ -14,6 +14,17 @@ window.QuestionDB = (function () {
   };
 })();
 
+// ── Constants ──────────────────────────────────────────────
+const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
+const THEME_STORAGE_KEY = 'interview-theme';
+const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
+const ZOOM_LEVELS = [0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5];
+const ZOOM_DEFAULT = 1.5;
+const ZOOM_DEFAULT_PCT = Math.round(ZOOM_DEFAULT * 100);
+const VALID_RATING_VALUES = new Set(['know', 'shaky', 'review']);
+const MEMORY_SLIDER_MIN = 0;
+const MEMORY_SLIDER_MAX = 3;
+
 // ── State ──────────────────────────────────────────────────
 let questions = [];
 
@@ -37,13 +48,6 @@ const state = {
   history: [],           // array of question IDs visited
   historyIdx: -1,        // current position in history
 };
-
-const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
-const THEME_STORAGE_KEY = 'interview-theme';
-const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
-const ZOOM_LEVELS = [0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5];
-const ZOOM_DEFAULT = 1.5;
-const ZOOM_DEFAULT_PCT = Math.round(ZOOM_DEFAULT * 100);
 
 // ── UI zoom ───────────────────────────────────────────────────
 function getStoredZoom() {
@@ -303,8 +307,6 @@ function memoryStatusPhraseForId(id) {
 }
 
 /** `#detail-memory-range`: 0 unseen … 3 know (ordinal memory scale). */
-const MEMORY_SLIDER_MIN = 0;
-const MEMORY_SLIDER_MAX = 3;
 
 function normalizeMemorySliderValue(raw) {
   const n = Number(raw);
@@ -1213,9 +1215,20 @@ function revealCard() {
 
 function toggleLearningMode() {
   state.learningMode = !state.learningMode;
-  const btn = document.getElementById('toggle-switch');
+  const btn = document.getElementById('mode-toggle');
   const sidebar = document.querySelector('.sidebar');
-  if (btn) btn.classList.toggle('on', !state.learningMode);
+  
+  if (btn) {
+    // Quiz mode = active state (green), Learn mode = inactive state (default)
+    btn.classList.toggle('active', !state.learningMode);
+    
+    // Update text to show current mode
+    const modeText = btn.querySelector('.mode-text');
+    if (modeText) {
+      modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
+    }
+  }
+  
   if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
 
   if (state.selectedId) {
@@ -1574,8 +1587,6 @@ function wireCommandPalette() {
   }
 }
 
-const VALID_RATING_VALUES = new Set(['know', 'shaky', 'review']);
-
 function exportProgressJson() {
   const payload = {
     version: 1,
@@ -1799,32 +1810,37 @@ function wireResetMemoryButton() {
   });
 }
 
-function init() {
+function initializeApp() {
   initTheme();
   initZoom();
-
   questions = QuestionDB.all();
-
   loadRatings();
   loadSeen();
+  restoreStateFromURL();
+}
 
-  // Restore state from URL (?tab=android&q=tech-1)
-  const _urlParams = new URLSearchParams(window.location.search);
-  const _urlTab = _urlParams.get('tab');
-  const _urlQ = _urlParams.get('q');
-  if (_urlTab && VALID_TABS.includes(_urlTab)) state.activeTab = _urlTab;
-  if (_urlQ && questions.find(q => q.id === _urlQ)) {
-    state.selectedId = _urlQ;
+function restoreStateFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTab = urlParams.get('tab');
+  const urlQuestion = urlParams.get('q');
+  
+  if (urlTab && VALID_TABS.includes(urlTab)) {
+    state.activeTab = urlTab;
+  }
+  
+  if (urlQuestion && questions.find(q => q.id === urlQuestion)) {
+    state.selectedId = urlQuestion;
     state.cardRevealed = state.learningMode;
-    const qFromUrl = getQuestionById(_urlQ);
-    if (qFromUrl && VALID_TABS.includes(qFromUrl.type)) {
-      state.activeTab = qFromUrl.type;
-      state.activeFeedSection = { type: qFromUrl.type, section: qFromUrl.section };
+    const questionFromUrl = getQuestionById(urlQuestion);
+    if (questionFromUrl && VALID_TABS.includes(questionFromUrl.type)) {
+      state.activeTab = questionFromUrl.type;
+      state.activeFeedSection = { type: questionFromUrl.type, section: questionFromUrl.section };
       clearFeedSectionPin();
     }
   }
+}
 
-  // Topic: tabs (redesign) and/or legacy dropdown
+function initializeTopicControls() {
   const topicSelect = document.getElementById('topic-select');
   if (topicSelect) topicSelect.value = state.activeTab;
   syncTopicTabsActive(state.activeTab);
@@ -1846,8 +1862,9 @@ function init() {
       onTopicChange(tabId);
     });
   }
+}
 
-  // Search
+function initializeSearchAndFilters() {
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
     searchInput.addEventListener('input', e => {
@@ -1857,28 +1874,20 @@ function init() {
     });
   }
 
-  // Difficulty filter — single-select chips/pills (toggle off = show all)
   document.querySelectorAll('#diff-chips .chip[data-diff], #diff-filters .pill[data-diff]').forEach(btn => {
     const diff = btn.dataset.diff;
     if (!diff || diff === 'all') return;
     btn.addEventListener('click', () => {
-      if (state.diffFilter === diff) {
-        state.diffFilter = null;
-      } else {
-        state.diffFilter = diff;
-      }
+      state.diffFilter = state.diffFilter === diff ? null : diff;
       syncDiffFilterChipsUI();
       renderList();
     });
   });
+}
 
-  // Memory / importance: star + memory chips (and legacy pill markup if present)
+function initializeMemoryFilters() {
   const onStatusFilterPick = val => {
-    if (state.statusFilter === val) {
-      state.statusFilter = null;
-    } else {
-      state.statusFilter = val;
-    }
+    state.statusFilter = state.statusFilter === val ? null : val;
     clearFeedSectionPin();
     syncMemoryFilterUI();
     renderList();
@@ -1892,30 +1901,16 @@ function init() {
       btn.addEventListener('click', () => onStatusFilterPick(btn.dataset.status));
     });
 
-  // Sidebar memory range slider
   const sidebarMemoryRange = document.getElementById('sidebar-memory-range');
   if (sidebarMemoryRange) {
-    let lastClickTime = 0;
-    let lastValue = null;
-    
     sidebarMemoryRange.addEventListener('input', e => {
       const value = parseInt(e.target.value);
-      let newStatus = null;
-      
-      // Map range values to status filters: 0=unseen, 1=review, 2=shaky, 3=know
-      if (value === 0) newStatus = 'unseen';
-      else if (value === 1) newStatus = 'review';
-      else if (value === 2) newStatus = 'shaky';
-      else if (value === 3) newStatus = 'know';
-      
-      // Update the range value attribute for CSS highlighting
+      const statusMap = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
       e.target.setAttribute('value', value);
-      
-      onStatusFilterPick(newStatus);
+      onStatusFilterPick(statusMap[value]);
     });
     
-    // Double-click to clear filter
-    sidebarMemoryRange.addEventListener('dblclick', e => {
+    sidebarMemoryRange.addEventListener('dblclick', () => {
       if (state.statusFilter) {
         state.statusFilter = null;
         clearFeedSectionPin();
@@ -1932,10 +1927,10 @@ function init() {
     });
   }
 
-  // Wire reset memory button
   wireResetMemoryButton();
-  
+}
 
+function initializeEventListeners() {
   const tagFilterClear = document.getElementById('tag-filter-clear');
   if (tagFilterClear) {
     tagFilterClear.addEventListener('click', () => {
@@ -1955,15 +1950,14 @@ function init() {
 
   const rateHost = document.getElementById('detail-question') || document.getElementById('main-panel') || document.body;
   rateHost.querySelectorAll('[data-rating="know"],[data-rating="shaky"],[data-rating="review"]').forEach(btn => {
-    const r = btn.dataset.rating;
+    const rating = btn.dataset.rating;
     btn.addEventListener('click', () => {
-      if (state.selectedId) setRating(state.selectedId, r);
+      if (state.selectedId) setRating(state.selectedId, rating);
     });
   });
+}
 
-  wireCommandPalette();
-  wireExportImport();
-
+function initializeKeyboardHandlers() {
   document.addEventListener('keydown', e => {
     if (handleZoomShortcut(e)) return;
 
@@ -1974,85 +1968,76 @@ function init() {
     }
 
     if (cmdPaletteOpen) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        closeCmdPalette();
-        return;
-      }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        moveCmdSelection(1);
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        moveCmdSelection(-1);
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        confirmCmdSelection();
-        return;
-      }
-      if (e.target === document.getElementById('cmd-input')) return;
-      const blockWhileOpen = ['j', 'k', 'J', 'K', ' ', 'ArrowLeft', 'ArrowRight', '1', '2', '3'];
-      if (blockWhileOpen.includes(e.key)) {
-        e.preventDefault();
-      }
+      handleCommandPaletteKeyboard(e);
       return;
     }
 
     if (isShortcutSuppressedTarget(e.target)) return;
 
-    switch (e.key) {
-      case 'j':
-      case 'ArrowDown':
-        e.preventDefault();
-        navigateList(1);
-        break;
-      case 'k':
-      case 'ArrowUp':
-        e.preventDefault();
-        navigateList(-1);
-        break;
-      case ' ':
-        e.preventDefault();
-        revealCard();
-        break;
-      case '1':
-        if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'know');
-        break;
-      case '2':
-        if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'shaky');
-        break;
-      case '3':
-        if (state.selectedId && state.cardRevealed) setRating(state.selectedId, 'review');
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        historyBack();
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        historyForward();
-        break;
-      case 'Escape':
-        closeSearch();
-        closeCmdPalette();
-        break;
-      default:
-        break;
-    }
+    handleMainKeyboardShortcuts(e);
   });
+}
 
-  const toggleBtn = document.getElementById('toggle-switch');
+function handleCommandPaletteKeyboard(e) {
+  const cmdPaletteKeys = {
+    'Escape': () => closeCmdPalette(),
+    'ArrowDown': () => moveCmdSelection(1),
+    'ArrowUp': () => moveCmdSelection(-1),
+    'Enter': () => confirmCmdSelection()
+  };
+
+  if (cmdPaletteKeys[e.key]) {
+    e.preventDefault();
+    cmdPaletteKeys[e.key]();
+    return;
+  }
+
+  if (e.target === document.getElementById('cmd-input')) return;
+  
+  const blockWhileOpen = ['j', 'k', 'J', 'K', ' ', 'ArrowLeft', 'ArrowRight', '1', '2', '3'];
+  if (blockWhileOpen.includes(e.key)) {
+    e.preventDefault();
+  }
+}
+
+function handleMainKeyboardShortcuts(e) {
+  const shortcuts = {
+    'j': () => navigateList(1),
+    'ArrowDown': () => navigateList(1),
+    'k': () => navigateList(-1),
+    'ArrowUp': () => navigateList(-1),
+    ' ': () => revealCard(),
+    '1': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'know'),
+    '2': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'shaky'),
+    '3': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'review'),
+    'ArrowLeft': () => historyBack(),
+    'ArrowRight': () => historyForward(),
+    'Escape': () => { closeSearch(); closeCmdPalette(); }
+  };
+
+  if (shortcuts[e.key]) {
+    e.preventDefault();
+    shortcuts[e.key]();
+  }
+}
+
+function initializeUIState() {
+  const toggleBtn = document.getElementById('mode-toggle');
   const sidebar = document.querySelector('.sidebar');
-  if (toggleBtn) toggleBtn.classList.toggle('on', !state.learningMode);
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('active', !state.learningMode);
+    const modeText = toggleBtn.querySelector('.mode-text');
+    if (modeText) {
+      modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
+    }
+  }
   if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
 
   syncDiffFilterChipsUI();
   syncMemoryFilterUI();
+}
 
+function renderApp() {
   renderList();
   renderMainPanel();
 
@@ -2062,7 +2047,25 @@ function init() {
       if (el) el.scrollIntoView({ block: 'center' });
     });
   }
+}
 
+function init() {
+  initializeApp();
+
+  initializeTopicControls();
+
+  initializeSearchAndFilters();
+
+  initializeMemoryFilters();
+  
+  initializeEventListeners();
+  wireCommandPalette();
+  wireExportImport();
+
+  initializeKeyboardHandlers();
+
+  initializeUIState();
+  renderApp();
   pushURLState();
 }
 

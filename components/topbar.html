@@ -25,16 +25,26 @@
     </select>
     <div class="mode-controls">
       <div class="toggle-wrapper">
-        <div class="mode-toggle-inline">
-          <span class="mode-label-sm">Learn</span>
-          <button type="button" class="toggle-switch" id="toggle-switch" onclick="toggleLearningMode()" title="Quiz: ratings in header; Learn: content visible"><span class="toggle-knob"></span></button>
-          <span class="mode-label-sm">Quiz</span>
-        </div>
+        <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
+          <div class="minimal-track">
+            <span class="minimal-text mode-text">Learn</span>
+            <div class="minimal-knob">
+              <div class="minimal-icon-container">
+                <div class="minimal-mode-icon mode-learn-icon">
+                  <div class="learn-book">📖</div>
+                </div>
+                <div class="minimal-mode-icon mode-quiz-icon">
+                  <div class="quiz-check">✓</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </button>
       </div>
       <div class="toggle-wrapper">
-        <div class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme">
+        <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
           <div class="minimal-track">
-            <span class="minimal-text">Light</span>
+            <span class="minimal-text theme-text">Light</span>
             <div class="minimal-knob">
               <div class="minimal-icon-container">
                 <div class="minimal-sun-icon">
@@ -56,7 +66,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </button>
       </div>
       <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" title="Reset all questions to unseen">
         RESET

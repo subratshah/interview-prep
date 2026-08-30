@@ -443,191 +443,12 @@ body {
   filter: none;
 }
 
-.toggle-switch {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  border-radius: 100px;
-  background: var(--toggle-track);
-  border: 1px solid var(--border2);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.2s, border-color 0.2s;
-  flex-shrink: 0;
-}
-
-.toggle-switch:hover {
-  border-color: var(--toggle-track-hover);
-}
-
-.toggle-switch.on {
-  background: var(--accent-bg-strong);
-  border-color: var(--toggle-on-border);
-}
-
-/* Theme toggle styling */
-.theme-toggle-switch {
-  background: var(--toggle-track);
-  border-color: var(--border2);
-}
-
-.theme-toggle-switch:hover {
-  border-color: var(--toggle-track-hover);
-}
-
-/* Theme toggle active states */
-[data-theme="light"] .theme-toggle-switch {
-  background: linear-gradient(90deg, #fff9c4, #ffeaa7);
-  border-color: rgba(255, 193, 7, 0.3);
-}
-
-[data-theme="dark"] .theme-toggle-switch {
-  background: linear-gradient(90deg, #2c3e50, #34495e);
-  border-color: rgba(139, 69, 19, 0.3);
-}
-
-/* Remove this rule - theme toggle uses theme-based colors, not generic toggle colors */
-
-[data-theme="light"] .theme-toggle-switch:hover {
-  border-color: rgba(255, 193, 7, 0.5);
-}
-
-[data-theme="dark"] .theme-toggle-switch:hover {
-  border-color: rgba(139, 69, 19, 0.5);
-}
-
-.toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--toggle-knob);
-  box-shadow: 0 1px 3px var(--toggle-knob-shadow);
-  transition: transform 0.2s ease;
-  display: block;
-  pointer-events: none;
-}
-
-.toggle-switch.on .toggle-knob {
-  transform: translateX(16px);
-  background: var(--toggle-knob-on);
-}
-
-/* Theme toggle knob positioning and colors */
-.theme-toggle-switch .toggle-knob {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(135deg, #ffeb3b, #ffc107);
-  box-shadow: 
-    0 1px 3px rgba(0, 0, 0, 0.3),
-    0 0 8px rgba(255, 193, 7, 0.3);
-}
-
-/* Override default knob position for theme toggle - default to left (sun) */
-
-.theme-toggle-switch.on .toggle-knob {
-  transform: translateX(16px); /* Dark mode: moon position (right) */
-  background: linear-gradient(135deg, #6c5ce7, #5a4fcf);
-  box-shadow: 
-    0 1px 3px rgba(0, 0, 0, 0.4),
-    0 0 8px rgba(108, 92, 231, 0.3);
-}
-
+/* Zoom controls are hidden in current design */
 .zoom-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface2);
+  display: none;
 }
 
-.zoom-btn,
-.zoom-level-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.zoom-level-btn {
-  min-width: 44px;
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.zoom-btn:hover:not(:disabled),
-.zoom-level-btn:hover {
-  color: var(--text);
-  background: var(--surface3);
-}
-
-.zoom-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-/* Old circular theme button styles - now using toggle switch */
-.theme-toggle-btn {
-  display: none; /* Hide old circular button */
-}
-
-/* Old theme button hover states - removed for toggle switch design */
-
-/* Old theme button active state - removed */
-
-/* Old theme icon effects - removed for toggle switch design */
-
-/* Old theme icons - now using labels with toggle switch */
-
-/* Reset icon styles removed - using text "RESET" instead */
-
-/*
-=== MODERN UI CONTROL DESIGN ===
-
-MODE TOGGLE: Learn/Quiz pill switch
-- Pill-shaped toggle with knob animation
-- Blue accent colors and smooth transitions
-
-THEME TOGGLE: ☀/☽ pill switch (matches mode toggle)
-- Same pill design as mode toggle for consistency
-- Sun (☀) and Moon (☽) icon labels
-- Golden knob for light theme, purple knob for dark theme
-- Theme-aware track colors and glows
-- Knob slides left (sun) for light, right (moon) for dark
-
-RESET BUTTON: Classic red pill design
-- Text: "RESET" in white uppercase
-- Shape: Pill/capsule with rounded corners
-- Colors: Red gradient (#e53e3e → #c53030 → #9c2626)
-- Effects: 3D gradient, text shadow, inset highlights
-- Animation: Subtle lift on hover, press on active
-
-DESIGN CONSISTENCY:
-- All controls use pill/rounded shapes
-- Consistent spacing and proportions
-- Professional, accessible, contemporary UI
-*/
-
-/* Old icon style alternatives - removed for toggle switch design */
-
-/* Old theme icon visibility rules - removed for toggle switch */
+/* === Modern UI Control Design === */
 
 /* ═══ Mode Controls (Mode + Theme + Reset) ═══ */
 .mode-controls {
@@ -636,30 +457,12 @@ DESIGN CONSISTENCY:
   gap: 12px;
 }
 
-/* Hide zoom controls if they exist anywhere */
-.zoom-controls {
-  display: none;
-}
-
-/* Ensure buttons are properly aligned */
+/* Ensure controls are properly aligned */
 .reset-btn,
-.toggle-switch {
+.minimal-toggle {
   flex-shrink: 0;
   user-select: none;
 }
-
-/* Theme toggle transitions handled by toggle switch styles */
-
-/* Reset text styling */
-.reset-btn {
-  user-select: none;
-}
-
-/* Old theme icon active states - removed */
-
-/* Reset button uses text, no icon animations needed */
-
-/* Old icon visibility rules - now using toggle switch with labels */
 
 .reset-btn {
   display: flex;
@@ -768,6 +571,15 @@ DESIGN CONSISTENCY:
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+/* Add extra spacing between text and toggle knob */
+.minimal-text.mode-text {
+  left: 8px; /* Move text further left for more space */
+}
+
+.minimal-text.theme-text {
+  left: 8px; /* Consistent spacing for theme toggle too */
+}
+
 .minimal-knob {
   position: absolute;
   left: 2px;
@@ -869,7 +681,66 @@ DESIGN CONSISTENCY:
 .moon-star-1 { top: 1px; right: 2px; }
 .moon-star-2 { bottom: 3px; right: 1px; }
 
-/* Active state - Dark mode */
+/* Mode Toggle Icons */
+.minimal-mode-icon {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.mode-learn-icon {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+.mode-quiz-icon {
+  opacity: 0;
+  transform: rotate(180deg);
+}
+
+.learn-book {
+  font-size: 8px;
+  line-height: 1;
+}
+
+.quiz-check {
+  font-size: 10px;
+  line-height: 1;
+  font-weight: bold;
+  color: #4ade80;
+}
+
+/* Mode toggle active state (Quiz mode) */
+#mode-toggle.active .mode-text {
+  color: #e2e8f0;
+}
+
+#mode-toggle.active .mode-learn-icon {
+  opacity: 0;
+  transform: rotate(-180deg);
+}
+
+#mode-toggle.active .mode-quiz-icon {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+#mode-toggle.active {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  border-color: #16a34a;
+}
+
+#mode-toggle.active .minimal-knob {
+  transform: translateX(76px);
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border-color: #16a34a;
+}
+
+/* Active state - Dark mode (theme toggle) */
 .minimal-toggle.active {
   background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
   border-color: #4a5568;
@@ -902,10 +773,18 @@ DESIGN CONSISTENCY:
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.minimal-toggle.active:hover {
+/* Theme toggle hover (when active/dark mode) */
+#theme-toggle.active:hover {
   background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
   border-color: #5a67d8;
   box-shadow: 0 2px 8px rgba(90, 103, 216, 0.2);
+}
+
+/* Mode toggle hover (when active/Quiz mode) */
+#mode-toggle.active:hover {
+  background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+  border-color: #22c55e;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 
 .kbd-mini,
@@ -1256,7 +1135,13 @@ DESIGN CONSISTENCY:
   opacity: 0.8;
 }
 
-/* Difficulty filters — same tokens as .qcard-stripe / .diff-badge */
+/* Consolidated difficulty styling */
+.filter-chips-diff .chip[data-diff],
+#diff-filters .pill[data-diff] {
+  border-width: 1px;
+  border-style: solid;
+}
+
 .filter-chips-diff .chip[data-diff='E'],
 #diff-filters .pill[data-diff='E'] {
   background: var(--easy-bg);
@@ -1278,43 +1163,30 @@ DESIGN CONSISTENCY:
   border-color: color-mix(in srgb, var(--hard) 38%, transparent);
 }
 
+.filter-chips-diff .chip[data-diff]:hover,
+#diff-filters .pill[data-diff]:hover {
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+
 .filter-chips-diff .chip[data-diff='E']:hover,
 #diff-filters .pill[data-diff='E']:hover {
-  color: var(--easy);
   background: color-mix(in srgb, var(--easy-bg) 82%, var(--easy));
-  border-color: color-mix(in srgb, var(--easy) 55%, transparent);
 }
 
 .filter-chips-diff .chip[data-diff='M']:hover,
 #diff-filters .pill[data-diff='M']:hover {
-  color: var(--medium);
   background: color-mix(in srgb, var(--medium-bg) 82%, var(--medium));
-  border-color: color-mix(in srgb, var(--medium) 55%, transparent);
 }
 
 .filter-chips-diff .chip[data-diff='H']:hover,
 #diff-filters .pill[data-diff='H']:hover {
-  color: var(--hard);
   background: color-mix(in srgb, var(--hard-bg) 82%, var(--hard));
-  border-color: color-mix(in srgb, var(--hard) 55%, transparent);
 }
 
-.filter-chips-diff .chip[data-diff='E'].active,
-#diff-filters .pill[data-diff='E'].active {
-  border-color: var(--easy);
-  box-shadow: 0 0 0 2px rgba(78, 201, 148, 0.35);
-}
-
-.filter-chips-diff .chip[data-diff='M'].active,
-#diff-filters .pill[data-diff='M'].active {
-  border-color: var(--medium);
-  box-shadow: 0 0 0 2px rgba(221, 180, 86, 0.35);
-}
-
-.filter-chips-diff .chip[data-diff='H'].active,
-#diff-filters .pill[data-diff='H'].active {
-  border-color: var(--hard);
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35);
+.filter-chips-diff .chip[data-diff].active,
+#diff-filters .pill[data-diff].active {
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 35%, transparent);
 }
 
 .chip.active-star {
@@ -2985,15 +2857,18 @@ input.memory-range:focus-visible::-moz-range-thumb {
   background: var(--text);
 }
 
-.sidebar:has(.memory-filter-hit.active-review) .memory-filter-tick[data-status="review"] .memory-filter-tick-notch {
+.sidebar:has(.memory-filter-hit.active-review) .memory-filter-tick[data-status="review"] .memory-filter-tick-notch,
+.memory-filter-hit.active-review {
   background: var(--hard);
 }
 
-.sidebar:has(.memory-filter-hit.active-shaky) .memory-filter-tick[data-status="shaky"] .memory-filter-tick-notch {
+.sidebar:has(.memory-filter-hit.active-shaky) .memory-filter-tick[data-status="shaky"] .memory-filter-tick-notch,
+.memory-filter-hit.active-shaky {
   background: var(--medium);
 }
 
-.sidebar:has(.memory-filter-hit.active-know) .memory-filter-tick[data-status="know"] .memory-filter-tick-notch {
+.sidebar:has(.memory-filter-hit.active-know) .memory-filter-tick[data-status="know"] .memory-filter-tick-notch,
+.memory-filter-hit.active-know {
   background: var(--easy);
 }
 
