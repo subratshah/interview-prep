@@ -705,6 +705,9 @@ function createFeedQuestionCard(q) {
   const starBadge = q.star
     ? '<span class="qcard-star" aria-hidden="true">⭐</span>'
     : '';
+  const sourceBadge = q.source === 'interview'
+    ? '<span class="qcard-source" title="AI-generated / reviewed question" aria-label="AI question">🤖</span>'
+    : '';
 
   const tagStr = (q.tags || [])
     .map(t => `<span class="qcard-tag">${escapeHtml(t)}</span>`)
@@ -719,7 +722,7 @@ function createFeedQuestionCard(q) {
   card.dataset.id = q.id;
 
   card.innerHTML = `
-    ${starBadge}
+    ${starBadge}${sourceBadge}
     ${memoryCardIndicatorMarkup(dotStateClass, memLabel)}
     <div class="qcard-stripe ${q.difficulty}" aria-hidden="true"></div>
     <div class="qcard-body">
@@ -902,6 +905,20 @@ const NOTION_SECTIONS = [
   { key: 'alternatives', icon: '🔀', label: 'Alternative Approaches', defaultOpen: true },
 ];
 
+const SD_SECTIONS = [
+  { key: 'scope',       icon: '🎯', label: 'Clarifying Questions & Scope', defaultOpen: true },
+  { key: 'functional',  icon: '⚙️',  label: 'Functional Requirements',      defaultOpen: true },
+  { key: 'nfr',         icon: '📊',  label: 'Non-Functional Requirements',  defaultOpen: true },
+  { key: 'capacity',    icon: '📈',  label: 'Capacity Estimation',          defaultOpen: true },
+  { key: 'architecture',icon: '🏗️',  label: 'High-Level Architecture',      defaultOpen: true },
+  { key: 'dataModel',   icon: '🗄️',  label: 'Data Model',                   defaultOpen: false },
+  { key: 'api',         icon: '🔌',  label: 'API Design',                   defaultOpen: false },
+  { key: 'tradeoffs',   icon: '⚖️',  label: 'Key Trade-offs',               defaultOpen: true },
+  { key: 'approach',    icon: '📋',  label: 'Interview Approach',           defaultOpen: false },
+  { key: 'followUp',    icon: '❓',  label: 'Follow-ups',                   defaultOpen: false },
+  { key: 'pitfalls',    icon: '🚩',  label: 'Common Pitfalls',              defaultOpen: false },
+];
+
 const BEHAVIORAL_SECTIONS = [
   { key: 'listen', icon: '👂', label: 'What to listen for', defaultOpen: true },
   { key: 'star', icon: '⭐', label: 'STAR hint', defaultOpen: true },
@@ -1055,7 +1072,10 @@ function renderMainPanel() {
     
     // Check if this is a behavioral question and needs special parsing
     const isBehavioral = q.type === 'behavioral';
-    const sections = isBehavioral ? BEHAVIORAL_SECTIONS : NOTION_SECTIONS;
+    const isSystemDesign = q.type === 'system-design';
+    const sections = isBehavioral ? BEHAVIORAL_SECTIONS
+                 : isSystemDesign ? SD_SECTIONS
+                 : NOTION_SECTIONS;
     const contentData = isBehavioral ? parseBehavioralContent(q.answer || '') : q;
     
     sections.forEach(sec => {

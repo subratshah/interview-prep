@@ -71,6 +71,7 @@ Each question object in `data/*.js`:
   answer: "**Expected...", // markdown answer (supports **bold**, `code`, tables)
   tags: ["kotlin", "basics"], // array of strings
   related: ["tech-2", "tech-5"] // array of related question IDs
+  source: "interview" // optional — marks AI-generated / reviewed follow-up questions
 }
 ```
 

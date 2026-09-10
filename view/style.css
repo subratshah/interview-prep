@@ -63,9 +63,9 @@
   --imp-bg: rgba(245, 158, 11, 0.12);
   --imp-border: rgba(245, 158, 11, 0.35);
 
-  /* Selection & code */
+
+/* Selection & code */
   --code-bg: #0d1117;
-  --selected-bg-start: #15202e;
   --selected-bg-end: #141a22;
   --selected-border: #2a4a72;
   --selected-shadow: rgba(59, 130, 246, 0.15);
@@ -3073,4 +3073,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
   color: var(--hard);
   font-size: 11px;
   white-space: pre-wrap;
+}
+
+.qcard-source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-left: 5px;
+  border: 1px solid var(--accent-border-soft);
+  border-radius: 6px;
+  background: var(--accent-bg);
+  color: var(--accent-soft);
+  font-size: 12px;
+  line-height: 1;
 }

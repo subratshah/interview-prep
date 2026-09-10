@@ -4,7 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Prep</title>
-  <script src="view/theme-init.js"></script>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('interview-theme');
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+        var zoomRaw = localStorage.getItem('interview-ui-zoom');
+        var zoom = zoomRaw != null ? parseFloat(zoomRaw) : 1.5;
+        if (zoom >= 0.75 && zoom <= 1.75) document.documentElement.style.zoom = String(zoom);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -29,7 +44,7 @@
       <span class="search-icon" aria-hidden="true">⌘</span>
       <input type="search" id="search-input" class="topbar-search" placeholder="Filter list…" autocomplete="off" spellcheck="false">
     </div>
-    <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" title="Search all questions (⌘E)" aria-label="Open command palette to search questions">
+    <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" title="Search all questions (⌘E)">
       <span>Search questions…</span>
       <kbd class="kbd-mini">⌘E</kbd>
     </button>
@@ -295,6 +310,11 @@
   <script src="data/behavioral.js"></script>
   <script src="data/data-structures.js"></script>
   <script src="data/system-design.js"></script>
-  <script src="view/cmd-launch-init.js"></script>
+  <script src="data/roadmaps.js"></script>
+  <script>
+    document.getElementById('cmd-launch')?.addEventListener('click', function () {
+      if (typeof toggleCmdPalette === 'function') toggleCmdPalette();
+    });
+  </script>
 </body>
 </html>
