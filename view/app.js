@@ -925,6 +925,15 @@ const BEHAVIORAL_SECTIONS = [
   { key: 'flags', icon: '🚩', label: 'Red flags', defaultOpen: true },
 ];
 
+// Technical (android / data-structures): structured fields with `answer` fallback.
+const TECH_SECTIONS = [
+  { key: 'expectedAnswer', icon: '💡', label: 'Expected Answer', defaultOpen: true, fallback: 'answer' },
+  { key: 'keyPoints',      icon: '🔑', label: 'Key Points',      defaultOpen: false },
+  { key: 'complexity',     icon: '⏱️', label: 'Complexity',      defaultOpen: false },
+  { key: 'followUp',       icon: '❓', label: 'Follow-ups',      defaultOpen: false },
+  { key: 'redFlags',       icon: '🚩', label: 'Red Flags',       defaultOpen: false },
+];
+
 // Parse behavioral question content into sections
 function parseBehavioralContent(content) {
   const sections = {
@@ -1075,11 +1084,13 @@ function renderMainPanel() {
     const isSystemDesign = q.type === 'system-design';
     const sections = isBehavioral ? BEHAVIORAL_SECTIONS
                  : isSystemDesign ? SD_SECTIONS
-                 : NOTION_SECTIONS;
+                 : TECH_SECTIONS;
     const contentData = isBehavioral ? parseBehavioralContent(q.answer || '') : q;
     
     sections.forEach(sec => {
-      const raw = isBehavioral ? contentData[sec.key] : q[sec.key];
+      const raw = isBehavioral ? contentData[sec.key]
+                : q[sec.key] !== undefined ? q[sec.key]
+                : sec.fallback ? q[sec.fallback] : undefined;
       if (!raw) return;
 
       const storageKey = `notion-collapsed::${q.id}::${sec.key}`;
