@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "interview: open browser (delayed)",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "timeout /t 2 >nul & start http://localhost:1000"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

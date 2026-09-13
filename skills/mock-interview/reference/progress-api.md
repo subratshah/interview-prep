@@ -9,14 +9,14 @@ Returns the current progress state:
 ```json
 {
   "ratings": {
-    "tech-1": 4
+    "tech-1": "know"
   },
   "seen": ["tech-1", "tech-2"],
   "updatedAt": "2026-09-10T06:00:00Z"
 }
 ```
 
-- `ratings`: question ID to integer rating, normally 1-5.
+- `ratings`: question ID to string rating, one of: 'know', 'shaky', 'review'.
 - `seen`: question IDs seen during interviews.
 - `updatedAt`: last progress mutation timestamp.
 
@@ -29,13 +29,13 @@ Request:
 ```json
 {
   "ratings": {
-    "tech-1": 4
+    "tech-1": "know"
   },
   "seen": ["tech-1", "tech-2"]
 }
 ```
 
-The server validates the JSON body, question IDs, and rating range before writing.
+The server validates the JSON body, question IDs, and rating values before writing.
 
 ## `POST /api/import`
 
@@ -46,7 +46,7 @@ Request:
 ```json
 {
   "ratings": {
-    "tech-1": 4
+    "tech-1": "know"
   },
   "seen": ["tech-1", "tech-2"]
 }

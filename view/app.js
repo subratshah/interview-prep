@@ -24,7 +24,7 @@ const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.1;
 const ZOOM_DEFAULT = 1;
 const VALID_RATING_VALUES = new Set(['know', 'shaky', 'review']);
-const SERVER_API_BASE = '';
+const SERVER_API_BASE = 'http://localhost:1001';
 const MEMORY_SLIDER_MIN = 0;
 const MEMORY_SLIDER_MAX = 3;
 
@@ -48,7 +48,6 @@ const state = {
   ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
   seen: new Set(),       // IDs of questions ever opened
   hiddenIds: new Set(),  // IDs of AI questions hidden/deleted locally
-  aiOnly: false,         // filter feed to AI-generated questions only
   history: [],           // array of question IDs visited
   historyIdx: -1,        // current position in history
 };
@@ -845,12 +844,7 @@ function createFeedQuestionCard(q) {
   const starBadge = q.star
     ? '<span class="qcard-star" aria-hidden="true">⭐</span>'
     : '';
-  const sourceBadge = q.source === 'interview'
-    ? '<span class="qcard-source" title="AI-generated / reviewed question" aria-label="AI question">🤖</span>'
-    : '';
-  const aiDeleteBtn = q.source === 'interview'
-    ? `<button class="qcard-ai-delete" aria-label="Hide AI question" title="Hide this AI question" onclick="event.stopPropagation(); hideAIQuestion('${q.id}')">✕</button>`
-    : '';
+
 
   const tagStr = (q.tags || [])
     .map(t => `<span class="qcard-tag">${escapeHtml(t)}</span>`)
@@ -865,7 +859,7 @@ function createFeedQuestionCard(q) {
   card.dataset.id = q.id;
 
   card.innerHTML = `
-    ${starBadge}${sourceBadge}
+    ${starBadge}
     ${memoryCardIndicatorMarkup(dotStateClass, memLabel)}
     <div class="qcard-stripe ${q.difficulty}" aria-hidden="true"></div>
     <div class="qcard-body">
@@ -1629,18 +1623,6 @@ function toggleLearningMode() {
   }
 }
 
-function toggleAIFilter() {
-  state.aiOnly = !state.aiOnly;
-  const btn = document.getElementById('ai-filter-btn');
-  if (btn) {
-    btn.classList.toggle('active', state.aiOnly);
-    btn.setAttribute('aria-pressed', state.aiOnly ? 'true' : 'false');
-  }
-  // Reset section pin so feed recomputes
-  state.activeFeedSection = null;
-  state.feedSectionPinned = false;
-  renderApp();
-}
 
 function hideAIQuestion(id) {
   state.hiddenIds.add(id);

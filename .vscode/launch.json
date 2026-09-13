@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Interview: server + browser",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/server/proxy-server.js",
+      "env": {
+        "PORT": "1000"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "autoAttachChildProcesses": true,
+      "preLaunchTask": "interview: open browser (delayed)"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Interview: server only",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/server/proxy-server.js",
+      "env": {
+        "PORT": "1000"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "autoAttachChildProcesses": true
+    }
+  ]
+}

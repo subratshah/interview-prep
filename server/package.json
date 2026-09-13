@@ -1,0 +1,13 @@
+{
+  "name": "interview-prep-server",
+  "version": "1.0.0",
+  "description": "Minimal dependency-free Node server for interview-prep app with node:sqlite progress API",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
