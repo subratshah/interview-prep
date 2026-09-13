@@ -920,9 +920,9 @@ const SD_SECTIONS = [
 ];
 
 const BEHAVIORAL_SECTIONS = [
-  { key: 'listen', icon: '👂', label: 'What to listen for', defaultOpen: true },
-  { key: 'star', icon: '⭐', label: 'STAR hint', defaultOpen: true },
-  { key: 'flags', icon: '🚩', label: 'Red flags', defaultOpen: true },
+  { key: 'listenFor', icon: '👂', label: 'What to listen for', defaultOpen: true },
+  { key: 'starGuide', icon: '⭐', label: 'STAR hint', defaultOpen: true },
+  { key: 'redFlags', icon: '🚩', label: 'Red flags', defaultOpen: true },
 ];
 
 // Technical (android / data-structures): structured fields with `answer` fallback.
@@ -934,27 +934,27 @@ const TECH_SECTIONS = [
   { key: 'redFlags',       icon: '🚩', label: 'Red Flags',       defaultOpen: false },
 ];
 
-// Parse behavioral question content into sections
+// Parse behavioral question content into sections (fallback when structured fields are absent)
 function parseBehavioralContent(content) {
   const sections = {
-    listen: '',
-    star: '',
-    flags: ''
+    listenFor: '',
+    starGuide: '',
+    redFlags: ''
   };
   
   // Split content by bold headers
-  const parts = content.split(/\*\*(.*?):\*\*/);
+  const parts = content.split(/\*\*([^*]+?):\*\*/);
   let currentSection = null;
   
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i].trim();
     
     if (part === 'What to listen for') {
-      currentSection = 'listen';
+      currentSection = 'listenFor';
     } else if (part === 'STAR hint') {
-      currentSection = 'star';  
+      currentSection = 'starGuide';  
     } else if (part === 'Red flags') {
-      currentSection = 'flags';
+      currentSection = 'redFlags';
     } else if (currentSection && part) {
       sections[currentSection] += part + '\n';
     }
@@ -1088,7 +1088,8 @@ function renderMainPanel() {
     const contentData = isBehavioral ? parseBehavioralContent(q.answer || '') : q;
     
     sections.forEach(sec => {
-      const raw = isBehavioral ? contentData[sec.key]
+      const raw = isBehavioral
+                ? (q[sec.key] !== undefined ? q[sec.key] : contentData[sec.key])
                 : q[sec.key] !== undefined ? q[sec.key]
                 : sec.fallback ? q[sec.fallback] : undefined;
       if (!raw) return;
