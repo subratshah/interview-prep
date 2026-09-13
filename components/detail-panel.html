@@ -85,4 +85,33 @@
           </div>
         </div>
       </div>
+
+      <!-- Roadmap mode. A sibling `.detail-inner`, so it inherits the pane's
+           flex behaviour, its scroll and the named `detail` container, and it
+           replaces the question view (per-question header, rating slider and
+           the Tags/Related bottom bar are all part of #detail-question).
+           `.roadmap-head` is pinned with position: sticky inside this one
+           scroller; there is deliberately no second scroll box below it. -->
+      <div class="detail-inner roadmap hidden" id="detail-roadmap" role="region" aria-labelledby="roadmap-title">
+        <div class="roadmap-head">
+          <div class="roadmap-head-row">
+            <h2 class="roadmap-title" id="roadmap-title">🗺️ Roadmap</h2>
+            <span class="roadmap-aggregate" id="roadmap-aggregate"></span>
+            <button type="button" class="roadmap-jump" id="roadmap-jump" onclick="roadmapJumpToCurrent()"
+              title="Scroll to the band holding the open question">Jump to current</button>
+          </div>
+          <div class="roadmap-legend" aria-hidden="true">
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-0"></span>Unseen</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-1"></span>Forgot</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-2"></span>Shaky</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-3"></span>Knew</span>
+            <span class="roadmap-legend-sep" aria-hidden="true"></span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-E"></span>Easy</span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-M"></span>Medium</span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-H"></span>Hard</span>
+          </div>
+        </div>
+        <div class="roadmap-rail" id="roadmap-rail"></div>
+        <div class="roadmap-bands" id="roadmap-bands"></div>
+      </div>
     </main>

@@ -49,7 +49,18 @@
         <option value="system-design">System Design</option>
       </select>
       <div class="mode-controls">
-        <button type="button" id="roadmap-btn" class="reset-btn" onclick="toggleRoadmap()" title="Toggle Roadmap view" aria-label="Toggle Roadmap view">🗺️ Roadmap</button>
+        <!-- A real switch, same contract as #mode-toggle / #theme-toggle: the
+             `.minimal-text` word is absolutely centred so it costs no width, and
+             `@container topbar (max-width: 42rem)` already retires it together
+             with the other two toggles' words. -->
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="roadmap-btn" role="switch" aria-checked="false" onclick="toggleRoadmap()" title="Toggle roadmap view" aria-label="Toggle roadmap view">
+            <div class="minimal-track">
+              <span class="minimal-text roadmap-text">Map</span>
+              <span class="minimal-knob"><span class="roadmap-glyph" aria-hidden="true">🗺️</span></span>
+            </div>
+          </button>
+        </div>
         <div class="toggle-wrapper">
           <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
             <div class="minimal-track">
@@ -267,6 +278,35 @@
             <div class="related-list" id="meta-related"></div>
           </div>
         </div>
+      </div>
+
+      <!-- Roadmap mode. A sibling `.detail-inner`, so it inherits the pane's
+           flex behaviour, its scroll and the named `detail` container, and it
+           replaces the question view (per-question header, rating slider and
+           the Tags/Related bottom bar are all part of #detail-question).
+           `.roadmap-head` is pinned with position: sticky inside this one
+           scroller; there is deliberately no second scroll box below it. -->
+      <div class="detail-inner roadmap hidden" id="detail-roadmap" role="region" aria-labelledby="roadmap-title">
+        <div class="roadmap-head">
+          <div class="roadmap-head-row">
+            <h2 class="roadmap-title" id="roadmap-title">🗺️ Roadmap</h2>
+            <span class="roadmap-aggregate" id="roadmap-aggregate"></span>
+            <button type="button" class="roadmap-jump" id="roadmap-jump" onclick="roadmapJumpToCurrent()"
+              title="Scroll to the band holding the open question">Jump to current</button>
+          </div>
+          <div class="roadmap-legend" aria-hidden="true">
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-0"></span>Unseen</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-1"></span>Forgot</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-2"></span>Shaky</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-3"></span>Knew</span>
+            <span class="roadmap-legend-sep" aria-hidden="true"></span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-E"></span>Easy</span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-M"></span>Medium</span>
+            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-H"></span>Hard</span>
+          </div>
+        </div>
+        <div class="roadmap-rail" id="roadmap-rail"></div>
+        <div class="roadmap-bands" id="roadmap-bands"></div>
       </div>
     </main>
   </div>

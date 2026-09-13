@@ -24,7 +24,18 @@
         <option value="system-design">System Design</option>
       </select>
       <div class="mode-controls">
-        <button type="button" id="roadmap-btn" class="reset-btn" onclick="toggleRoadmap()" title="Toggle Roadmap view" aria-label="Toggle Roadmap view">🗺️ Roadmap</button>
+        <!-- A real switch, same contract as #mode-toggle / #theme-toggle: the
+             `.minimal-text` word is absolutely centred so it costs no width, and
+             `@container topbar (max-width: 42rem)` already retires it together
+             with the other two toggles' words. -->
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="roadmap-btn" role="switch" aria-checked="false" onclick="toggleRoadmap()" title="Toggle roadmap view" aria-label="Toggle roadmap view">
+            <div class="minimal-track">
+              <span class="minimal-text roadmap-text">Map</span>
+              <span class="minimal-knob"><span class="roadmap-glyph" aria-hidden="true">🗺️</span></span>
+            </div>
+          </button>
+        </div>
         <div class="toggle-wrapper">
           <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
             <div class="minimal-track">

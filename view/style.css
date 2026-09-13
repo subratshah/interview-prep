@@ -795,10 +795,35 @@ body {
   transform: rotate(0deg);
 }
 
+/* ── Roadmap switch (topbar) ───────────────────────────────────────
+   ON means the detail pane is showing the path. The generic
+   `.minimal-toggle.active` rule above already moves the knob and retires the
+   word at the 42rem stage, so only the colour is different here: accent, like
+   the other control that changes what the window is showing (.topic-tab.active),
+   instead of the neutral grey the theme toggle lands on. */
+#roadmap-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-gradient-end));
+  border-color: var(--accent-border-soft);
+}
+
+#roadmap-btn.active .minimal-knob {
+  background: var(--toggle-knob-on);
+  border-color: var(--accent-border);
+}
+
+/* Knob glyph, at the size the other knobs' glyphs use. */
+.roadmap-glyph {
+  font-size: 0.625rem;
+  line-height: 1;
+}
+
 /* ── Tight-row collapse chain ─────────────────────────────────
     The content widths are rem, so they are ladder-invariant: at ladder 1.0 the
     left group needs 28.9rem (logo + four full topic tabs), the right group
-    18.5rem (two toggles carrying their words, plus RESET), and the pill is
+    18.5rem (three toggles carrying their words, plus RESET — the roadmap
+    switch is a 6.25rem .minimal-toggle where the old text button measured
+    ≈123px, so that group came out of the swap slightly narrower and no stage
+    had to move), and the pill is
     pinned at the window centre. A side may not reach across the pill, so the
     row stops fitting at about 71rem of window — 1278px on the current 18px
     base, where it was 1562px on the old 22px one. Below that the row retires
@@ -2628,6 +2653,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
   .detail-body > .db-full {
     grid-column: 1 / -1;
   }
+
+  /* A packed run of single-card rows (buildDetailRows' band entry): one grid
+     item spanning the body and hosting its own two columns, filled top-down
+     in column 1 first — `grid-auto-flow: column` with the row count the
+     renderer sets inline to min(cards, 2) stacks the first two cards in
+     column 1 and sends any overflow to column 2 from its row 1, instead of
+     leaving a hole per lone card. This is the packing the renderer declares
+     per row at flatten time — the opposite of the `dense` auto-placement
+     .detail-body refuses above. */
+  .detail-body > .db-band {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: column;
+  }
 }
 
 /* Qualified so it outranks the .notion-block rule further down the sheet. */
@@ -2648,6 +2687,23 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .db-half {
   grid-column: auto;
+}
+
+/* Base shape of a packed band; the two-column flow is the container query's
+   opt-in above. In the one-column state the band is a plain vertical stack
+   (the inline row count then just pre-sizes max-content rows — same cards,
+   same order). Cards inside keep their content height: rows are max-content,
+   nothing here has a height, a max-height or an overflow-y. The grid gap
+   matches .detail-body's so a band reads as part of the same rhythm. */
+.db-band {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 0.625rem;
+}
+
+.db-band > .notion-block {
+  margin-bottom: 0;
 }
 
 .detail-body::-webkit-scrollbar {
@@ -3269,6 +3325,63 @@ input.memory-range:focus-visible::-moz-range-thumb {
    never touch a feed card, and none of it changes the box a row had before:
    no padding, no border, no font-size on the highlighted text itself. */
 
+/* #/@ autocomplete rows. The renderer emits real <button class="cmd-suggest">
+   elements; without these rules they keep the native grey Arial chrome look
+   (measured on the unsheeted button: rgb(107,107,107) fill, 1.8px white
+   border, shrink-wrapped width) and the keyboard cursor's .selected class
+   renders nothing. Full-width flat rows instead, sized to read as the list's
+   smaller sibling to .cmd-result-item; the cursor does NOT
+   reuse the question card's `--selected-bg-start`→`--selected-bg-end`
+   gradient: that start token is only declared in the light block, so the
+   shorthand dies in dark (same trap documented at the roadmap-cell note)
+   and the keyboard cursor would be invisible there. Instead the fill is the
+   sidebar current row's `--accent-bg` and its border is `--accent-border`,
+   both theme-complete; light still reads as the old selected row (its
+   accent-bg equals selected-bg-start, its accent-border equals
+   selected-border) and dark finally gets a visible cursor. The inner
+   .cmd-row-tail count rides the existing tail rule below; .cmd-mark
+   highlighting inherits from the text. */
+.cmd-suggest {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  /* No `gap` here. The row's markup is bare text plus a <mark class="cmd-mark">
+     wrapping the matched characters - "@", "Sta", "ff / Platform", then the tail
+     - and a flex container makes each run its own item, so any gap lands INSIDE
+     the label ("Sta ff / Platform"). The tail carries its own separation. */
+  width: 100%;
+  margin: 0 0 0.125rem 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+/* Push the count to the right edge now that the row has no `gap`; the padding is
+   the separation the removed gap used to (wrongly) provide for the label. */
+.cmd-suggest .cmd-row-tail {
+  margin-left: auto;
+  padding-left: 0.75rem;
+}
+
+.cmd-suggest:hover {
+  background: var(--surface2);
+  border-color: var(--hover-border);
+}
+
+.cmd-suggest.selected {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--selected-shadow);
+}
+
 /* Matched-character highlight inside titles, snippets and tails. Overrides
    the UA yellow/black look, inherits the row's own colour, and uses a tint
    that survives dark surfaces, light surfaces, and the blue selected row.
@@ -3539,4 +3652,379 @@ input.memory-range:focus-visible::-moz-range-thumb {
   color: var(--accent-soft);
   font-size: 0.75rem;
   line-height: 1;
+}
+
+/* ═══ Roadmap mode (detail pane) ══════════════════════════════════════════════
+   The pane is a sibling `.detail-inner` of the question view (see
+   #detail-roadmap in components/detail-panel.html), so it inherits the pane's
+   flex slot, the scroll and the named `detail` container. Lengths are rem —
+   1–2px exceptions are marked. The rail's own numbers are measured in JS
+   (buildRoadmapRail), which is why nothing here sizes its internals. */
+
+/* This pane is the one scroller, which is what lets `.roadmap-head` be pinned
+   with `position: sticky` instead of adding a second scroll box below it.
+   `display: block` (not the shared flex column) so the children keep their
+   natural heights while the content scrolls. The height/max-height/overflow-y
+   ban is on the answer cards, not on the pane: nothing inside takes a definite
+   height except the fixed squares, so no implicit row can collapse — the trap
+   AGENTS.md records for `.notion-block`. */
+#detail-roadmap {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 1.375rem 1.25rem;
+}
+
+/* The shared hide contract is `.detail-inner.hidden` — two classes. An ID
+   selector outranks it wherever it appears, so the display above would win and
+   the pane would refuse to hide. This re-states the hide at the same rank. */
+#detail-roadmap.hidden {
+  display: none;
+}
+
+#detail-roadmap::-webkit-scrollbar {
+  width: 0.375rem;
+}
+
+#detail-roadmap::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 0.25rem;
+}
+
+/* ── Pinned header ──────────────────────────────────────────────── */
+/* Sticky at the top of that one scroller. The pane has no top padding, so the
+   head carries it: with padding on the scroller, a `top: 0` head would stick
+   below the padding band and the content would show through above it. The
+   negative sides let its background and rule bleed to the pane's edges. */
+.roadmap-head {
+  position: sticky;
+  top: 0;
+  z-index: 3; /* above a cell's ring, which paints at z-index 2 */
+  margin: 0 -1.375rem;
+  padding: 1rem 1.375rem 0.625rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.roadmap-head-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+}
+
+.roadmap-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.roadmap-aggregate {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.roadmap-jump {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.3125rem 0.5625rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.roadmap-jump:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--hover-border);
+  background: var(--surface-elevated);
+}
+
+.roadmap-jump:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.roadmap-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.roadmap-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* 1px hairline divider, kept in px with the rest of the sheet's hairlines. */
+.roadmap-legend-sep {
+  width: 1px;
+  height: 0.75rem;
+  margin: 0 0.25rem;
+  background: var(--border2);
+}
+
+/* Legend keys. The colour swatches reuse the cells' `.rm-mem-*` fills and the
+   shape keys the cells' `.rm-shape-*` radii, so the legend can never drift from
+   what the map actually draws. */
+.roadmap-swatch,
+.roadmap-shape {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+
+.roadmap-swatch {
+  border-radius: 50%;
+}
+
+.roadmap-shape {
+  background: var(--dim);
+}
+
+/* ── Rail: one inline SVG bar ───────────────────────────────────── */
+/* Height in rem so the bar tracks the size ladder; buildRoadmapRail measures this
+   box and draws in px of its own, one user unit to one CSS px. */
+.roadmap-rail {
+  height: 2.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.roadmap-rail-svg {
+  display: block;
+  overflow: visible;
+}
+
+/* stroke-width is in SVG user units, which are CSS px inside this viewBox (the
+   viewBox is the measured box) — the same hairline exception as the borders. */
+.roadmap-rail .rr-track {
+  fill: var(--surface3);
+  stroke: var(--border2);
+  stroke-width: 1;
+}
+
+.roadmap-rail .rr-fill {
+  fill: var(--easy);
+}
+
+/* you-are-here: a ring, in the same token the selected card uses — never the
+   state colour, because the fill already says how much of the band is known. */
+.roadmap-rail .rr-here {
+  fill: none;
+  stroke: var(--selected-border);
+  stroke-width: 2;
+}
+
+.roadmap-rail .rr-label {
+  fill: var(--dim);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+.roadmap-rail-seg {
+  cursor: pointer;
+}
+
+.roadmap-rail-seg:hover .rr-track {
+  fill: var(--accent-bg-strong);
+  stroke: var(--accent-border-soft);
+}
+
+/* ── Bands of heatmap cells ─────────────────────────────────────── */
+.roadmap-band {
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--surface2);
+  padding: 0.625rem 0.75rem 0.75rem;
+  margin-bottom: 0.625rem;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+/* Set by hovering the matching rail segment. */
+.roadmap-band.band-hover {
+  border-color: var(--hover-border);
+  background: var(--surface3);
+}
+
+.roadmap-band.band-flash {
+  animation: roadmap-band-flash 0.9s ease;
+}
+
+@keyframes roadmap-band-flash {
+  from {
+    border-color: var(--selected-border);
+    box-shadow: 0 0 0 0.1875rem var(--ring);
+  }
+  to {
+    border-color: var(--border);
+    box-shadow: 0 0 0 0.1875rem transparent;
+  }
+}
+
+.roadmap-band-hd {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.roadmap-band-tally {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.roadmap-band-diffs {
+  margin-left: auto;
+  font-size: 0.625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+/* Fixed 0.875rem tracks in 0.25rem gaps, wrapped by the row's own width: no
+   clamp(), and so no percentage in a grid-item minimum to break the cycle. */
+.roadmap-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 0.875rem);
+  gap: 0.25rem;
+}
+
+.roadmap-cell {
+  position: relative;
+  display: block;
+  height: 0.875rem;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+/* Shape = difficulty. */
+.rm-shape-E {
+  border-radius: 50%;
+}
+
+.rm-shape-M {
+  border-radius: 0.1875rem;
+}
+
+.rm-shape-H {
+  border-radius: 0;
+}
+
+/* Colour = memory state, on the same tokens the chips and the rating buttons
+   already use: 0 unseen, 1 forgot, 2 shaky, 3 knew. */
+.rm-mem-0 {
+  background: var(--dot-empty);
+  border-color: var(--border2);
+}
+
+.rm-mem-1 {
+  background: var(--hard);
+  border-color: color-mix(in srgb, var(--hard) 65%, #000);
+}
+
+.rm-mem-2 {
+  background: var(--medium);
+  border-color: color-mix(in srgb, var(--medium) 65%, #000);
+}
+
+.rm-mem-3 {
+  background: var(--easy);
+  border-color: color-mix(in srgb, var(--easy) 65%, #000);
+}
+
+/* Ghost = locally hidden. Declared after the `.rm-mem-*` fills on purpose: same
+   specificity, so this is what wins, and the state stays readable as the
+   border's colour. */
+.roadmap-cell-ghost {
+  background: transparent;
+  border-style: dashed;
+}
+
+.roadmap-cell-ghost:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border-soft);
+}
+
+/* The open question's cell. A ring, never a fill: `--selected-bg-start` is only
+   defined in the light block, and an undefined custom property inside a
+   `background` shorthand invalidates the whole declaration — so the ring
+   tokens are the ones that survive both themes. `--selected-shadow` is left
+   out: at 0.875rem a glow is lost, and it would need to sit above a
+   neighbour's fill. */
+.roadmap-cell.is-current {
+  box-shadow: 0 0 0 0.0625rem var(--bg), 0 0 0 0.1875rem var(--selected-border);
+}
+
+/* The sheet's global `*:focus-visible` ring needs a stacking context to sit
+   above the cells drawn after it. */
+.roadmap-cell:focus-visible {
+  z-index: 2;
+}
+
+.roadmap-empty {
+  padding: 1.25rem 0.875rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+/* ── Roadmap tooltip ────────────────────────────────────────────── */
+/* Appended to `document.body` by showRoadmapTooltip, never inside the pane:
+   `.detail-inner`'s inline-size containment makes that box the containing block
+   for `position: fixed` descendants, so a fixed child of the pane would be
+   measured against the pane instead of the window. z-index stays below
+   .cmd-overlay (1000) and the diagram modal (1100). */
+.roadmap-tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 900;
+  max-width: 20rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border2);
+  border-radius: 0.5rem;
+  background: var(--surface-elevated);
+  box-shadow: var(--elevation-shadow);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.roadmap-tip-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.roadmap-tip-meta {
+  margin-top: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--muted);
 }

@@ -1,33 +1,111 @@
-// Roadmap data for interview preparation (used by reference docs and available statically).
+// Roadmap data for interview preparation (used by the roadmap pane in the detail
+// panel, and available statically to anything else that wants a path).
+//
+// Milestones are DERIVED, never hand-listed: the unit of the path is a
+// question's real `section`, so each topic below only declares the *order* of
+// its bands. The id map this replaces had drifted hard — it covered 47 of 146
+// Android ids, 41/68 behavioural, 23/46 data structures, 38/97 system design,
+// and put `sd-14` in two milestones — because every edit to /data needed a
+// matching edit here. Deriving removes the failure mode: a question with a
+// section is on the path, and `getQuestionIds(topic)` is the topic's full id set.
 const RoadmapDB = (() => {
-  const m = {
+  // Band order per topic, verified against this branch's data. Question counts
+  // per band at the time of writing: android 14,29,21,16,12,11,25,18 = 146;
+  // behavioral 12,9,13,17,17 = 68; data-structures 7,4,4,6,6,11,7,1 = 46;
+  // system-design 12,24,34,9,10,8 = 97.
+  //
+  // A section that exists in the data but not in this list is appended in data
+  // order (see build()), so forgetting to edit this array costs nothing but the
+  // position of the new band — it can never hide a question. A listed section
+  // that has no questions left is dropped rather than rendering an empty band.
+  const SECTION_ORDER = {
     android: [
-      { milestone: 'Foundations', questions: ['tech-1','tech-2','tech-3','tech-6','tech-14','tech-15','tech-16','tech-17'] },
-      { milestone: 'UI and state', questions: ['tech-11','tech-12','tech-13','tech-28','tech-41','tech-43','tech-44','tech-47'] },
-      { milestone: 'Architecture and performance', questions: ['tech-7','tech-18','tech-19','tech-20','tech-22','tech-25','tech-26','tech-35','tech-37','tech-45','tech-49'] },
-      { milestone: 'Advanced Android', questions: ['tech-27','tech-30','tech-31','tech-32','tech-33','tech-36','tech-38','tech-39','tech-40','tech-42','tech-46','tech-48','tech-50','tech-51','tech-52','tech-53','tech-54','tech-55','tech-56','tech-57'] },
+      'Kotlin',
+      'Android Core',
+      'Jetpack',
+      'Concurrency',
+      'Networking & Data',
+      'Architecture',
+      'Performance & Security',
+      'Engineering',
     ],
     behavioral: [
-      { milestone: 'Ownership and delivery', questions: ['behav-1','behav-2','behav-3','behav-10','behav-11','behav-12','behav-23','behav-28','behav-39','behav-40'] },
-      { milestone: 'Collaboration', questions: ['behav-4','behav-5','behav-6','behav-22','behav-38','behav-41','behav-42'] },
-      { milestone: 'Growth and culture', questions: ['behav-7','behav-8','behav-9','behav-13','behav-14','behav-15','behav-16','behav-17','behav-18','behav-19','behav-24','behav-25','behav-27','behav-29'] },
-      { milestone: 'Leadership', questions: ['behav-20','behav-21','behav-30','behav-31','behav-32','behav-33','behav-34','behav-35','behav-36','behav-37'] },
+      'Ownership',
+      'Delivery',
+      'Collaboration',
+      'Growth & Culture',
+      'Leadership',
     ],
     'data-structures': [
-      { milestone: 'Basics', questions: ['ds-1','ds-2','ds-3','ds-4','ds-5','ds-6'] },
-      { milestone: 'Intermediate', questions: ['ds-7','ds-8','ds-9','ds-10','ds-11','ds-12','ds-13','ds-14'] },
-      { milestone: 'Advanced', questions: ['ds-15','ds-16','ds-17','ds-18','ds-19','ds-20','ds-21','ds-22','ds-23'] },
+      'Arrays & Strings',
+      'Hash Maps',
+      'Linked Lists',
+      'Stacks & Queues',
+      'Sorting & Searching',
+      'Trees & Graphs',
+      'Dynamic Programming',
+      'Concurrency',
     ],
     'system-design': [
-      { milestone: 'Core foundations', questions: ['sd-1','sd-2','sd-3','sd-4','sd-5','sd-6','sd-7','sd-8','sd-9','sd-10','sd-11','sd-12'] },
-      { milestone: 'Distributed systems', questions: ['sd-13','sd-14','sd-15','sd-16','sd-17','sd-18','sd-19','sd-20'] },
-      { milestone: 'Mobile-specific', questions: ['sd-14'] },
-      { milestone: 'Platform/staff', questions: ['sd-21','sd-22','sd-23','sd-24','sd-25'] },
+      'Mobile',
+      'Classic',
+      'Infrastructure',
+      'Architecture',
+      'Frontend',
+      'Staff / Platform',
     ],
   };
+
+  // Built lazily and cached per topic. index.template.html loads every data file
+  // before this one, so the first read normally sees the full registry; the
+  // "nothing loaded yet" guard in getRoadmap() keeps a cache built against an
+  // empty registry from ever being written.
+  const cache = Object.create(null);
+
+  function questionList() {
+    const db = (typeof window !== 'undefined' && window.QuestionDB)
+      || (typeof QuestionDB !== 'undefined' ? QuestionDB : null);
+    return db && typeof db.all === 'function' ? db.all() : [];
+  }
+
+  function build(topic) {
+    const bySection = new Map();
+    (SECTION_ORDER[topic] || []).forEach(section => bySection.set(section, []));
+    questionList().forEach(q => {
+      if (q.type !== topic) return;
+      const section = q.section;
+      if (!bySection.has(section)) bySection.set(section, []);
+      bySection.get(section).push(q.id);
+    });
+    const bands = [];
+    bySection.forEach((ids, section) => {
+      if (ids.length) bands.push({ milestone: section, questions: ids });
+    });
+    return bands;
+  }
+
+  function getRoadmap(topic) {
+    if (!topic || !Object.prototype.hasOwnProperty.call(SECTION_ORDER, topic)) return [];
+    if (!Object.prototype.hasOwnProperty.call(cache, topic)) {
+      if (!questionList().length) return [];
+      cache[topic] = build(topic);
+    }
+    return cache[topic];
+  }
+
+  function getAllRoadmaps() {
+    const out = {};
+    Object.keys(SECTION_ORDER).forEach(topic => { out[topic] = getRoadmap(topic); });
+    return out;
+  }
+
+  function getQuestionIds(topic) {
+    return getRoadmap(topic).reduce((ids, band) => ids.concat(band.questions), []);
+  }
+
   return {
-    getRoadmap(t) { return m[t] || []; },
-    getAllRoadmaps() { return m; },
-    getQuestionIds(t) { return m[t]?.flatMap(s => s.questions) || []; },
+    getRoadmap(t) { return getRoadmap(t); },
+    getAllRoadmaps() { return getAllRoadmaps(); },
+    getQuestionIds(t) { return getQuestionIds(t); },
   };
 })();

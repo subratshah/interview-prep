@@ -19,12 +19,18 @@ const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design']
 const THEME_STORAGE_KEY = 'interview-theme';
 const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
 const ZOOM_MIGRATION_KEY = 'interview-ui-zoom-v2';
+const ROADMAP_STORAGE_KEY = 'interview-roadmap-mode';
 const ZOOM_MIN = 0.7;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.1;
 const ZOOM_DEFAULT = 1;
 const VALID_RATING_VALUES = new Set(['know', 'shaky', 'review']);
-const SERVER_API_BASE = 'http://localhost:1001';
+// Same-origin by derivation: the page's own server (`server/proxy-server.js`, any port,
+// LAN IP or localhost) forwards `/api/*` to the progress API, so these fetches are never
+// cross-origin and need no CORS grant. A hardcoded `localhost:1001` broke on any port
+// override and for every non-host device; with no API answering (plain static server)
+// each fetch fails and the existing localStorage fallback takes over unchanged.
+const SERVER_API_BASE = window.location.origin;
 const MEMORY_SLIDER_MIN = 0;
 const MEMORY_SLIDER_MAX = 3;
 
@@ -48,6 +54,7 @@ const state = {
   ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
   seen: new Set(),       // IDs of questions ever opened
   hiddenIds: new Set(),  // IDs of AI questions hidden/deleted locally
+  showRoadmap: false,    // roadmap mode: the detail pane shows the path (#detail-roadmap)
   history: [],           // array of question IDs visited
   historyIdx: -1,        // current position in history
 };
@@ -259,6 +266,21 @@ function saveHiddenIds() {
   } catch (e) {}
 }
 
+/** Roadmap mode is a UI mode, so it persists like the theme and Learn/Quiz. */
+function loadRoadmapMode() {
+  try {
+    state.showRoadmap = localStorage.getItem(ROADMAP_STORAGE_KEY) === '1';
+  } catch (e) {
+    state.showRoadmap = false;
+  }
+}
+
+function saveRoadmapMode() {
+  try {
+    localStorage.setItem(ROADMAP_STORAGE_KEY, state.showRoadmap ? '1' : '0');
+  } catch (e) {}
+}
+
 /**
  * One-time cleanup: card collapse state now follows Learn/Quiz mode and is
  * re-derived on every render, so the old per-question `notion-collapsed::`
@@ -314,27 +336,18 @@ function getRating(id) {
   return state.ratings[id] || null;
 }
 
-/** CSS state class for `.memory-dots` and feed `.qcard-memory` (knew | shaky | forgot | unseen | ''). */
+/** CSS state class for `.memory-dots` and feed `.qcard-memory` (knew | shaky | forgot | unseen | '').
+ *  Derived from detailMemorySliderValueForId — the single seen/rating precedence — so the feed gem,
+ *  the dots, the detail slider and the roadmap fill can never disagree. */
 function memoryDotStateClassForId(id) {
   if (!id) return '';
-  const r = getRating(id);
-  if (r === 'know') return 'knew';
-  if (r === 'shaky') return 'shaky';
-  if (r === 'review') return 'forgot';
-  if (!state.seen.has(id)) return 'unseen';
-  // Seen but no explicit rating — same slider notch as “Forgot” (see detailMemorySliderValueForId); aria still “Not rated”.
-  return 'forgot';
+  return MEMORY_DOT_CLASS_BY_VALUE[detailMemorySliderValueForId(id)] || '';
 }
 
-/** Short phrase for Accessible Name / status text. */
+/** Short phrase for Accessible Name / status text: the shared label for the same 4-level value. */
 function memoryStatusPhraseForId(id) {
   if (!id) return '';
-  const r = getRating(id);
-  if (r === 'know') return 'Knew';
-  if (r === 'shaky') return 'Shaky';
-  if (r === 'review') return 'Forgot';
-  if (!state.seen.has(id)) return 'Unseen';
-  return 'Forgot';
+  return MEMORY_LABELS[detailMemorySliderValueForId(id)] || '';
 }
 
 /** `#detail-memory-range`: 0 unseen … 3 know (ordinal memory scale). */
@@ -399,6 +412,8 @@ const DIFFICULTY_LABELS = { E: 'Easy', M: 'Medium', H: 'Hard' };
 const MEMORY_STATUS_BY_VALUE = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
 const MEMORY_VALUE_BY_STATUS = { unseen: 0, review: 1, shaky: 2, know: 3 };
 const MEMORY_LABELS = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
+/** Slider ordinal → `.memory-dots` / `.qcard-memory` state class. */
+const MEMORY_DOT_CLASS_BY_VALUE = { 0: 'unseen', 1: 'forgot', 2: 'shaky', 3: 'knew' };
 
 /**
  * Primary: starred questions first within the compared set.
@@ -426,8 +441,6 @@ function getFilteredQuestions() {
   return questions.filter(q => {
     // Hide AI questions that user deleted
     if (state.hiddenIds.has(q.id)) return false;
-    // AI-only filter
-    if (state.aiOnly && q.source !== 'interview') return false;
     // Browsing is always scoped to the active topic; facets narrow within it
     if (q.type !== state.activeTab) return false;
     if (state.diffFilter && q.difficulty !== state.diffFilter) return false;
@@ -553,6 +566,10 @@ function selectFeedSection(type, section) {
   pushURLState();
   renderList();
   renderMainPanel();
+
+  // A roadmap band *is* a section, so a sidebar click in roadmap mode keeps the
+  // mode and jumps to that band — the same thing a rail click does.
+  if (state.showRoadmap) roadmapShowBand(section);
 }
 
 function onSidebarSectionClick(section) {
@@ -878,6 +895,10 @@ function createFeedQuestionCard(q) {
 function renderList() {
   const list = document.getElementById('feed-list') || document.getElementById('question-list');
 
+  // Roadmap mode belongs to the detail pane (see renderRoadmapPane), not here:
+  // the feed always renders its own section whatever the pane next to it shows.
+  // The early return that used to sit here handed this container to a milestone
+  // list instead, and left the feed showing that list after the mode turned off.
   const filteredQs = getFilteredQuestions();
   syncActiveFeedSection(filteredQs);
 
@@ -1069,10 +1090,16 @@ const TECH_SECTIONS = [
 
 // ── Detail layout ──────────────────────────────────────────────
 // The row structure of the detail pane is declared, not inferred from the
-// section order above. Three row forms:
-//   { cols: [a, b] } — two cards sharing one row;
+// section order above. Four row forms:
+//   { cols: [a, b] } — two cards sharing one row; when the question has only
+//                      one of the two fields it becomes a single-card row,
+//                      and consecutive ones pack into a band (buildDetailRows);
 //   { half: key }    — one card in one column, the other stays empty;
-//   { full: key }    — a spanning card.
+//   { full: key }    — a spanning card;
+//   { pack: key }    — one card that JOINS packing: consecutive packable rows
+//                      (this form or a one-card `cols` resolution) collapse
+//                      into one band stacked column-first; alone it stays a
+//                      plain half card.
 // Safety rule: a key present in the question data but missing from the
 // topic's layout still renders, appended as its own full-width row (see
 // buildDetailRows). Silently dropping content was the original clipping bug.
@@ -1088,7 +1115,7 @@ const DETAIL_LAYOUT = {
     { full: 'approach' },
   ],
   android: [
-    { full: 'answer' },
+    { pack: 'answer' },
     { cols: ['keyPoints', 'complexity'] },
     { cols: ['followUp', 'redFlags'] },
   ],
@@ -1170,14 +1197,81 @@ function collectDetailValues(q) {
 }
 
 /**
- * Flatten the declared layout into the ordered card list for this question.
- * Each entry is { key, width, rowStart }: width is 'db-half' (one column,
- * what the row's `cols`/`half` form produces) or 'db-full' (spanning), and
- * rowStart marks the FIRST card of every row — emitted even when the row
- * resolves to a single card. T1's two-column CSS anchors .db-row-start back
- * to column 1, so a partial row keeps its hole instead of default
- * grid-auto-flow pulling the next row's first card into it. Rows whose keys
- * are all absent emit nothing — no empty cards, no forced gaps.
+ * Build one answer-section card from its markdown. Returns the block plus the
+ * body element so the caller can attach it where it belongs (a plain grid row
+ * or a `.db-band`) and only then run mermaid — which needs the node connected.
+ * Collapsing follows Learn/Quiz mode and is re-derived on every render — no
+ * stored card state is consulted (see purgeCollapsedCardStorage).
+ */
+function createDetailCard(q, values, key, width, rowStart) {
+  const raw = values[key];
+  const sec = detailSectionMeta(q.type, key);
+  const isCollapsed = !state.learningMode;
+
+  const block = document.createElement('div');
+  block.className = `notion-block ${width}`
+    + (rowStart ? ' db-row-start' : '')
+    + (isCollapsed ? ' collapsed' : '');
+  block.dataset.notionKey = key;
+
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'notion-block-header';
+  head.setAttribute('aria-expanded', (!isCollapsed).toString());
+  const chevronIcon = isCollapsed ? '▶' : '▼';
+  head.innerHTML = `<span class="notion-chevron">${chevronIcon}</span><span class="notion-icon">${sec.icon}</span><span class="notion-label">${escapeHtml(sec.label)}</span>`;
+
+  const body = document.createElement('div');
+  body.className = 'notion-block-body' + (isCollapsed ? ' collapsed' : '');
+  body.hidden = isCollapsed;
+  body.innerHTML = typeof marked !== 'undefined'
+    ? marked.parse(String(raw))
+    : `<p>${escapeHtml(String(raw))}</p>`;
+
+  head.addEventListener('click', () => {
+    const collapsed = !block.classList.contains('collapsed');
+    block.classList.toggle('collapsed', collapsed);
+    head.setAttribute('aria-expanded', (!collapsed).toString());
+    body.classList.toggle('collapsed', collapsed);
+    body.hidden = collapsed;
+
+    // Update chevron icon
+    const chevron = head.querySelector('.notion-chevron');
+    if (chevron) {
+      chevron.textContent = collapsed ? '▶' : '▼';
+    }
+  });
+
+  block.appendChild(head);
+  block.appendChild(body);
+  return { block, body };
+}
+
+/**
+ * Flatten the declared layout into the ordered row list for this question.
+ * Two entry shapes come out. A single card is { key, width, rowStart }: width
+ * is 'db-half' (one column, what the row's `cols`/`half` form produces) or
+ * 'db-full' (spanning), and rowStart marks the FIRST card of every visual row
+ * — T1's two-column CSS anchors .db-row-start back to column 1, so the next
+ * declared row starts a new grid row instead of auto-flow pulling it into the
+ * hole the previous row left. A packed run is { band: [key, …], width:
+ * 'db-band', rowStart: true }.
+ *
+ * Packing rule: a `cols` row resolves against the fields the question
+ * actually has, so an optional absent partner (complexity on every android
+ * question, followUp on some) leaves one card and a hole; a declared
+ * `{ pack }` row is a single card that opts into the same treatment. Two or
+ * more CONSECUTIVE such one-card rows collapse into one band: a single grid
+ * item whose cards fill an inner first column top-to-bottom (declaration
+ * order preserved) and overflow into the inner second column — lone cards
+ * stack beside each other instead of each owning a hole-ridden row.
+ * Deliberately excluded: a lone `{ half }` row is a chosen single column, not
+ * a packing candidate (it breaks a run and keeps its hole); `{ full }` rows
+ * and the safety-pass rows are the declared wide cards and keep their own
+ * spanning row; a `cols` row that resolves to two cards still pairs
+ * half/half as before; a run of exactly one stays a plain half row (nothing
+ * to pack). Rows whose keys are all absent emit nothing and do not break a
+ * run either — they render nowhere, so the surviving cards stay consecutive.
  */
 function buildDetailRows(q, values) {
   const layout = detailLayoutFor(q.type);
@@ -1185,24 +1279,46 @@ function buildDetailRows(q, values) {
   const referenced = new Set();
   layout.forEach(row => {
     if (row.cols) row.cols.forEach(k => referenced.add(k));
-    else referenced.add(row.half || row.full);
+    else referenced.add(row.half || row.full || row.pack);
   });
 
   const rows = [];
+  let run = [];
+  const flushRun = () => {
+    if (run.length > 1) {
+      rows.push({ band: run.slice(), width: 'db-band', rowStart: true });
+    } else if (run.length === 1) {
+      rows.push({ key: run[0], width: 'db-half', rowStart: true });
+    }
+    run = [];
+  };
   layout.forEach(row => {
-    let rowOpened = false;
     if (row.cols) {
-      row.cols.forEach(key => {
-        if (!has(key)) return;
-        rows.push({ key, width: 'db-half', rowStart: !rowOpened });
-        rowOpened = true;
+      const present = row.cols.filter(key => has(key));
+      if (!present.length) return;
+      if (present.length === 1) {
+        run.push(present[0]);
+        return;
+      }
+      flushRun();
+      present.forEach((key, i) => {
+        rows.push({ key, width: 'db-half', rowStart: i === 0 });
       });
-    } else if (row.half && has(row.half)) {
+      return;
+    }
+    if (row.pack && has(row.pack)) {
+      run.push(row.pack);
+      return;
+    }
+    if (row.half && has(row.half)) {
+      flushRun();
       rows.push({ key: row.half, width: 'db-half', rowStart: true });
     } else if (row.full && has(row.full)) {
+      flushRun();
       rows.push({ key: row.full, width: 'db-full', rowStart: true });
     }
   });
+  flushRun();
 
   // Safety rule (see DETAIL_LAYOUT): data keys the layout never mentions still
   // render, appended as their own full-width row. This is also how the no-
@@ -1372,6 +1488,11 @@ function initializeDiagramModal() {
 
 // ── Select a question ──────────────────────────────────────────
 function selectQuestion(id) {
+  // Opening a question is the pane saying "show me this answer", so roadmap mode
+  // ends here — every path into a question (feed card, J/K, palette, roadmap
+  // cell, ghost un-hide, hash link) funnels through this function.
+  setRoadmapMode(false);
+
   // Push to history (only if not navigating via history buttons)
   if (!state._historyNav) {
     // Truncate forward history
@@ -1410,6 +1531,21 @@ function selectQuestion(id) {
 function renderMainPanel() {
   const emptyState = document.getElementById('detail-empty');
   const questionView = document.getElementById('detail-question');
+  const roadmapView = document.getElementById('detail-roadmap');
+
+  // Roadmap mode owns the pane. Hiding #detail-question takes the per-question
+  // header (num / star / difficulty / rating slider) and the Tags/Related
+  // bottom bar with it — they are children of that view, so there is nothing
+  // else to switch off.
+  if (state.showRoadmap) {
+    if (emptyState) emptyState.classList.add('hidden');
+    if (questionView) questionView.classList.add('hidden');
+    renderRoadmapPane();
+    return;
+  }
+
+  if (roadmapView) roadmapView.classList.add('hidden');
+  hideRoadmapTooltip();
 
   if (!state.selectedId) {
     if (emptyState) emptyState.classList.remove('hidden');
@@ -1453,53 +1589,32 @@ function renderMainPanel() {
     const values = collectDetailValues(q);
     const rows = buildDetailRows(q, values);
 
-    rows.forEach(({ key, width, rowStart }) => {
-      const raw = values[key];
-      const sec = detailSectionMeta(q.type, key);
-
-      // Collapse follows Learn/Quiz mode and is re-derived on every render —
-      // no stored card state is consulted (see purgeCollapsedCardStorage).
-      const isCollapsed = !state.learningMode;
-
-      const block = document.createElement('div');
-      block.className = `notion-block ${width}`
-        + (rowStart ? ' db-row-start' : '')
-        + (isCollapsed ? ' collapsed' : '');
-      block.dataset.notionKey = key;
-
-      const head = document.createElement('button');
-      head.type = 'button';
-      head.className = 'notion-block-header';
-      head.setAttribute('aria-expanded', (!isCollapsed).toString());
-      const chevronIcon = isCollapsed ? '▶' : '▼';
-      head.innerHTML = `<span class="notion-chevron">${chevronIcon}</span><span class="notion-icon">${sec.icon}</span><span class="notion-label">${escapeHtml(sec.label)}</span>`;
-
-      const body = document.createElement('div');
-      body.className = 'notion-block-body' + (isCollapsed ? ' collapsed' : '');
-      body.hidden = isCollapsed;
-      body.innerHTML = typeof marked !== 'undefined'
-        ? marked.parse(String(raw))
-        : `<p>${escapeHtml(String(raw))}</p>`;
-
-      head.addEventListener('click', () => {
-        const collapsed = !block.classList.contains('collapsed');
-        block.classList.toggle('collapsed', collapsed);
-        head.setAttribute('aria-expanded', (!collapsed).toString());
-        body.classList.toggle('collapsed', collapsed);
-        body.hidden = collapsed;
-
-        // Update chevron icon
-        const chevron = head.querySelector('.notion-chevron');
-        if (chevron) {
-          chevron.textContent = collapsed ? '▶' : '▼';
-        }
-      });
-
-      block.appendChild(head);
-      block.appendChild(body);
-      detailBody.appendChild(block);
-
-      runMermaidInContainer(body);
+    rows.forEach(row => {
+      if (row.band) {
+        // Packed run of single-card rows (see buildDetailRows): one grid
+        // item hosting an inner column-first flow. The row count, min(n, 2),
+        // is what makes the run STACK: with `grid-auto-flow: column` cards 1
+        // and 2 land in rows 1–2 of the inner first column, and a run of 3+
+        // overflows into the inner second column starting at its row 1 —
+        // never one card per inner row side by side. The .db-band rules only
+        // apply their two-column flow inside the container query, so the
+        // one-column state just stacks.
+        const band = document.createElement('div');
+        band.className = 'db-band';
+        band.style.gridTemplateRows = `repeat(${Math.min(row.band.length, 2)}, max-content)`;
+        const bodies = [];
+        row.band.forEach(key => {
+          const card = createDetailCard(q, values, key, 'db-half', false);
+          band.appendChild(card.block);
+          bodies.push(card.body);
+        });
+        detailBody.appendChild(band);
+        bodies.forEach(b => runMermaidInContainer(b));
+        return;
+      }
+      const card = createDetailCard(q, values, row.key, row.width, row.rowStart);
+      detailBody.appendChild(card.block);
+      runMermaidInContainer(card.body);
     });
   }
 
@@ -1624,6 +1739,668 @@ function toggleLearningMode() {
 }
 
 
+/**
+ * Set roadmap mode, persist it and sync the switch. Deliberately does not
+ * render: every caller already has a render of its own (selectQuestion,
+ * toggleRoadmap, init), and a second one would rebuild the pane mid-keystroke.
+ * Returns true when the mode actually changed.
+ */
+function setRoadmapMode(on) {
+  const next = Boolean(on);
+  if (state.showRoadmap === next) return false;
+  state.showRoadmap = next;
+  saveRoadmapMode();
+  syncRoadmapToggleUI();
+  return true;
+}
+
+/** #roadmap-btn is a role="switch", so its state lands on aria-checked (never a
+    "pressed" attribute, which is the toggle-button contract). */
+function syncRoadmapToggleUI() {
+  const btn = document.getElementById('roadmap-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', state.showRoadmap);
+  btn.setAttribute('aria-checked', state.showRoadmap ? 'true' : 'false');
+}
+
+function toggleRoadmap() {
+  const on = !state.showRoadmap;
+  setRoadmapMode(on);
+  if (!on) hideRoadmapTooltip();
+  renderApp();
+  if (on) {
+    // Opening lands on the band holding the question that was already open (with
+    // no selection, on the top of the path). Asked for *after* the render, so the
+    // band it looks for is in the DOM by the time it is looked for.
+    const q = state.selectedId ? getQuestionById(state.selectedId) : null;
+    roadmapShowBand(q ? q.section : null);
+  }
+}
+
+function exitRoadmapMode() {
+  if (!setRoadmapMode(false)) return;
+  hideRoadmapTooltip();
+  renderApp();
+}
+
+// ── Roadmap pane ─────────────────────────────────────────────────
+//
+// The path for `state.activeTab`: one band per milestone (a band *is* a section —
+// see data/roadmaps.js), each holding a heatmap cell per question. A cell is a
+// real `<a href="#<id>">`, so ⌘-click and middle-click open a question in a new
+// tab through the app's own hash routing without any extra code.
+//
+// Three defects in the feed-list version this replaces, and where they went:
+// · `completed` counted *any* rating (`getRating(id)` truthy), so a question
+//   marked “Forgot” was booked as progress. Here `known` is rating === 'know'.
+// · hidden questions were dropped from the rows but still counted in `total`, so
+//   no band's fraction matched what was on screen. Here they render as ghost
+//   cells and count in the total.
+// · one click handler on the whole milestone card opened its *first* question —
+//   through a selector function that was never defined, so the click threw.
+//   Every cell is its own link now.
+const ROADMAP_RAIL_LABEL_MAX = 10;  // spec: rail labels truncate to ~10 characters
+// Geometry read from getBoundingClientRect is px, so the two gaps that are really
+// sheet lengths are declared in rem and converted through the live root font size
+// (the same reading runMermaidInContainer uses): at ladder 70% they shrink with
+// everything else instead of drifting. The sticky head is measured, not assumed.
+const ROADMAP_TOOLTIP_GAP_REM = 0.5; // air between a cell and its tooltip
+const ROADMAP_SCROLL_PAD_REM = 0.5;  // air under the pinned head when jumping to a band
+function roadmapRem() {
+  const px = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return Number.isFinite(px) && px > 0 ? px : 16;
+}
+const roadmapTooltipGap = () => ROADMAP_TOOLTIP_GAP_REM * roadmapRem();
+const roadmapScrollPad = () => ROADMAP_SCROLL_PAD_REM * roadmapRem();
+
+let roadmapBands = [];        // the model the last render drew (rail tooltips read it)
+let roadmapCells = [];        // every cell, in path order — this is the roving order
+let roadmapBandOrder = [];    // band names, path order
+let roadmapScrollRequest = null; // { section: string | null } | null
+let roadmapTooltipEl = null;
+let roadmapTipSubject = null;
+let roadmapHoverSection = null;
+
+/** The only definition of progress on this pane: `know`, not “any rating”. */
+function roadmapIsKnown(id) {
+  return getRating(id) === 'know';
+}
+
+/** Difficulty → cell shape: E circle, M rounded square, H sharp square. */
+function roadmapShapeFor(q) {
+  const d = q.difficulty;
+  return d === 'E' || d === 'H' ? d : 'M';
+}
+
+function roadmapCurrentSection() {
+  const q = state.selectedId ? getQuestionById(state.selectedId) : null;
+  return q && q.type === state.activeTab ? q.section : null;
+}
+
+/** RoadmapDB's band order + membership, resolved against the live registry. */
+function roadmapBandsForActiveTopic() {
+  const roadmap = RoadmapDB ? RoadmapDB.getRoadmap(state.activeTab) : [];
+  const byId = new Map(questions.map(q => [q.id, q]));
+  return roadmap.map(band => {
+    // Starred first, then data order. Array#sort is stable, so comparing only on
+    // `star` keeps the sequence RoadmapDB produced — the order the questions are
+    // written in /data. The feed's importance+difficulty sort is not wanted here:
+    // the path reads as a sequence.
+    const items = band.questions
+      .map(id => byId.get(id))
+      .filter(Boolean)
+      .sort((a, b) => Number(!!b.star) - Number(!!a.star));
+    const counts = { E: 0, M: 0, H: 0 };
+    let known = 0;
+    items.forEach(q => {
+      counts[roadmapShapeFor(q)] += 1;
+      if (roadmapIsKnown(q.id)) known += 1;
+    });
+    return { name: band.milestone, items, counts, known };
+  });
+}
+
+function roadmapCellAriaLabel(q, band) {
+  const mem = detailMemorySliderValueForId(q.id);
+  const bits = [
+    q.title,
+    `Section ${band.name}`,
+    `Question ${q.id}`,
+    DIFFICULTY_LABELS[roadmapShapeFor(q)],
+    `Memory: ${MEMORY_LABELS[mem]}`,
+  ];
+  if (q.star) bits.push('Important');
+  if (state.hiddenIds.has(q.id)) bits.push('Hidden — activate to unhide and open');
+  return bits.join('. ');
+}
+
+function buildRoadmapBand(band) {
+  const el = document.createElement('div');
+  el.className = 'roadmap-band';
+  el.dataset.band = band.name;
+
+  const hd = document.createElement('h3');
+  hd.className = 'roadmap-band-hd';
+  const name = document.createElement('span');
+  name.className = 'roadmap-band-name';
+  name.textContent = band.name;
+  const tally = document.createElement('span');
+  tally.className = 'roadmap-band-tally';
+  tally.textContent = `— ${band.known}/${band.items.length} known`;
+  const diffs = document.createElement('span');
+  diffs.className = 'roadmap-band-diffs';
+  diffs.textContent = `E·${band.counts.E} M·${band.counts.M} H·${band.counts.H}`;
+  hd.appendChild(name);
+  hd.appendChild(tally);
+  hd.appendChild(diffs);
+
+  const cells = document.createElement('div');
+  cells.className = 'roadmap-cells';
+  cells.setAttribute('role', 'group');
+  cells.setAttribute('aria-label', `${band.name}: ${band.items.length} question${band.items.length === 1 ? '' : 's'}`);
+
+  band.items.forEach(q => {
+    const hidden = state.hiddenIds.has(q.id);
+    const cell = document.createElement('a');
+    cell.className = `roadmap-cell rm-shape-${roadmapShapeFor(q)} rm-mem-${detailMemorySliderValueForId(q.id)}`
+      + (hidden ? ' roadmap-cell-ghost' : '')
+      + (q.id === state.selectedId ? ' is-current' : '');
+    cell.href = `#${q.id}`;
+    cell.dataset.rmq = q.id;
+    cell.dataset.band = band.name;
+    // One tab stop for the whole map: arrows move the roving focus (see
+    // onRoadmapGridKeyDown), Tab moves to the next control outside it.
+    cell.tabIndex = -1;
+    cell.setAttribute('aria-label', roadmapCellAriaLabel(q, band));
+    if (hidden) cell.dataset.ghost = '1';
+    cells.appendChild(cell);
+    roadmapCells.push(cell);
+  });
+
+  el.appendChild(hd);
+  el.appendChild(cells);
+  return el;
+}
+
+/**
+ * The rail as one inline SVG: a segment per milestone, wide by cell count,
+ * filled by % known. Geometry is measured rather than assumed — the viewBox is
+ * the element's own px box, so one user unit is one CSS px and
+ * `preserveAspectRatio="none"` cannot smear the labels. Because the box comes
+ * from `clientHeight`, which is `rem` in the sheet, every proportion inside it
+ * tracks the size ladder with the rest of the UI.
+ */
+function buildRoadmapRail(host, bands, attempt) {
+  host.innerHTML = '';
+  const total = bands.reduce((n, b) => n + b.items.length, 0);
+  if (!total) return;
+  const w = host.clientWidth;
+  const h = host.clientHeight;
+  // A pane that has not been laid out yet measures 0; retry once per frame.
+  if ((!w || !h) && (attempt || 0) < 3) {
+    window.requestAnimationFrame(() => buildRoadmapRail(host, bands, (attempt || 0) + 1));
+    return;
+  }
+  if (!w || !h) return;
+
+  const fs = Math.max(6, Math.round(h * 0.24));
+  const barH = Math.round(h * 0.24);
+  const barY = 2;
+  const pad = 2;
+  const labelY = Math.min(h - 1, barY + barH + Math.round(fs * 1.5));
+  const rx = Math.round(barH / 2);
+  const gap = bands.length > 1 ? 2 : 0;
+  const usable = Math.max(1, w - pad * 2 - gap * (bands.length - 1));
+  const current = roadmapCurrentSection();
+
+  const edges = [];
+  let acc = 0;
+  bands.forEach(b => {
+    acc += (b.items.length / total) * usable;
+    edges.push(Math.round(acc));
+  });
+
+  const parts = bands.map((band, i) => {
+    const left = i === 0 ? pad : pad + edges[i - 1] + i * gap;
+    const right = pad + edges[i] + i * gap;
+    const segW = Math.max(1, right - left);
+    const fillW = Math.round(segW * (band.items.length ? band.known / band.items.length : 0));
+    const label = roadmapRailLabel(band.name, segW, fs);
+    return '<g class="roadmap-rail-seg" data-band="' + escapeHtml(band.name) + '">'
+      + '<rect class="rr-track" x="' + left + '" y="' + barY + '" width="' + segW + '" height="' + barH + '" rx="' + rx + '"></rect>'
+      + (fillW > 0 ? '<rect class="rr-fill" x="' + left + '" y="' + barY + '" width="' + fillW + '" height="' + barH + '" rx="' + rx + '"></rect>' : '')
+      // you-are-here: a ring on the segment holding the open question. Stroke,
+      // never the state colour — the fill already says how much is known.
+      + (band.name === current ? '<rect class="rr-here" x="' + (left - 1.5) + '" y="' + (barY - 1.5) + '" width="' + (segW + 3) + '" height="' + (barH + 3) + '" rx="' + (rx + 1.5) + '"></rect>' : '')
+      + (label ? '<text class="rr-label" x="' + (left + segW / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="' + fs + '">' + escapeHtml(label) + '</text>' : '')
+      + '</g>';
+  });
+
+  host.innerHTML = '<svg class="roadmap-rail-svg" width="100%" height="100%" viewBox="0 0 '
+    + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+    + parts.join('') + '</svg>';
+}
+
+/**
+ * The cap is ~10 characters; a narrow band gets fewer, so a label can never run
+ * into its neighbour's. The full name is in the tooltip. Below two characters of
+ * room the label is dropped rather than reduced to an ellipsis.
+ */
+function roadmapRailLabel(name, segW, fs) {
+  const room = Math.floor((segW - 2) / (fs * 0.62));
+  const max = Math.min(ROADMAP_RAIL_LABEL_MAX, room);
+  if (max < 2) return '';
+  if (name.length <= max) return name;
+  return `${name.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+}
+
+function renderRoadmapPane() {
+  const pane = document.getElementById('detail-roadmap');
+  const bandsHost = document.getElementById('roadmap-bands');
+  const railHost = document.getElementById('roadmap-rail');
+  if (!pane || !bandsHost || !railHost) return;
+
+  const titleEl = document.getElementById('roadmap-title');
+  const aggregateEl = document.getElementById('roadmap-aggregate');
+  const jumpBtn = document.getElementById('roadmap-jump');
+
+  // Re-rendering replaces every cell, so keep the two things a user can feel:
+  // where the pane was scrolled, and where the keyboard was.
+  const wasVisible = !pane.classList.contains('hidden');
+  const keptScroll = wasVisible ? pane.scrollTop : 0;
+  const focused = document.activeElement;
+  const keptId = wasVisible && focused && focused.classList
+    && focused.classList.contains('roadmap-cell') ? focused.dataset.rmq : null;
+
+  pane.classList.remove('hidden');
+
+  roadmapBands = roadmapBandsForActiveTopic();
+  roadmapCells = [];
+  roadmapBandOrder = roadmapBands.map(b => b.name);
+  roadmapHoverSection = null;
+
+  if (titleEl) {
+    titleEl.textContent = `🗺️ Roadmap · ${TOPIC_LABELS[state.activeTab] || state.activeTab}`;
+  }
+
+  const total = roadmapBands.reduce((n, b) => n + b.items.length, 0);
+  const known = roadmapBands.reduce((n, b) => n + b.known, 0);
+  if (aggregateEl) {
+    aggregateEl.textContent = `${known} of ${total} known`;
+    aggregateEl.title = 'Only “Knew” counts as known.';
+  }
+  if (jumpBtn) jumpBtn.disabled = !roadmapCurrentSection();
+
+  bandsHost.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  roadmapBands.forEach(band => frag.appendChild(buildRoadmapBand(band)));
+  if (roadmapBands.length) {
+    bandsHost.appendChild(frag);
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'roadmap-empty';
+    empty.textContent = 'No roadmap for this topic yet.';
+    bandsHost.appendChild(empty);
+  }
+
+  buildRoadmapRail(railHost, roadmapBands);
+
+  // Re-pick the roving tab stop: keep the keyboard where it was if that question
+  // is still on the path, else the open question, else the band being jumped to,
+  // else the first cell of the path.
+  const cellById = new Map(roadmapCells.map(c => [c.dataset.rmq, c]));
+  let active = (keptId && cellById.get(keptId)) || null;
+  if (!active && state.selectedId) active = cellById.get(state.selectedId) || null;
+  if (!active && roadmapScrollRequest && roadmapScrollRequest.section) {
+    active = roadmapCells.filter(c => c.dataset.band === roadmapScrollRequest.section)[0] || null;
+  }
+  if (!active) active = roadmapCells[0] || null;
+  roadmapSetActiveCell(active);
+
+  if (wasVisible && !roadmapScrollRequest) pane.scrollTop = keptScroll;
+  if (keptId && active && document.contains(active)) {
+    try {
+      active.focus({ preventScroll: true });
+    } catch (e) {
+      active.focus();
+    }
+  }
+  applyRoadmapScrollRequest();
+}
+
+/** Roving tabindex: the map keeps exactly one tab stop, on `cell`. */
+function roadmapSetActiveCell(cell) {
+  roadmapCells.forEach(c => { c.tabIndex = c === cell ? 0 : -1; });
+}
+
+function roadmapFocusCell(cell) {
+  if (!cell) return;
+  roadmapSetActiveCell(cell);
+  if (typeof cell.focus === 'function') cell.focus();
+}
+
+/**
+ * Ask the pane to land on a band (null = the top of the path) and take the jump
+ * now if the DOM is already there. Safe to call before or after a render, which
+ * is what lets a topic switch, a rail click and a sidebar click share one path.
+ */
+function roadmapShowBand(section) {
+  roadmapScrollRequest = { section: section || null };
+  applyRoadmapScrollRequest();
+}
+
+function roadmapBandElement(section) {
+  const pane = document.getElementById('detail-roadmap');
+  if (!pane || !section) return null;
+  return Array.prototype.find.call(
+    pane.querySelectorAll('.roadmap-band'),
+    el => el.dataset.band === section
+  ) || null;
+}
+
+function applyRoadmapScrollRequest() {
+  const req = roadmapScrollRequest;
+  if (!req) return;
+  const pane = document.getElementById('detail-roadmap');
+  // No pane, or a pane that is still hidden: keep the request so the render that
+  // shows the pane can take the jump.
+  if (!pane || pane.classList.contains('hidden')) return;
+  roadmapScrollRequest = null;
+
+  if (!req.section) {
+    pane.scrollTop = 0;
+    return;
+  }
+  const bandEl = roadmapBandElement(req.section);
+  // A section that is not a band (a filter hid it, or the tab moved under us)
+  // must not yank the pane somewhere the user did not ask for.
+  if (!bandEl) return;
+
+  const head = pane.querySelector('.roadmap-head');
+  const top = bandEl.getBoundingClientRect().top - pane.getBoundingClientRect().top
+    + pane.scrollTop - (head ? head.offsetHeight : 0) - roadmapScrollPad();
+  const clamped = Math.max(0, Math.round(top));
+  if (typeof pane.scrollTo === 'function') {
+    pane.scrollTo({ top: clamped, behavior: roadmapScrollBehavior() });
+  } else {
+    pane.scrollTop = clamped;
+  }
+  roadmapFlashBand(bandEl);
+}
+
+function roadmapScrollBehavior() {
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return reduce ? 'auto' : 'smooth';
+}
+
+/** Transient: the jump is invisible on a band that is already at the top. */
+function roadmapFlashBand(bandEl) {
+  bandEl.classList.remove('band-flash');
+  void bandEl.offsetWidth;
+  bandEl.classList.add('band-flash');
+  const clear = () => bandEl.classList.remove('band-flash');
+  bandEl.addEventListener('animationend', clear, { once: true });
+  setTimeout(clear, 1200);
+}
+
+// ── Roadmap tooltip ──────────────────────────────────────────────
+/**
+ * One element, appended to `document.body`. It cannot live in the pane:
+ * `.detail-inner` has `container: detail / inline-size`, and inline-size
+ * containment makes that box the containing block for `position: fixed`
+ * descendants — a fixed tooltip inside it would be positioned against the pane,
+ * not the window (the same trap that forces the diagram modal to body level).
+ */
+function roadmapTip() {
+  if (roadmapTooltipEl && roadmapTooltipEl.parentNode) return roadmapTooltipEl;
+  const el = document.createElement('div');
+  el.id = 'roadmap-tooltip';
+  el.className = 'roadmap-tooltip';
+  el.setAttribute('role', 'tooltip');
+  el.hidden = true;
+  document.body.appendChild(el);
+  roadmapTooltipEl = el;
+  return el;
+}
+
+function showRoadmapTooltip(subject, lines) {
+  if (!subject || !lines) { hideRoadmapTooltip(); return; }
+  const el = roadmapTip();
+  el.innerHTML = '';
+  lines.forEach((line, i) => {
+    const row = document.createElement('div');
+    row.className = i === 0 ? 'roadmap-tip-title' : 'roadmap-tip-meta';
+    // Metadata only — textContent, so a title can never inject markup.
+    row.textContent = line;
+    el.appendChild(row);
+  });
+  el.hidden = false;
+  const r = subject.getBoundingClientRect();
+  const winW = window.innerWidth || document.documentElement.clientWidth;
+  const gap = roadmapTooltipGap();
+  let left = r.left + r.width / 2 - el.offsetWidth / 2;
+  left = Math.max(gap, Math.min(left, winW - el.offsetWidth - gap));
+  let top = r.top - el.offsetHeight - gap;
+  if (top < gap) top = r.bottom + gap;
+  // Placed in px because the numbers come from getBoundingClientRect; the tooltip
+  // box itself is sized in rem by the sheet.
+  el.style.left = `${Math.round(left)}px`;
+  el.style.top = `${Math.round(top)}px`;
+  roadmapTipSubject = subject;
+}
+
+function hideRoadmapTooltip() {
+  if (roadmapTooltipEl && !roadmapTooltipEl.hidden) roadmapTooltipEl.hidden = true;
+  roadmapTipSubject = null;
+}
+
+/** Full title + section + difficulty + memory state + star flag. No preview. */
+function roadmapCellTipLines(cell) {
+  const q = getQuestionById(cell.dataset.rmq);
+  if (!q) return null;
+  const mem = detailMemorySliderValueForId(q.id);
+  const lines = [
+    q.title,
+    `${cell.dataset.band} · ${DIFFICULTY_LABELS[roadmapShapeFor(q)]} · ${MEMORY_LABELS[mem]}`,
+  ];
+  const extra = [];
+  if (q.star) extra.push('⭐ Important');
+  if (state.hiddenIds.has(q.id)) extra.push('Hidden — click to unhide and open');
+  if (extra.length) lines.push(extra.join(' · '));
+  return lines;
+}
+
+function roadmapRailTipLines(section) {
+  const band = roadmapBands.find(b => b.name === section);
+  if (!band) return null;
+  return [
+    band.name,
+    `${band.known} of ${band.items.length} known`,
+    `E·${band.counts.E} M·${band.counts.M} H·${band.counts.H}`,
+  ];
+}
+
+/** Rail hover marks the matching band, so a segment is never a guess. */
+function roadmapSetBandHover(section) {
+  if (roadmapHoverSection === section) return;
+  roadmapHoverSection = section;
+  const pane = document.getElementById('detail-roadmap');
+  if (!pane) return;
+  Array.prototype.forEach.call(pane.querySelectorAll('.roadmap-band'), el => {
+    el.classList.toggle('band-hover', Boolean(section) && el.dataset.band === section);
+  });
+}
+
+// ── Roadmap interaction ──────────────────────────────────────────
+/**
+ * The app's only un-hide path. `interview-hidden` used to be written by
+ * hideAIQuestion() and never removed anywhere, so a question hidden by mistake
+ * was gone for good. A ghost cell exists to undo exactly that.
+ */
+function roadmapUnhideAndOpen(id) {
+  state.hiddenIds.delete(id);
+  saveHiddenIds();
+  selectQuestion(id);
+}
+
+function onRoadmapBandsClick(e) {
+  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  if (!cell) return;
+  const id = cell.dataset.rmq;
+  if (!id) return;
+  // A modified click is the browser's: the anchor's own href does the work, so
+  // ⌘/Ctrl-click still opens the question in a new tab.
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+  e.preventDefault();
+  hideRoadmapTooltip();
+  if (cell.dataset.ghost) {
+    roadmapUnhideAndOpen(id);
+    return;
+  }
+  selectQuestion(id);
+}
+
+/** Same-column cell one visual row down (step -1: up) inside a band. */
+function roadmapRowNeighbour(cells, at, step) {
+  const from = cells[at];
+  if (!from || !from.getBoundingClientRect) return null;
+  const base = from.getBoundingClientRect();
+  if (!base.height) return null;
+  const rows = new Map();
+  cells.forEach((c, i) => {
+    const top = Math.round(c.getBoundingClientRect().top);
+    const bucket = rows.get(top);
+    if (bucket) bucket.push(i);
+    else rows.set(top, [i]);
+  });
+  const tops = [...rows.keys()].sort((a, b) => a - b);
+  const rowAt = tops.indexOf(Math.round(base.top));
+  if (rowAt === -1) return null;
+  const want = tops[rowAt + step];
+  if (want === undefined) return null;
+  const bucket = rows.get(want);
+  let best = bucket[0];
+  let bestDx = Infinity;
+  bucket.forEach(i => {
+    const dx = Math.abs(cells[i].getBoundingClientRect().left - base.left);
+    if (dx < bestDx) { bestDx = dx; best = i; }
+  });
+  return cells[best];
+}
+
+function roadmapAdjacentCell(cell, key) {
+  const flat = roadmapCells;
+  const at = flat.indexOf(cell);
+  if (at === -1) return null;
+  const inBand = flat.filter(c => c.dataset.band === cell.dataset.band);
+  const bandAt = inBand.indexOf(cell);
+  if (key === 'Home') return inBand[0];
+  if (key === 'End') return inBand[inBand.length - 1];
+  if (key === 'ArrowRight') return flat[Math.min(flat.length - 1, at + 1)];
+  if (key === 'ArrowLeft') return flat[Math.max(0, at - 1)];
+
+  const step = key === 'ArrowDown' ? 1 : -1;
+  const row = roadmapRowNeighbour(inBand, bandAt, step);
+  if (row) return row;
+  // No row left in this band: carry on into the next one, which is what lets the
+  // arrows walk the whole path without leaving the pane.
+  const nextBand = roadmapBandOrder[roadmapBandOrder.indexOf(cell.dataset.band) + step];
+  if (!nextBand) return null;
+  const cells = flat.filter(c => c.dataset.band === nextBand);
+  return step > 0 ? cells[0] : cells[cells.length - 1];
+}
+
+function onRoadmapGridKeyDown(e) {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  if (!cell) return;
+  // Enter is left to the browser: it activates the anchor, which is the cell's
+  // real purpose (and gives hash routing, so ⌘-click semantics match).
+  if (e.key === 'Enter') return;
+  if (e.key === ' ') {
+    // Swallow it: the reveal cover belongs to the question view this mode hides.
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].indexOf(e.key) === -1) return;
+  e.preventDefault();
+  // The document-level shortcuts alias ArrowUp/Down to J/K on the *feed*; while
+  // the map has the keyboard, arrows must not move that selection as well.
+  e.stopPropagation();
+  roadmapFocusCell(roadmapAdjacentCell(cell, e.key));
+}
+
+function onRoadmapCellPointer(e) {
+  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  if (!cell) { hideRoadmapTooltip(); return; }
+  if (cell === roadmapTipSubject) return;
+  showRoadmapTooltip(cell, roadmapCellTipLines(cell));
+}
+
+function onRoadmapCellLeave(e) {
+  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  if (!cell) return;
+  const to = e.relatedTarget;
+  if (to && to.closest && to.closest('.roadmap-cell') === cell) return;
+  hideRoadmapTooltip();
+}
+
+function roadmapRailSegment(target) {
+  return target && target.closest ? target.closest('.roadmap-rail-seg') : null;
+}
+
+function onRoadmapRailMove(e) {
+  const seg = roadmapRailSegment(e.target);
+  roadmapSetBandHover(seg ? seg.dataset.band : null);
+  if (!seg) { hideRoadmapTooltip(); return; }
+  if (seg === roadmapTipSubject) return;
+  showRoadmapTooltip(seg, roadmapRailTipLines(seg.dataset.band));
+}
+
+function onRoadmapRailLeave() {
+  roadmapSetBandHover(null);
+  hideRoadmapTooltip();
+}
+
+function onRoadmapRailClick(e) {
+  const seg = roadmapRailSegment(e.target);
+  if (!seg) return;
+  e.preventDefault();
+  roadmapShowBand(seg.dataset.band);
+}
+
+function roadmapJumpToCurrent() {
+  const section = roadmapCurrentSection();
+  if (!section) return;
+  roadmapShowBand(section);
+}
+
+function initializeRoadmap() {
+  const pane = document.getElementById('detail-roadmap');
+  const bandsHost = document.getElementById('roadmap-bands');
+  const railHost = document.getElementById('roadmap-rail');
+
+  if (bandsHost) {
+    bandsHost.addEventListener('click', onRoadmapBandsClick);
+    bandsHost.addEventListener('keydown', onRoadmapGridKeyDown);
+    // Tooltip on hover *and* on focus: the pointer and the keyboard must see the
+    // same metadata, and the cells carry none of it visibly.
+    bandsHost.addEventListener('mouseover', onRoadmapCellPointer);
+    bandsHost.addEventListener('mouseout', onRoadmapCellLeave);
+    bandsHost.addEventListener('focusin', onRoadmapCellPointer);
+    bandsHost.addEventListener('focusout', onRoadmapCellLeave);
+  }
+  if (railHost) {
+    railHost.addEventListener('mousemove', onRoadmapRailMove);
+    railHost.addEventListener('mouseleave', onRoadmapRailLeave);
+    railHost.addEventListener('click', onRoadmapRailClick);
+  }
+  // The tooltip is placed against the cell's viewport rect, so it has to go when
+  // the pane scrolls under it.
+  if (pane) pane.addEventListener('scroll', hideRoadmapTooltip, { passive: true });
+}
+
 function hideAIQuestion(id) {
   state.hiddenIds.add(id);
   saveHiddenIds();
@@ -1672,21 +2449,32 @@ function setRating(id, rating) {
   
 }
 
-/** Detail range: ordinal 0 unseen … 3 know (aligned with sidebar memory chips). */
+/**
+ * Detail range: ordinal 0 unseen … 3 know (aligned with sidebar memory chips).
+ * THE source of truth for the 4-level memory value — feed gem class, status
+ * phrase, slider position, ARIA text and roadmap fill all derive from it, so
+ * they can never disagree. Rating-first: an explicit `know|shaky|review` in
+ * `state.ratings` is the user changing the level and ALWAYS wins (3|2|1).
+ * The absence of a rating resolves to 0 "Unseen"; `state.seen` is irrelevant
+ * to the value (opening a question is not a rating, and a stored rating is
+ * never hidden by a missing seen entry). Notch 1 ("Forgot") is therefore
+ * reachable only through a deliberate rating (slider, 1/2/3 keys, or stored
+ * `review` data). `state.seen` still drives other surfaces that read it
+ * directly: the unseen filter, the unseen chip count, the section % bar and
+ * the feed card's opened/unseen styling.
+ */
 function detailMemorySliderValueForId(id) {
   if (!id) return 0;
-  if (!state.seen.has(id)) return getSliderValueFromStatus('unseen');
-  const r = getRating(id);
-  if (r) return getSliderValueFromStatus(r);
-  return 1; // seen but not explicitly rated → notch 1 (“Forgot”); ARIA still “Not rated”
+  const v = getSliderValueFromStatus(getRating(id));
+  return v === null ? 0 : v; // no rating (or an unmapped value) → Unseen
 }
 
+/** `aria-valuetext` for the detail range: the shared label for the ordinal. Notch 1
+ *  now only ever means an explicit "Forgot" rating, so there is no seen-unrated case here. */
 function detailMemorySliderAriaValuetext(id, sliderValue) {
   if (!id) return 'Unseen';
-  if (sliderValue === 0) return 'Unseen';
-  if (sliderValue === 1 && state.seen.has(id) && !getRating(id)) return 'Forgot';
   const labels = MEMORY_LABELS;
-  return labels[sliderValue] || 'Forgot';
+  return labels[sliderValue] || 'Unseen';
 }
 
 /**
@@ -1737,6 +2525,9 @@ function onTopicChange(value) {
   pushURLState();
   renderList();
   renderMainPanel(null);
+  // A tab switch keeps roadmap mode and shows that topic's path from the top
+  // (there is no question to land on any more).
+  if (state.showRoadmap) roadmapShowBand(null);
 }
 
 // ── URL state ──────────────────────────────────────────────────
@@ -1815,7 +2606,6 @@ const CMD_RESULT_LIMIT = 20;
 const CMD_RECENT_LIMIT = 5;
 const CMD_MAX_POSTINGS_PER_TERM = 400;
 const CMD_SNIPPET_WINDOW = 100;
-const CMD_BOUNDARY_CHARS = /[\s\-_/\\(){}[\],.;:&'"|·…+*^]/;
 
 function cmdIsMacPlatform() {
   const nav = typeof navigator !== 'undefined' ? navigator : null;
@@ -1825,11 +2615,20 @@ function cmdIsMacPlatform() {
 const CMD_IS_MAC = cmdIsMacPlatform();
 
 /**
- * VS Code-style fuzzy scorer. Returns { score, positions } or null when the
- * pattern is not a subsequence. Positions index into `text` so callers can
- * wrap the matched characters in <mark class="cmd-mark"> (escape first!).
- * Contiguous-substring hits dominate; otherwise word/separator starts and
- * camelCase humps are rewarded while skipped runs and a late start hurt.
+ * Per-word in-order matcher. The query is split on whitespace and EVERY
+ * non-empty token must occur as a CONTIGUOUS, case-insensitive substring of
+ * the text, each token starting no earlier than the end of the previous one
+ * (in-order, non-overlapping). Scattered characters inside a token never
+ * match, so "sreq" finds nothing in "search request", while "staff plat"
+ * finds "Staff / Platform" and "ping hm" does not match what "hm ping" does.
+ * Returns { score, positions } or null. The score keeps the old direct-hit
+ * scale — 100 + (query length × 2) − min(first-token index, 20) — and
+ * subtracts min(total gap, 20), the characters the matched words spent
+ * apart, so adjacent words outrank far-apart ones without reordering whole
+ * tiers; cmdScoreDirect's field weights (title › section = tags › id) and
+ * the body tier are therefore untouched. positions index every matched token
+ * into `text` so callers can wrap them in <mark class="cmd-mark"> (escape
+ * first!).
  */
 function cmdFuzzyScore(text, pattern) {
   const t = String(text);
@@ -1837,34 +2636,25 @@ function cmdFuzzyScore(text, pattern) {
   if (!t || !p) return null;
   const tl = t.toLowerCase();
   const pl = p.toLowerCase();
-  const direct = tl.indexOf(pl);
-  if (direct !== -1) {
-    const positions = [];
-    for (let i = 0; i < pl.length; i++) positions.push(direct + i);
-    return { score: 100 + pl.length * 2 - Math.min(direct, 20), positions };
-  }
-  let pi = 0;
-  let prev = -2;
-  let first = -1;
-  let score = 0;
+  const tokens = pl.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return null;
   const positions = [];
-  for (let ti = 0; ti < tl.length && pi < pl.length; ti++) {
-    if (tl[ti] !== pl[pi]) continue;
-    let s = 9;
-    if (ti === 0 || CMD_BOUNDARY_CHARS.test(t[ti - 1])) s += 12;
-    else if (ti === prev + 1) s += 8;
-    const cur = t.charCodeAt(ti);
-    const before = ti > 0 ? t.charCodeAt(ti - 1) : 0;
-    if (cur >= 65 && cur <= 90 && !(before >= 65 && before <= 90)) s += 10;
-    if (pi > 0 && ti > prev + 1) s -= Math.min(ti - prev - 1, 6);
-    score += s;
-    positions.push(ti);
-    prev = ti;
-    if (first < 0) first = ti;
-    pi++;
+  let firstAt = 0;
+  let gap = 0;
+  let next = 0;
+  for (let k = 0; k < tokens.length; k++) {
+    const tok = tokens[k];
+    const at = tl.indexOf(tok, next);
+    if (at === -1) return null;
+    if (k === 0) firstAt = at;
+    else gap += at - next;
+    for (let i = 0; i < tok.length; i++) positions.push(at + i);
+    next = at + tok.length;
   }
-  if (pi < pl.length) return null;
-  return { score: Math.max(1, score - Math.min(first, 12)), positions };
+  return {
+    score: 100 + pl.length * 2 - Math.min(firstAt, 20) - Math.min(gap, 20),
+    positions,
+  };
 }
 
 /** Escape `text`, then wrap the given character indices in <mark class="cmd-mark">. */
@@ -2143,13 +2933,19 @@ function cmdEmptyEntries() {
  * Returns { kind, partial, start, end } (token span inside `raw`) or null.
  * This is also what keeps a valid prefix like `#te` from being reported as an
  * invalid filter while the user is still typing it.
+ * The `@` branch follows the same absorb-following-plain-tokens rule
+ * parseCmdQuery uses for sections, so a partial carrying " / " keeps
+ * completing: `@staff /` and `@staff / p` still name "Staff / Platform".
+ * The `#` branch stays a single token because parseCmdQuery never absorbs
+ * anything after a tag.
  */
 function cmdSuggestContext(raw, caret) {
   if (!raw || caret < 0 || caret > raw.length) return null;
-  const m = /([#@]([^\s#@]*))$/.exec(raw.slice(0, caret));
+  const m = /(@([^\s#@]*(?:\s+[^\s#@]+)*)|#([^\s#@]*))$/.exec(raw.slice(0, caret));
   if (!m) return null;
-  const kind = m[1][0] === '#' ? 'tag' : 'section';
-  const partial = m[2].toLowerCase();
+  const isTag = m[1][0] === '#';
+  const partial = (isTag ? m[3] : m[2]).toLowerCase();
+  const kind = isTag ? 'tag' : 'section';
   if (partial) {
     const resolved = kind === 'tag'
       ? cmdKnownTags.has(partial)
@@ -2162,9 +2958,10 @@ function cmdSuggestContext(raw, caret) {
 /**
  * Completion rows for the suggest context. Source set is global (every tag /
  * section across all 357 questions, not the topic-scoped sidebar lists),
- * ranked by the same fuzzy scorer, bounded by CMD_RESULT_LIMIT, ordered by
- * usage count when the token is still bare. Already-present operators are
- * excluded so `#cache #c` cannot offer a second `#cache`.
+ * ranked by the same per-word in-order scorer (cmdFuzzyScore), bounded by
+ * CMD_RESULT_LIMIT, ordered by usage count when the token is still bare.
+ * Already-present operators are excluded so `#cache #c` cannot offer a second
+ * `#cache`.
  */
 function cmdSuggestEntries(ctx, remainingQuery) {
   const parsed = parseCmdQuery(String(remainingQuery).trim());
@@ -2226,7 +3023,15 @@ function acceptCmdSuggestion() {
  */
 function getCmdPaletteMatches(query) {
   if (!cmdSearchStructuresBuilt) buildCmdSearchStructures();
-  const parsed = parseCmdQuery(String(query).trim());
+  const trimmed = String(query).trim();
+  if (!trimmed) {
+    // Empty query: the recent tier (starred fallback) under its own group
+    // label — not the unlabelled operator-browse block below, which is only
+    // meaningful once a #/@ filter is actually in place.
+    cmdInvalidOperator = null;
+    return cmdEmptyEntries();
+  }
+  const parsed = parseCmdQuery(trimmed);
   cmdInvalidOperator = parsed.invalid.length ? parsed.invalid[0] : null;
   if (cmdInvalidOperator) return [];
   const src = questions.length ? questions : QuestionDB.all();
@@ -2715,6 +3520,7 @@ async function initializeApp() {
   initZoom();
   questions = QuestionDB.all();
   loadHiddenIds();
+  loadRoadmapMode();
   buildCmdSearchStructures();
   // Load progress from server with localStorage fallback and one-time import
   const serverAvailable = await loadProgressWithServerFallback();
@@ -2938,6 +3744,12 @@ function handleCommandPaletteKeyboard(e) {
 }
 
 function handleMainKeyboardShortcuts(e) {
+  // Captured before this handler claims the key: Escape while the diagram modal
+  // is open is consumed by its own document listener (which preventDefault()s
+  // first), and roadmap mode must not read that as its own. The command palette
+  // never gets here — the dispatcher hands it the key first.
+  const consumed = e.defaultPrevented;
+
   const shortcuts = {
     'j': () => navigateList(1),
     'ArrowDown': () => navigateList(1),
@@ -2949,7 +3761,15 @@ function handleMainKeyboardShortcuts(e) {
     '3': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'review'),
     'ArrowLeft': () => historyBack(),
     'ArrowRight': () => historyForward(),
-    'Escape': () => closeCmdPalette()
+    'Escape': () => {
+      // Roadmap mode first: it is a pane mode, so leaving it is the shallower
+      // action. Back to whatever question was open.
+      if (state.showRoadmap && !consumed) {
+        exitRoadmapMode();
+        return;
+      }
+      closeCmdPalette();
+    }
   };
 
   if (shortcuts[e.key]) {
@@ -2970,6 +3790,9 @@ function initializeUIState() {
     }
   }
   if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
+
+  // The restored mode has to be reflected on the switch before the first render.
+  syncRoadmapToggleUI();
 
   syncDiffFilterChipsUI();
   syncMemoryFilterUI();
@@ -3000,6 +3823,7 @@ async function init() {
   wireCommandPalette();
   initializeDiagramModal();
   initializeHashRouting();
+  initializeRoadmap();
 
   initializeKeyboardHandlers();
 
