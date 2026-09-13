@@ -4,22 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Prep</title>
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('interview-theme');
-        var theme = stored === 'light' || stored === 'dark'
-          ? stored
-          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-        document.documentElement.setAttribute('data-theme', theme);
-        var zoomRaw = localStorage.getItem('interview-ui-zoom');
-        var zoom = zoomRaw != null ? parseFloat(zoomRaw) : 1.5;
-        if (zoom >= 0.75 && zoom <= 1.75) document.documentElement.style.zoom = String(zoom);
-      } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-    })();
-  </script>
+  <!-- Inline favicon: the app's search-pill identity (magnifier on the
+       --accent gradient) with no extra request and no binary asset. The
+       href is encodeURIComponent output; roundtrip-verified before landing. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2064%2064'%3E%3Cdefs%3E%3ClinearGradient%20id%3D'g'%20x1%3D'0'%20y1%3D'0'%20x2%3D'1'%20y2%3D'1'%3E%3Cstop%20offset%3D'0'%20stop-color%3D'%233b82f6'%2F%3E%3Cstop%20offset%3D'1'%20stop-color%3D'%2360a5fa'%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D'64'%20height%3D'64'%20rx%3D'14'%20fill%3D'url(%23g)'%2F%3E%3Ccircle%20cx%3D'28'%20cy%3D'28'%20r%3D'12'%20fill%3D'none'%20stroke%3D'%23fff'%20stroke-width%3D'6'%2F%3E%3Cpath%20d%3D'M37%2037%20L50%2050'%20stroke%3D'%23fff'%20stroke-width%3D'7'%20stroke-linecap%3D'round'%2F%3E%3C%2Fsvg%3E">
+  <!-- Pre-paint theme + zoom ladder. A classic script in <head> still runs
+       before first paint, and keeps one source of truth instead of a second
+       copy of this logic pasted here. -->
+  <script src="view/theme-init.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -33,84 +25,87 @@
 
   <!-- ── Topbar (Raycast / Arc) ── -->
   <header class="topbar">
-    <div class="logo">Interview<span>Prep</span></div>
-    <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
-      <button type="button" class="topic-tab" data-tab="android">Android</button>
-      <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
-      <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
-      <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
-    </nav>
-    <div class="topbar-search-wrap">
-      <span class="search-icon" aria-hidden="true">⌘</span>
-      <input type="search" id="search-input" class="topbar-search" placeholder="Filter list…" autocomplete="off" spellcheck="false">
+    <div class="topbar-left">
+      <div class="logo"><span class="logo-first">Interview</span><span>Prep</span></div>
+      <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
+        <button type="button" class="topic-tab" data-tab="android">Android</button>
+        <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
+        <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
+        <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
+      </nav>
     </div>
-    <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" title="Search all questions (⌘E)">
-      <span>Search questions…</span>
-      <kbd class="kbd-mini">⌘E</kbd>
-    </button>
-    <div class="topbar-spacer"></div>
-    <label class="sr-only" for="topic-select">Topic (sync)</label>
-    <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
-      <option value="android">Android</option>
-      <option value="behavioral">Behaviour</option>
-      <option value="data-structures">Data Structures</option>
-      <option value="system-design">System Design</option>
-    </select>
-    <div class="mode-controls">
-      <div class="toggle-wrapper">
-        <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
-          <div class="minimal-track">
-            <span class="minimal-text mode-text">Learn</span>
-            <div class="minimal-knob">
-              <div class="minimal-icon-container">
-                <div class="minimal-mode-icon mode-learn-icon">
-                  <div class="learn-book">📖</div>
-                </div>
-                <div class="minimal-mode-icon mode-quiz-icon">
-                  <div class="quiz-check">✓</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </button>
-      </div>
-      <div class="toggle-wrapper">
-        <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
-          <div class="minimal-track">
-            <span class="minimal-text theme-text">Light</span>
-            <div class="minimal-knob">
-              <div class="minimal-icon-container">
-                <div class="minimal-sun-icon">
-                  <div class="sun-center"></div>
-                  <div class="sun-ray sun-ray-1"></div>
-                  <div class="sun-ray sun-ray-2"></div>
-                  <div class="sun-ray sun-ray-3"></div>
-                  <div class="sun-ray sun-ray-4"></div>
-                  <div class="sun-ray sun-ray-5"></div>
-                  <div class="sun-ray sun-ray-6"></div>
-                  <div class="sun-ray sun-ray-7"></div>
-                  <div class="sun-ray sun-ray-8"></div>
-                </div>
-                <div class="minimal-moon-icon">
-                  <div class="moon-crescent"></div>
-                  <div class="moon-star moon-star-1"></div>
-                  <div class="moon-star moon-star-2"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </button>
-      </div>
-      <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" title="Reset all questions to unseen">
-        RESET
+    <div class="topbar-center">
+      <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" aria-label="Search all questions" title="Search all questions (⌘⇧F)">
+        <span>Search questions…</span>
+        <kbd class="kbd-mini" id="cmd-kbd-hint">⌘⇧F</kbd>
       </button>
+    </div>
+    <div class="topbar-right">
+      <label class="sr-only" for="topic-select">Topic (sync)</label>
+      <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
+        <option value="android">Android</option>
+        <option value="behavioral">Behaviour</option>
+        <option value="data-structures">Data Structures</option>
+        <option value="system-design">System Design</option>
+      </select>
+      <div class="mode-controls">
+        <button type="button" id="roadmap-btn" class="reset-btn" onclick="toggleRoadmap()" title="Toggle Roadmap view" aria-label="Toggle Roadmap view">🗺️ Roadmap</button>
+        <button type="button" id="ai-filter-btn" class="reset-btn" onclick="toggleAIFilter()" title="Toggle AI-generated questions filter" aria-label="Toggle AI questions filter">🤖 AI</button>
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
+            <div class="minimal-track">
+              <span class="minimal-text mode-text">Learn</span>
+              <div class="minimal-knob">
+                <div class="minimal-icon-container">
+                  <div class="minimal-mode-icon mode-learn-icon">
+                    <div class="learn-book">📖</div>
+                  </div>
+                  <div class="minimal-mode-icon mode-quiz-icon">
+                    <div class="quiz-check">✓</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
+            <div class="minimal-track">
+              <span class="minimal-text theme-text">Light</span>
+              <div class="minimal-knob">
+                <div class="minimal-icon-container">
+                  <div class="minimal-sun-icon">
+                    <div class="sun-center"></div>
+                    <div class="sun-ray sun-ray-1"></div>
+                    <div class="sun-ray sun-ray-2"></div>
+                    <div class="sun-ray sun-ray-3"></div>
+                    <div class="sun-ray sun-ray-4"></div>
+                    <div class="sun-ray sun-ray-5"></div>
+                    <div class="sun-ray sun-ray-6"></div>
+                    <div class="sun-ray sun-ray-7"></div>
+                    <div class="sun-ray sun-ray-8"></div>
+                  </div>
+                  <div class="minimal-moon-icon">
+                    <div class="moon-crescent"></div>
+                    <div class="moon-star moon-star-1"></div>
+                    <div class="moon-star moon-star-2"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+        <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" aria-label="Reset all question progress" title="Reset all questions to unseen">
+          RESET
+        </button>
+      </div>
     </div>
   </header>
 
   <!-- ── Main workspace ── -->
   <div class="workspace">
 
-    <aside class="sidebar">
+<aside class="sidebar">
       <div class="sb-header">
         <div class="sb-label">Sections</div>
       </div>
@@ -119,7 +114,23 @@
       <div class="divider"></div>
 
       <div class="filter-group">
-        <div class="sb-label">Difficulty</div>
+
+        <!-- Tag filter - searchable, sits right above Difficulty -->
+        <div class="tag-filter-section" id="tag-filter-section">
+          <div class="sb-label-row">
+            <div class="sb-label tag-filter-title">Tags</div>
+            <button type="button" class="tag-clear-all" id="tag-clear-all" title="Clear all selected tags" aria-label="Clear all selected tags" hidden>
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+          <div class="tag-search-wrapper">
+            <input type="text" id="tag-search-input" class="tag-search-input" placeholder="Search tags..." autocomplete="off" />
+            <div class="tag-search-results hidden" id="tag-search-results"></div>
+          </div>
+          <div class="tag-filter-selected" id="tag-filter-selected"></div>
+        </div>
+
+        <div class="sb-label sb-label-spaced">Difficulty</div>
         <div id="diff-chips" class="filter-chips filter-chips-diff">
           <button type="button" class="chip" data-diff="E" data-chip-label="Easy" title="Easy">
             <span class="chip-label">Easy</span>
@@ -134,6 +145,7 @@
             <span class="chip-count">(0)</span>
           </button>
         </div>
+
         <div class="sb-label sb-label-spaced">Importance</div>
         <div id="importance-chips" class="filter-chips filter-chips-importance">
           <button type="button" class="chip importance-chip" data-status="star" data-chip-label="Important" title="Important questions">
@@ -142,6 +154,7 @@
             <span class="chip-count">(0)</span>
           </button>
         </div>
+
         <div class="sb-label sb-label-spaced">Memory</div>
         <div class="memory-indicator-container">
           <div class="memory-progress-bar">
@@ -156,14 +169,7 @@
           </div>
         </div>
       </div>
-
-      <div class="tag-filter-bar hidden" id="tag-filter-bar">
-        <span class="tag-filter-label">Tag</span>
-        <span class="tag-filter-chip" id="tag-filter-chip-label"></span>
-        <button type="button" class="tag-filter-clear" id="tag-filter-clear">✕</button>
-      </div>
     </aside>
-
     <!-- Feed: question cards -->
     <section class="feed" aria-label="Questions">
       <div class="feed-hd">
@@ -203,8 +209,9 @@
               </button>
             </div>
             <span class="q-header-num" id="qv-num">#1</span>
-            <span class="diff-badge" id="qv-diff">Easy</span>
             <span class="q-header-star" id="qv-star"></span>
+            <span class="diff-badge" id="qv-diff">Easy</span>
+            <span class="meta-badge meta-sec" id="qv-section" hidden></span>
             <div class="rating-bar memory-detail-rating hidden" id="rating-bar">
               <div class="memory-detail-field">
                 <label class="sr-only" for="detail-memory-range">How well you remembered this answer</label>
@@ -219,7 +226,6 @@
             </div>
           </div>
           <h1 class="detail-title" id="detail-title"></h1>
-          <div class="detail-meta" id="detail-meta"></div>
         </div>
 
         <button type="button" class="quiz-reveal-cover hidden" id="quiz-reveal-cover" aria-label="Reveal answer">
@@ -266,26 +272,6 @@
     </main>
   </div>
 
-  <!-- Status bar (Jira-inspired legend + live context) -->
-  <footer class="app-statusbar statusbar" id="app-statusbar">
-    <span class="si-topic" id="si-topic"></span>
-    <span class="si-crumb">·</span>
-    <span class="si-section" id="si-section"></span>
-    <span class="si-crumb">·</span>
-    <span class="si-progress" id="si-progress"></span>
-    <div class="si-right">
-      <div class="si-data-actions" role="group" aria-label="Export or import progress">
-        <button type="button" class="si-data-btn" id="si-export" title="Download ratings and seen progress as JSON">Export</button>
-        <button type="button" class="si-data-btn" id="si-import" title="Merge ratings and seen state from a JSON file">Import</button>
-        <input type="file" id="import-input" class="sr-only" accept="application/json,.json" tabindex="-1" aria-hidden="true">
-      </div>
-      <span class="status-sep"></span>
-      <span class="saved-wrap" title="Saved to local storage">
-        <span class="saved-dot" id="saved-dot"></span>
-        <span class="saved-text">Saved</span>
-      </span>
-    </div>
-  </footer>
 </div>
 
 <div id="cmd-overlay" class="cmd-overlay hidden" aria-hidden="true">
@@ -301,7 +287,25 @@
       <span class="cmd-hint"><kbd class="kbd-tiny">↑↓</kbd> navigate</span>
       <span class="cmd-hint"><kbd class="kbd-tiny">↵</kbd> open</span>
       <span class="cmd-hint"><kbd class="kbd-tiny">Esc</kbd> close</span>
+      <span class="cmd-hint"><kbd class="kbd-tiny">#tag</kbd> by tag</span>
+      <span class="cmd-hint"><kbd class="kbd-tiny">@section</kbd> by section</span>
     </div>
+  </div>
+</div>
+
+<!-- Click-to-enlarge diagram overlay. Mounted at body level (see
+     index.template.html): `.detail-inner` has inline-size containment, which
+     would make it the containing block for this `position: fixed` layer and
+     trap it inside the answer pane. The id/attribute contract below is used by
+     view/app.js — do not rename. -->
+<div class="diagram-modal" id="diagram-modal" role="dialog" aria-modal="true" aria-labelledby="diagram-modal-title" hidden>
+  <div class="diagram-modal-backdrop" data-diagram-close></div>
+  <div class="diagram-modal-panel">
+    <div class="diagram-modal-hd">
+      <span id="diagram-modal-title">Diagram</span>
+      <button type="button" id="diagram-modal-close" data-diagram-close aria-label="Close diagram">✕</button>
+    </div>
+    <div class="diagram-modal-body" id="diagram-modal-viewport"></div>
   </div>
 </div>
 

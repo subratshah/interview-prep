@@ -1,75 +1,78 @@
   <!-- ── Topbar (Raycast / Arc) ── -->
   <header class="topbar">
-    <div class="logo">Interview<span>Prep</span></div>
-    <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
-      <button type="button" class="topic-tab" data-tab="android">Android</button>
-      <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
-      <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
-      <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
-    </nav>
-    <div class="topbar-search-wrap">
-      <span class="search-icon" aria-hidden="true">⌘</span>
-      <input type="search" id="search-input" class="topbar-search" placeholder="Filter list…" autocomplete="off" spellcheck="false">
+    <div class="topbar-left">
+      <div class="logo"><span class="logo-first">Interview</span><span>Prep</span></div>
+      <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
+        <button type="button" class="topic-tab" data-tab="android">Android</button>
+        <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
+        <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
+        <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
+      </nav>
     </div>
-    <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" title="Search all questions (⌘E)">
-      <span>Search questions…</span>
-      <kbd class="kbd-mini">⌘E</kbd>
-    </button>
-    <div class="topbar-spacer"></div>
-    <label class="sr-only" for="topic-select">Topic (sync)</label>
-    <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
-      <option value="android">Android</option>
-      <option value="behavioral">Behaviour</option>
-      <option value="data-structures">Data Structures</option>
-      <option value="system-design">System Design</option>
-    </select>
-    <div class="mode-controls">
-      <div class="toggle-wrapper">
-        <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
-          <div class="minimal-track">
-            <span class="minimal-text mode-text">Learn</span>
-            <div class="minimal-knob">
-              <div class="minimal-icon-container">
-                <div class="minimal-mode-icon mode-learn-icon">
-                  <div class="learn-book">📖</div>
-                </div>
-                <div class="minimal-mode-icon mode-quiz-icon">
-                  <div class="quiz-check">✓</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </button>
-      </div>
-      <div class="toggle-wrapper">
-        <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
-          <div class="minimal-track">
-            <span class="minimal-text theme-text">Light</span>
-            <div class="minimal-knob">
-              <div class="minimal-icon-container">
-                <div class="minimal-sun-icon">
-                  <div class="sun-center"></div>
-                  <div class="sun-ray sun-ray-1"></div>
-                  <div class="sun-ray sun-ray-2"></div>
-                  <div class="sun-ray sun-ray-3"></div>
-                  <div class="sun-ray sun-ray-4"></div>
-                  <div class="sun-ray sun-ray-5"></div>
-                  <div class="sun-ray sun-ray-6"></div>
-                  <div class="sun-ray sun-ray-7"></div>
-                  <div class="sun-ray sun-ray-8"></div>
-                </div>
-                <div class="minimal-moon-icon">
-                  <div class="moon-crescent"></div>
-                  <div class="moon-star moon-star-1"></div>
-                  <div class="moon-star moon-star-2"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </button>
-      </div>
-      <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" title="Reset all questions to unseen">
-        RESET
+    <div class="topbar-center">
+      <button type="button" class="cmd-launch hint-kbd" id="cmd-launch" aria-label="Search all questions" title="Search all questions (⌘⇧F)">
+        <span>Search questions…</span>
+        <kbd class="kbd-mini" id="cmd-kbd-hint">⌘⇧F</kbd>
       </button>
+    </div>
+    <div class="topbar-right">
+      <label class="sr-only" for="topic-select">Topic (sync)</label>
+      <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
+        <option value="android">Android</option>
+        <option value="behavioral">Behaviour</option>
+        <option value="data-structures">Data Structures</option>
+        <option value="system-design">System Design</option>
+      </select>
+      <div class="mode-controls">
+        <button type="button" id="roadmap-btn" class="reset-btn" onclick="toggleRoadmap()" title="Toggle Roadmap view" aria-label="Toggle Roadmap view">🗺️ Roadmap</button>
+        <button type="button" id="ai-filter-btn" class="reset-btn" onclick="toggleAIFilter()" title="Toggle AI-generated questions filter" aria-label="Toggle AI questions filter">🤖 AI</button>
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="mode-toggle" onclick="toggleLearningMode()" title="Switch between Learn and Quiz modes" aria-label="Toggle between Learn and Quiz modes" role="switch" aria-checked="false">
+            <div class="minimal-track">
+              <span class="minimal-text mode-text">Learn</span>
+              <div class="minimal-knob">
+                <div class="minimal-icon-container">
+                  <div class="minimal-mode-icon mode-learn-icon">
+                    <div class="learn-book">📖</div>
+                  </div>
+                  <div class="minimal-mode-icon mode-quiz-icon">
+                    <div class="quiz-check">✓</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+        <div class="toggle-wrapper">
+          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
+            <div class="minimal-track">
+              <span class="minimal-text theme-text">Light</span>
+              <div class="minimal-knob">
+                <div class="minimal-icon-container">
+                  <div class="minimal-sun-icon">
+                    <div class="sun-center"></div>
+                    <div class="sun-ray sun-ray-1"></div>
+                    <div class="sun-ray sun-ray-2"></div>
+                    <div class="sun-ray sun-ray-3"></div>
+                    <div class="sun-ray sun-ray-4"></div>
+                    <div class="sun-ray sun-ray-5"></div>
+                    <div class="sun-ray sun-ray-6"></div>
+                    <div class="sun-ray sun-ray-7"></div>
+                    <div class="sun-ray sun-ray-8"></div>
+                  </div>
+                  <div class="minimal-moon-icon">
+                    <div class="moon-crescent"></div>
+                    <div class="moon-star moon-star-1"></div>
+                    <div class="moon-star moon-star-2"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+        <button type="button" id="reset-memory-btn" class="reset-btn reset-btn-danger" aria-label="Reset all question progress" title="Reset all questions to unseen">
+          RESET
+        </button>
+      </div>
     </div>
   </header>

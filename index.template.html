@@ -4,22 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Prep</title>
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('interview-theme');
-        var theme = stored === 'light' || stored === 'dark'
-          ? stored
-          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-        document.documentElement.setAttribute('data-theme', theme);
-        var zoomRaw = localStorage.getItem('interview-ui-zoom');
-        var zoom = zoomRaw != null ? parseFloat(zoomRaw) : 1.5;
-        if (zoom >= 0.75 && zoom <= 1.75) document.documentElement.style.zoom = String(zoom);
-      } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-    })();
-  </script>
+  <!-- Inline favicon: the app's search-pill identity (magnifier on the
+       --accent gradient) with no extra request and no binary asset. The
+       href is encodeURIComponent output; roundtrip-verified before landing. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2064%2064'%3E%3Cdefs%3E%3ClinearGradient%20id%3D'g'%20x1%3D'0'%20y1%3D'0'%20x2%3D'1'%20y2%3D'1'%3E%3Cstop%20offset%3D'0'%20stop-color%3D'%233b82f6'%2F%3E%3Cstop%20offset%3D'1'%20stop-color%3D'%2360a5fa'%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D'64'%20height%3D'64'%20rx%3D'14'%20fill%3D'url(%23g)'%2F%3E%3Ccircle%20cx%3D'28'%20cy%3D'28'%20r%3D'12'%20fill%3D'none'%20stroke%3D'%23fff'%20stroke-width%3D'6'%2F%3E%3Cpath%20d%3D'M37%2037%20L50%2050'%20stroke%3D'%23fff'%20stroke-width%3D'7'%20stroke-linecap%3D'round'%2F%3E%3C%2Fsvg%3E">
+  <!-- Pre-paint theme + zoom ladder. A classic script in <head> still runs
+       before first paint, and keeps one source of truth instead of a second
+       copy of this logic pasted here. -->
+  <script src="view/theme-init.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -39,9 +31,10 @@
 <!-- @include components/feed.html -->
 <!-- @include components/detail-panel.html -->  </div>
 
-<!-- @include components/statusbar.html --></div>
+</div>
 
 <!-- @include components/command-palette.html -->
+<!-- @include components/diagram-modal.html -->
   <script src="view/app.js"></script>
   <script src="data/android.js"></script>
   <script src="data/behavioral.js"></script>

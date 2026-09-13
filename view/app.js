@@ -18,10 +18,13 @@ window.QuestionDB = (function () {
 const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
 const THEME_STORAGE_KEY = 'interview-theme';
 const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
-const ZOOM_LEVELS = [0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5];
-const ZOOM_DEFAULT = 1.5;
-const ZOOM_DEFAULT_PCT = Math.round(ZOOM_DEFAULT * 100);
+const ZOOM_MIGRATION_KEY = 'interview-ui-zoom-v2';
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.1;
+const ZOOM_DEFAULT = 1;
 const VALID_RATING_VALUES = new Set(['know', 'shaky', 'review']);
+const SERVER_API_BASE = '';
 const MEMORY_SLIDER_MIN = 0;
 const MEMORY_SLIDER_MAX = 3;
 
@@ -30,10 +33,9 @@ let questions = [];
 
 const state = {
   activeTab: 'android',
-  searchQuery: '',
   diffFilter: null,  // null | 'E' | 'M' | 'H' — null = show all difficulties
   statusFilter: null,    // null | 'star' | 'know' | 'shaky' | 'review' | 'unseen'
-  tagFilter: null,       // null | string
+  tagFilters: [],        // array of strings — multiple tags can be selected (AND logic)
   /** Exactly one `{ type, section }` is visible in the feed at a time. */
   activeFeedSection: null, // null | { type: string, section: string }
   /** After sidebar picks a section, keep it even when filters hide all questions here (cleared on filter/search/tab changes). */
@@ -42,97 +44,65 @@ const state = {
   cardRevealed: false,
   learningMode: true,
   theme: 'dark',         // resolved: 'light' | 'dark'
-  uiZoom: 1.5,
+  uiZoom: ZOOM_DEFAULT,
   ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
   seen: new Set(),       // IDs of questions ever opened
+  hiddenIds: new Set(),  // IDs of AI questions hidden/deleted locally
+  aiOnly: false,         // filter feed to AI-generated questions only
   history: [],           // array of question IDs visited
   historyIdx: -1,        // current position in history
 };
 
-// ── UI zoom ───────────────────────────────────────────────────
-function getStoredZoom() {
-  try {
-    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
-    if (raw == null) return null;
-    const n = parseFloat(raw);
-    if (!Number.isFinite(n)) return null;
-    return ZOOM_LEVELS.reduce((best, level) =>
-      Math.abs(level - n) < Math.abs(best - n) ? level : best
-    );
-  } catch (e) {
-    return null;
-  }
-}
-
+// ── UI zoom ladder ────────────────────────────────────────────
+// The size you see at browser zoom 100% is baked into the sheet
+// (html { font-size: calc(18px * var(--z)) }), so this ladder only moves --z.
+// There is deliberately no `zoom` property: measured on the as-shipped page,
+// `zoom: 1.5` left a 1104px tall shell rendering 1655px tall inside the window
+// while matchMedia still reported a 1535px viewport, so nothing could re-flow
+// and the browser's own zoom could not be reset from the page.
+// ⌘/Ctrl +−0 is therefore NOT intercepted — those belong to the browser, whose
+// zoom re-flows the layout properly. The ladder answers to bare +/−/0.
 function clampZoom(level) {
-  const min = ZOOM_LEVELS[0];
-  const max = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
-  return Math.min(max, Math.max(min, level));
+  if (!Number.isFinite(level)) return ZOOM_DEFAULT;
+  const snapped = Math.round(level / ZOOM_STEP) * ZOOM_STEP;
+  return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, snapped)) * 100) / 100;
 }
 
-function applyZoom(level, { persist = false } = {}) {
-  const snapped = ZOOM_LEVELS.includes(level)
-    ? level
-    : ZOOM_LEVELS.reduce((best, z) =>
-        Math.abs(z - level) < Math.abs(best - level) ? z : best
-      );
-  const zoom = clampZoom(snapped);
+// theme-init.js sets --z before first paint; read it back so the two can never
+// disagree, and so a stored legacy value cannot double-apply.
+function readAppliedZoom() {
+  return clampZoom(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--z')));
+}
+
+function applyZoom(level) {
+  const zoom = clampZoom(level);
   state.uiZoom = zoom;
-  document.documentElement.style.zoom = String(zoom);
-
-  if (persist) {
-    try {
-      localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
-    } catch (e) {}
-  }
-
-  syncZoomUI();
+  document.documentElement.style.setProperty('--z', String(zoom));
+  try {
+    localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
+    localStorage.setItem(ZOOM_MIGRATION_KEY, '1');
+  } catch (e) {}
 }
 
 function stepZoom(delta) {
   const current = state.uiZoom ?? ZOOM_DEFAULT;
-  let idx = ZOOM_LEVELS.indexOf(current);
-  if (idx < 0) {
-    idx = ZOOM_LEVELS.findIndex(z => z >= current);
-    if (idx < 0) idx = ZOOM_LEVELS.length - 1;
-  }
-  const next = ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, Math.max(0, idx + delta))];
+  const next = clampZoom(current + delta * ZOOM_STEP);
   if (next === current) return;
-  applyZoom(next, { persist: true });
+  applyZoom(next);
 }
 
 function resetZoom() {
-  applyZoom(ZOOM_DEFAULT, { persist: true });
-}
-
-function syncZoomUI() {
-  const label = document.getElementById('zoom-reset');
-  if (!label) return;
-  const pct = Math.round((state.uiZoom ?? ZOOM_DEFAULT) * 100);
-  label.textContent = `${pct}%`;
-  label.setAttribute('aria-label', `Zoom ${pct}%. Click to reset to ${ZOOM_DEFAULT_PCT}%`);
-  label.title = pct === ZOOM_DEFAULT_PCT
-    ? `Zoom ${ZOOM_DEFAULT_PCT}%`
-    : `Reset zoom to ${ZOOM_DEFAULT_PCT}% (currently ${pct}%, ⌘0)`;
-
-  const outBtn = document.getElementById('zoom-out');
-  const inBtn = document.getElementById('zoom-in');
-  if (outBtn) outBtn.disabled = (state.uiZoom ?? ZOOM_DEFAULT) <= ZOOM_LEVELS[0];
-  if (inBtn) inBtn.disabled = (state.uiZoom ?? ZOOM_DEFAULT) >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+  applyZoom(ZOOM_DEFAULT);
 }
 
 function initZoom() {
-  applyZoom(getStoredZoom() ?? ZOOM_DEFAULT);
-
-  document.getElementById('zoom-out')?.addEventListener('click', () => stepZoom(-1));
-  document.getElementById('zoom-in')?.addEventListener('click', () => stepZoom(1));
-  document.getElementById('zoom-reset')?.addEventListener('click', () => {
-    if ((state.uiZoom ?? ZOOM_DEFAULT) !== ZOOM_DEFAULT) resetZoom();
-  });
+  state.uiZoom = readAppliedZoom();
 }
 
 function handleZoomShortcut(e) {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey) return false;
+  // Any modifier means it is the browser's key (⌘/Ctrl +−0, ⌥⌘…), so leave it
+  // alone entirely: no preventDefault, no early return.
+  if (e.metaKey || e.ctrlKey || e.altKey) return false;
   if (isShortcutSuppressedTarget(e.target)) return false;
 
   const key = e.key;
@@ -186,9 +156,9 @@ function applyTheme(theme, { persist = false } = {}) {
     } catch (e) {}
   }
 
-  if (typeof mermaid !== 'undefined') {
-    mermaid.initialize({ startOnLoad: false, theme: getMermaidTheme() });
-  }
+  // Mermaid is configured where its diagrams are drawn (see
+  // runMermaidInContainer) so a theme switch takes effect on the next render
+  // without this function having to know about it.
 
   syncThemeToggleUI();
 }
@@ -196,8 +166,6 @@ function applyTheme(theme, { persist = false } = {}) {
 function toggleTheme() {
   const current = getResolvedTheme();
   const next = current === 'light' ? 'dark' : 'light';
-  console.log('Toggling theme from', current, 'to', next); // Debug log
-  console.log('Theme toggle function called');
   applyTheme(next, { persist: true });
   if (state.selectedId) renderMainPanel();
 }
@@ -205,7 +173,6 @@ function toggleTheme() {
 function syncThemeToggleUI() {
   const btn = document.getElementById('theme-toggle');
   if (!btn) {
-    console.log('Theme toggle button not found');
     return;
   }
   
@@ -221,7 +188,7 @@ function syncThemeToggleUI() {
   
   if (themeToggle && textElement) {
     const isDark = currentTheme === 'dark';
-    console.log('Syncing theme toggle UI - current theme:', currentTheme, 'isDark:', isDark);
+
     
     if (isDark) {
       themeToggle.classList.add('active');
@@ -231,10 +198,8 @@ function syncThemeToggleUI() {
       textElement.textContent = 'Light';
     }
     
-    console.log('Theme toggle classes:', themeToggle.classList.toString());
-    console.log('Text content:', textElement.textContent);
-  } else {
-    console.log('Theme toggle elements not found:', { themeToggle: !!themeToggle, textElement: !!textElement });
+
+
   }
 }
 
@@ -263,6 +228,8 @@ function saveRatings() {
   try {
     localStorage.setItem('interview-ratings', JSON.stringify(state.ratings));
   } catch (e) {}
+  // Fire-and-forget server sync
+  saveProgressToServer({ ratings: state.ratings, seen: state.seen }).catch(() => {});
 }
 
 function loadSeen() {
@@ -276,6 +243,71 @@ function saveSeen() {
   try {
     localStorage.setItem('interview-seen', JSON.stringify([...state.seen]));
   } catch (e) {}
+  // Fire-and-forget server sync
+  saveProgressToServer({ ratings: state.ratings, seen: state.seen }).catch(() => {});
+}
+
+function loadHiddenIds() {
+  try {
+    const raw = localStorage.getItem('interview-hidden');
+    if (raw) state.hiddenIds = new Set(JSON.parse(raw));
+  } catch (e) {}
+}
+
+function saveHiddenIds() {
+  try {
+    localStorage.setItem('interview-hidden', JSON.stringify([...state.hiddenIds]));
+  } catch (e) {}
+}
+
+/**
+ * One-time cleanup: card collapse state now follows Learn/Quiz mode and is
+ * re-derived on every render, so the old per-question `notion-collapsed::`
+ * keys are pure dead UI state.
+ */
+function purgeCollapsedCardStorage() {
+  try {
+    const doomed = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('notion-collapsed::')) doomed.push(key);
+    }
+    doomed.forEach(key => localStorage.removeItem(key));
+  } catch (e) {}
+}
+
+/**
+ * Load progress from server, with localStorage fallback and one-time import.
+ * Returns true if server was used successfully.
+ */
+async function loadProgressWithServerFallback() {
+  try {
+    const { ratings, seen } = await fetchProgressFromServer();
+    // If server has data, use it
+    if (ratings && Object.keys(ratings).length > 0 || seen && seen.size > 0) {
+      state.ratings = ratings;
+      state.seen = seen;
+      return true;
+    }
+    // Server is empty: try one-time import from localStorage
+    const hasLocal = localStorage.getItem('interview-ratings') || localStorage.getItem('interview-seen');
+    if (hasLocal) {
+      const imported = await importLocalStorageToServer();
+      if (imported) {
+        const fresh = await fetchProgressFromServer();
+        state.ratings = fresh.ratings;
+        state.seen = fresh.seen;
+        return true;
+      }
+    }
+    // Server empty and nothing to import: start fresh
+    state.ratings = {};
+    state.seen = new Set();
+    return true;
+  } catch (err) {
+    // Server unavailable – fallback handled by caller
+    return false;
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -303,7 +335,7 @@ function memoryStatusPhraseForId(id) {
   if (r === 'shaky') return 'Shaky';
   if (r === 'review') return 'Forgot';
   if (!state.seen.has(id)) return 'Unseen';
-  return 'Not rated';
+  return 'Forgot';
 }
 
 /** `#detail-memory-range`: 0 unseen … 3 know (ordinal memory scale). */
@@ -323,7 +355,7 @@ function normalizeMemorySliderValue(raw) {
 function getStatusFromSliderValue(rawValue) {
   const v = normalizeMemorySliderValue(rawValue);
   if (v === null) return null;
-  const map = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
+  const map = MEMORY_STATUS_BY_VALUE;
   return map[v] ?? null;
 }
 
@@ -332,7 +364,7 @@ function getStatusFromSliderValue(rawValue) {
  */
 function getSliderValueFromStatus(status) {
   if (!status) return null;
-  const map = { unseen: 0, review: 1, shaky: 2, know: 3 };
+  const map = MEMORY_VALUE_BY_STATUS;
   return map[status] ?? null;
 }
 
@@ -363,6 +395,12 @@ function getQuestionById(id) {
 /** Ordinal for secondary sort Easy → Medium → Hard (progressive warm-up within each tier). */
 const DIFFICULTY_SORT_ORDER = { E: 0, M: 1, H: 2 };
 
+// Shared, single-source labels/maps (extracted to kill duplication across renderers).
+const DIFFICULTY_LABELS = { E: 'Easy', M: 'Medium', H: 'Hard' };
+const MEMORY_STATUS_BY_VALUE = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
+const MEMORY_VALUE_BY_STATUS = { unseen: 0, review: 1, shaky: 2, know: 3 };
+const MEMORY_LABELS = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
+
 /**
  * Primary: starred questions first within the compared set.
  * Secondary: difficulty E → M → H.
@@ -387,20 +425,13 @@ function sortQuestionsByImportanceDifficulty(items) {
 
 function getFilteredQuestions() {
   return questions.filter(q => {
-    // When searching or tag-filtering, show all types; otherwise filter by active tab
-    if (!state.searchQuery && !state.tagFilter && q.type !== state.activeTab) return false;
+    // Hide AI questions that user deleted
+    if (state.hiddenIds.has(q.id)) return false;
+    // AI-only filter
+    if (state.aiOnly && q.source !== 'interview') return false;
+    // Browsing is always scoped to the active topic; facets narrow within it
+    if (q.type !== state.activeTab) return false;
     if (state.diffFilter && q.difficulty !== state.diffFilter) return false;
-    if (state.searchQuery) {
-      const lower = state.searchQuery.toLowerCase();
-      const numStr = String(q.num);
-      const normalised = lower.startsWith('#') ? lower.slice(1) : lower;
-      if (!q.title.toLowerCase().includes(lower) &&
-          !q.section.toLowerCase().includes(lower) &&
-          !(q.tags || []).some(t => t.toLowerCase().includes(lower)) &&
-          numStr !== normalised) {
-        return false;
-      }
-    }
     if (state.statusFilter) {
       if (state.statusFilter === 'star') {
         if (!q.star) return false;
@@ -410,8 +441,10 @@ function getFilteredQuestions() {
         if (getRating(q.id) !== state.statusFilter) return false;
       }
     }
-    if (state.tagFilter) {
-      if (!(q.tags || []).includes(state.tagFilter)) return false;
+    if (state.tagFilters.length > 0) {
+      // AND logic: question must have ALL selected tags
+      const questionTags = q.tags || [];
+      if (!state.tagFilters.every(tag => questionTags.includes(tag))) return false;
     }
     return true;
   });
@@ -455,7 +488,15 @@ function sortSectionGroups(groups) {
   }));
 }
 
-/** After filters, ensure `activeFeedSection` resolves unless the sidebar pinned an empty-visible section. */
+/** Get all unique tags for the current active tab, sorted alphabetically. */
+function getAllTagsForCurrentTab() {
+  const tabQs = questions.filter(q => q.type === state.activeTab);
+  const tagSet = new Set();
+  tabQs.forEach(q => (q.tags || []).forEach(t => tagSet.add(t)));
+  return [...tagSet].sort((a, b) => a.localeCompare(b));
+}
+
+/** After filters, ensure `activeFeedSection` points at a section with visible questions. */
 function syncActiveFeedSection(filteredQs) {
   const groups = sortSectionGroups(groupByTopicSection(filteredQs));
   const cur = state.activeFeedSection;
@@ -466,48 +507,10 @@ function syncActiveFeedSection(filteredQs) {
     return;
   }
 
-  const matchesCurrent =
-    cur && filteredQs.some(q => q.type === cur.type && q.section === cur.section);
+  if (cur && filteredQs.some(q => q.type === cur.type && q.section === cur.section)) return;
 
-  if (matchesCurrent) {
-    if ((state.searchQuery || state.tagFilter) && VALID_TABS.includes(cur.type)) {
-      if (state.activeTab !== cur.type) {
-        state.activeTab = cur.type;
-        const sel = document.getElementById('topic-select');
-        if (sel) sel.value = state.activeTab;
-        syncTopicTabsActive(state.activeTab);
-      }
-    }
-    return;
-  }
-
-  if (state.feedSectionPinned && cur) {
-    const preserveEmptyPinned = state.searchQuery || state.tagFilter;
-    if (preserveEmptyPinned) {
-      if (VALID_TABS.includes(cur.type)) {
-        if (state.activeTab !== cur.type) {
-          state.activeTab = cur.type;
-          const sel = document.getElementById('topic-select');
-          if (sel) sel.value = state.activeTab;
-          syncTopicTabsActive(state.activeTab);
-        }
-      }
-      return;
-    }
-    state.feedSectionPinned = false;
-  }
-
-  state.activeFeedSection = { type: groups[0].type, section: groups[0].section };
   state.feedSectionPinned = false;
-
-  if ((state.searchQuery || state.tagFilter) && VALID_TABS.includes(state.activeFeedSection.type)) {
-    if (state.activeTab !== state.activeFeedSection.type) {
-      state.activeTab = state.activeFeedSection.type;
-      const sel = document.getElementById('topic-select');
-      if (sel) sel.value = state.activeTab;
-      syncTopicTabsActive(state.activeTab);
-    }
-  }
+  state.activeFeedSection = { type: groups[0].type, section: groups[0].section };
 }
 
 /** Questions visible in the feed (exactly one section). */
@@ -581,7 +584,7 @@ function renderSidebar() {
   const hintEl = ensureSidebarDiffHint();
   if (hintEl) {
     if (state.diffFilter) {
-      const map = { E: 'Easy', M: 'Medium', H: 'Hard' };
+      const map = DIFFICULTY_LABELS;
       const diffLabel = map[state.diffFilter] || state.diffFilter;
       hintEl.textContent = `Sections with no ${diffLabel} questions are hidden. Counts and progress use only matching questions.`;
       hintEl.hidden = false;
@@ -595,20 +598,26 @@ function renderSidebar() {
 
   if (tabQs.length === 0) return;
 
-  const sidebarQs = state.diffFilter
+  const facetFilter = Boolean(state.diffFilter || state.tagFilters.length);
+  const sidebarQs = facetFilter
     ? getFilteredQuestions().filter(q => q.type === state.activeTab)
     : tabQs;
 
-  if (state.diffFilter && sidebarQs.length === 0) {
+  if (facetFilter && sidebarQs.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'sb-list-empty sb-list-empty--filtered';
     empty.setAttribute('role', 'status');
-    const map = { E: 'Easy', M: 'Medium', H: 'Hard' };
+    const map = DIFFICULTY_LABELS;
     const diffLabel = map[state.diffFilter] || state.diffFilter;
-    const otherFilters = Boolean(state.statusFilter || state.tagFilter || state.searchQuery);
-    empty.textContent = otherFilters
-      ? `No questions match this difficulty and your other filters in this topic.`
-      : `No ${diffLabel} questions in this topic — every section is hidden for this filter.`;
+    let msg;
+    if (state.diffFilter && state.tagFilters.length) {
+      msg = 'No questions in this topic match the difficulty and tag filters — every section is hidden.';
+    } else if (state.diffFilter) {
+      msg = `No ${diffLabel} questions in this topic — every section is hidden for this filter.`;
+    } else {
+      msg = 'No questions in this topic have all the selected tags — every section is hidden.';
+    }
+    empty.textContent = msg;
     root.appendChild(empty);
     return;
   }
@@ -663,11 +672,142 @@ function renderSidebar() {
   root.appendChild(frag);
 }
 
-/** Detail header strip: section badge only (memory dots removed per user request). */
-function syncDetailMetaMemoryDots(q) {
-  const metaEl = document.getElementById('detail-meta');
-  if (!metaEl || !q) return;
-  metaEl.innerHTML = `<span class="meta-badge meta-sec">${escapeHtml(q.section)}</span>`;
+/** Initialize tag filter search in the sidebar (sits above Difficulty). */
+function initTagFilterSearch() {
+  const searchInput = document.getElementById('tag-search-input');
+  const resultsContainer = document.getElementById('tag-search-results');
+  const selectedContainer = document.getElementById('tag-filter-selected');
+  const clearAllBtn = document.getElementById('tag-clear-all');
+  if (!searchInput || !resultsContainer || !selectedContainer) return;
+
+  // Render selected tags
+  function renderSelectedTags() {
+    selectedContainer.innerHTML = '';
+    if (clearAllBtn) clearAllBtn.hidden = state.tagFilters.length === 0;
+
+    if (state.tagFilters.length === 0) return;
+
+    state.tagFilters.forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-selected-chip';
+      chip.innerHTML = `
+        <span class="tag-selected-label">${escapeHtml(tag)}</span>
+        <button type="button" class="tag-selected-remove" aria-label="Remove ${tag} filter">✕</button>
+      `;
+      chip.querySelector('.tag-selected-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleTagFilter(tag);
+      });
+      selectedContainer.appendChild(chip);
+    });
+  }
+
+  // Render search results
+  function renderSearchResults(query) {
+    const allTags = getAllTagsForCurrentTab();
+    const filtered = allTags.filter(tag => 
+      !state.tagFilters.includes(tag) && 
+      tag.toLowerCase().includes(query.toLowerCase())
+    );
+
+    if (query === '' || filtered.length === 0) {
+      resultsContainer.classList.add('hidden');
+      return;
+    }
+
+    resultsContainer.innerHTML = '';
+    filtered.forEach(tag => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tag-search-result';
+      btn.textContent = tag;
+      btn.setAttribute('role', 'option');
+      btn.addEventListener('click', () => {
+        toggleTagFilter(tag);
+        searchInput.value = '';
+        resultsContainer.classList.add('hidden');
+        searchInput.focus();
+      });
+      resultsContainer.appendChild(btn);
+    });
+    resultsContainer.classList.remove('hidden');
+  }
+
+  // Initial render
+  renderSelectedTags();
+
+  // Search input events
+  searchInput.addEventListener('input', (e) => {
+    renderSearchResults(e.target.value);
+  });
+
+  searchInput.addEventListener('focus', () => {
+    renderSearchResults(searchInput.value);
+  });
+
+  // Hide results when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.tag-filter-section')) {
+      resultsContainer.classList.add('hidden');
+    }
+  });
+
+  // Prevent hiding when clicking inside search wrapper
+  document.querySelector('.tag-search-wrapper')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Clear-all button removes every selected tag
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      clearTagFilters();
+      searchInput.value = '';
+      resultsContainer.classList.add('hidden');
+    });
+  }
+
+  // Expose render function for updates
+  window.renderTagFilterUI = renderSelectedTags;
+}
+
+/** Toggle a tag in the multi-select tag filter. */
+function toggleTagFilter(tag) {
+  const idx = state.tagFilters.indexOf(tag);
+  if (idx >= 0) {
+    state.tagFilters.splice(idx, 1);
+  } else {
+    state.tagFilters.push(tag);
+  }
+  clearFeedSectionPin();
+  
+  // Re-render selected tags
+  if (window.renderTagFilterUI) {
+    window.renderTagFilterUI();
+  }
+  
+  renderList();
+  renderMainPanel();
+}
+
+/** Clear all tag filters. */
+function clearTagFilters() {
+  if (state.tagFilters.length > 0) {
+    state.tagFilters = [];
+    clearFeedSectionPin();
+    if (window.renderTagFilterUI) {
+      window.renderTagFilterUI();
+    }
+    renderList();
+    renderMainPanel();
+  }
+}
+
+/** Section badge in the detail header (#qv-section). No-ops until that markup lands. */
+function syncDetailSectionChip(q) {
+  const chip = document.getElementById('qv-section');
+  if (!chip || !q) return;
+  chip.textContent = q.section;
+  chip.hidden = false;
 }
 
 /** Single memory gem on feed question cards (bottom-right); states match `.memory-dots.*`. */
@@ -707,6 +847,9 @@ function createFeedQuestionCard(q) {
     : '';
   const sourceBadge = q.source === 'interview'
     ? '<span class="qcard-source" title="AI-generated / reviewed question" aria-label="AI question">🤖</span>'
+    : '';
+  const aiDeleteBtn = q.source === 'interview'
+    ? `<button class="qcard-ai-delete" aria-label="Hide AI question" title="Hide this AI question" onclick="event.stopPropagation(); hideAIQuestion('${q.id}')">✕</button>`
     : '';
 
   const tagStr = (q.tags || [])
@@ -829,7 +972,7 @@ function renderList() {
   }
   if (feedDiffBadge) {
     if (state.diffFilter) {
-      const map = { E: 'Easy', M: 'Medium', H: 'Hard' };
+      const map = DIFFICULTY_LABELS;
       feedDiffBadge.textContent = map[state.diffFilter] || state.diffFilter;
       feedDiffBadge.title = 'Difficulty filter: list and section counts use this level only.';
       feedDiffBadge.hidden = false;
@@ -880,7 +1023,7 @@ function renderList() {
     } else if (filteredQs.length === 0) {
       div.textContent = 'No questions match your filters.';
     } else if (state.diffFilter) {
-      const map = { E: 'Easy', M: 'Medium', H: 'Hard' };
+      const map = DIFFICULTY_LABELS;
       div.textContent = `No ${map[state.diffFilter] || state.diffFilter} questions in this section for your current filters. Try another section or clear filters.`;
     } else {
       div.textContent = 'No questions in this section match your filters.';
@@ -896,17 +1039,12 @@ function renderList() {
 }
 
 // ── Detail panel: Notion blocks + status (see .claude/handoff.md) ─
-const NOTION_SECTIONS = [
-  { key: 'answer', icon: '💡', label: 'Expected Answer', defaultOpen: true },
-  { key: 'assumptions', icon: '🔍', label: 'Assumptions & Clarifications', defaultOpen: true },
-  { key: 'steps', icon: '📋', label: 'Interview Approach', defaultOpen: true },
-  { key: 'considerations', icon: '⚠️', label: 'Key Considerations', defaultOpen: true },
-  { key: 'tradeoffs', icon: '⚖️', label: 'Trade-offs', defaultOpen: true },
-  { key: 'alternatives', icon: '🔀', label: 'Alternative Approaches', defaultOpen: true },
-];
-
 const SD_SECTIONS = [
   { key: 'scope',       icon: '🎯', label: 'Clarifying Questions & Scope', defaultOpen: true },
+  // Virtual split of `scope` (see splitScopeSection). `scope` above stays the
+  // fallback card for blobs without a standalone assumptions heading.
+  { key: 'scope-q',     icon: '❓', label: 'Clarifying Questions',         defaultOpen: true },
+  { key: 'scope-a',     icon: '❗', label: 'Assumptions',                  defaultOpen: true },
   { key: 'functional',  icon: '⚙️',  label: 'Functional Requirements',      defaultOpen: true },
   { key: 'nfr',         icon: '📊',  label: 'Non-Functional Requirements',  defaultOpen: true },
   { key: 'capacity',    icon: '📈',  label: 'Capacity Estimation',          defaultOpen: true },
@@ -915,7 +1053,7 @@ const SD_SECTIONS = [
   { key: 'api',         icon: '🔌',  label: 'API Design',                   defaultOpen: false },
   { key: 'tradeoffs',   icon: '⚖️',  label: 'Key Trade-offs',               defaultOpen: true },
   { key: 'approach',    icon: '📋',  label: 'Interview Approach',           defaultOpen: false },
-  { key: 'followUp',    icon: '❓',  label: 'Follow-ups',                   defaultOpen: false },
+  { key: 'followUp',    icon: '🧵',  label: 'Follow-ups',                   defaultOpen: false },
   { key: 'pitfalls',    icon: '🚩',  label: 'Common Pitfalls',              defaultOpen: false },
 ];
 
@@ -926,13 +1064,162 @@ const BEHAVIORAL_SECTIONS = [
 ];
 
 // Technical (android / data-structures): structured fields with `answer` fallback.
+// `fallback` names the documented legacy field (`expectedAnswer`).
 const TECH_SECTIONS = [
-  { key: 'expectedAnswer', icon: '💡', label: 'Expected Answer', defaultOpen: true, fallback: 'answer' },
+  { key: 'answer', icon: '💡', label: 'Expected Answer', defaultOpen: true, fallback: 'expectedAnswer' },
   { key: 'keyPoints',      icon: '🔑', label: 'Key Points',      defaultOpen: false },
   { key: 'complexity',     icon: '⏱️', label: 'Complexity',      defaultOpen: false },
-  { key: 'followUp',       icon: '❓', label: 'Follow-ups',      defaultOpen: false },
+  { key: 'followUp',       icon: '🧵', label: 'Follow-ups',      defaultOpen: false },
   { key: 'redFlags',       icon: '🚩', label: 'Red Flags',       defaultOpen: false },
 ];
+
+// ── Detail layout ──────────────────────────────────────────────
+// The row structure of the detail pane is declared, not inferred from the
+// section order above. Three row forms:
+//   { cols: [a, b] } — two cards sharing one row;
+//   { half: key }    — one card in one column, the other stays empty;
+//   { full: key }    — a spanning card.
+// Safety rule: a key present in the question data but missing from the
+// topic's layout still renders, appended as its own full-width row (see
+// buildDetailRows). Silently dropping content was the original clipping bug.
+const DETAIL_LAYOUT = {
+  'system-design': [
+    { cols: ['scope-q', 'scope-a'] },
+    { cols: ['functional', 'nfr'] },
+    { half: 'capacity' },
+    { full: 'architecture' },
+    { cols: ['dataModel', 'api'] },
+    { full: 'tradeoffs' },
+    { cols: ['followUp', 'pitfalls'] },
+    { full: 'approach' },
+  ],
+  android: [
+    { full: 'answer' },
+    { cols: ['keyPoints', 'complexity'] },
+    { cols: ['followUp', 'redFlags'] },
+  ],
+  'data-structures': [
+    { full: 'answer' },
+    { cols: ['keyPoints', 'complexity'] },
+    { cols: ['followUp', 'redFlags'] },
+  ],
+  behavioral: [
+    { cols: ['listenFor', 'starGuide'] },
+    { full: 'redFlags' },
+  ],
+};
+
+// Section metadata per topic: labels/icons plus the safety pass over keys a
+// layout forgot. Types without an entry read TECH_SECTIONS/tech layout, which
+// matches the old renderer's else-branch.
+const DETAIL_SECTIONS_BY_TYPE = {
+  'system-design': SD_SECTIONS,
+  behavioral: BEHAVIORAL_SECTIONS,
+  android: TECH_SECTIONS,
+  'data-structures': TECH_SECTIONS,
+};
+
+function detailSectionsFor(type) {
+  return DETAIL_SECTIONS_BY_TYPE[type] || TECH_SECTIONS;
+}
+
+function detailLayoutFor(type) {
+  return DETAIL_LAYOUT[type] || DETAIL_LAYOUT.android;
+}
+
+function detailSectionMeta(type, key) {
+  return detailSectionsFor(type).find(sec => sec.key === key)
+    || { key, icon: '📄', label: key };
+}
+
+// `scope` is one markdown blob carrying two cards. The assumptions heading
+// text varies (**Assumptions**, **Declared Assumptions**, ±trailing colon) and
+// it may sit inline with its first bullet (sd-86 … sd-97), so match the bold
+// marker anywhere in the blob, not only as a whole line. The leading
+// `**Clarifying questions:**` line stays in the questions card untouched. Only
+// a blob with no marker at all falls back to the single `scope` card.
+const SCOPE_ASSUMPTIONS_HEADING = /\*\*\s*(?:Declared\s+)?Assumptions?\s*:?\s*\*\*/i;
+
+function splitScopeSection(scope) {
+  const raw = String(scope);
+  const match = raw.match(SCOPE_ASSUMPTIONS_HEADING);
+  if (!match) return { scope: raw };
+  const questionsPart = raw.slice(0, match.index).trim();
+  // Everything after the marker: its trailing text on that line plus all
+  // following lines — the marker itself is stripped, both halves trimmed.
+  const assumptionsPart = raw.slice(match.index + match[0].length).trim();
+  const out = {};
+  if (questionsPart) out['scope-q'] = questionsPart;
+  if (assumptionsPart) out['scope-a'] = assumptionsPart;
+  return out;
+}
+
+/** key → markdown, for every detail card this question actually fills. */
+function collectDetailValues(q) {
+  const values = {};
+  const isBehavioral = q.type === 'behavioral';
+  const parsed = isBehavioral ? parseBehavioralContent(q.answer || q.expectedAnswer || '') : null;
+  detailSectionsFor(q.type).forEach(sec => {
+    if (sec.key === 'scope') return; // split below
+    let raw;
+    if (isBehavioral) {
+      raw = q[sec.key] !== undefined ? q[sec.key] : parsed[sec.key];
+    } else {
+      raw = q[sec.key] !== undefined ? q[sec.key] : (sec.fallback ? q[sec.fallback] : undefined);
+    }
+    if (raw) values[sec.key] = String(raw);
+  });
+  if (q.type === 'system-design' && q.scope) {
+    Object.assign(values, splitScopeSection(q.scope));
+  }
+  return values;
+}
+
+/**
+ * Flatten the declared layout into the ordered card list for this question.
+ * Each entry is { key, width, rowStart }: width is 'db-half' (one column,
+ * what the row's `cols`/`half` form produces) or 'db-full' (spanning), and
+ * rowStart marks the FIRST card of every row — emitted even when the row
+ * resolves to a single card. T1's two-column CSS anchors .db-row-start back
+ * to column 1, so a partial row keeps its hole instead of default
+ * grid-auto-flow pulling the next row's first card into it. Rows whose keys
+ * are all absent emit nothing — no empty cards, no forced gaps.
+ */
+function buildDetailRows(q, values) {
+  const layout = detailLayoutFor(q.type);
+  const has = key => values[key] !== undefined && values[key] !== '';
+  const referenced = new Set();
+  layout.forEach(row => {
+    if (row.cols) row.cols.forEach(k => referenced.add(k));
+    else referenced.add(row.half || row.full);
+  });
+
+  const rows = [];
+  layout.forEach(row => {
+    let rowOpened = false;
+    if (row.cols) {
+      row.cols.forEach(key => {
+        if (!has(key)) return;
+        rows.push({ key, width: 'db-half', rowStart: !rowOpened });
+        rowOpened = true;
+      });
+    } else if (row.half && has(row.half)) {
+      rows.push({ key: row.half, width: 'db-half', rowStart: true });
+    } else if (row.full && has(row.full)) {
+      rows.push({ key: row.full, width: 'db-full', rowStart: true });
+    }
+  });
+
+  // Safety rule (see DETAIL_LAYOUT): data keys the layout never mentions still
+  // render, appended as their own full-width row. This is also how the no-
+  // marker `scope` fallback card (splitScopeSection) reaches the screen.
+  detailSectionsFor(q.type).forEach(sec => {
+    if (!referenced.has(sec.key) && has(sec.key)) {
+      rows.push({ key: sec.key, width: 'db-full', rowStart: true });
+    }
+  });
+  return rows;
+}
 
 // Parse behavioral question content into sections (fallback when structured fields are absent)
 function parseBehavioralContent(content) {
@@ -975,21 +1262,26 @@ const TOPIC_LABELS = {
   'system-design': 'System Design',
 };
 
-function ratingLabelForStatusBar(id) {
-  const r = getRating(id);
-  if (r === 'know') return 'Knew';
-  if (r === 'shaky') return 'Shaky';
-  if (r === 'review') return 'Forgot';
-  if (id && !state.seen.has(id)) return 'Unseen';
-  return '—';
-}
-
 function runMermaidInContainer(container) {
   if (typeof mermaid === 'undefined' || !container) return;
-  container.querySelectorAll('pre code.language-mermaid').forEach(async (block, i) => {
+  const blocks = container.querySelectorAll('pre code.language-mermaid');
+  if (!blocks.length) return;
+  // Mermaid lays its labels out in px of its own, so it gets the live root font
+  // size: a diagram then matches the type scale around it at the current zoom
+  // ladder instead of staying at its 16px default.
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: getMermaidTheme(),
+    themeVariables: { fontSize: getComputedStyle(document.documentElement).fontSize }
+  });
+  blocks.forEach(async (block, i) => {
     const source = block.textContent.trim();
     const wrap = document.createElement('div');
     wrap.className = 'mermaid-container';
+    // Click / Enter / Space opens the diagram modal (see initializeDiagramModal).
+    wrap.tabIndex = 0;
+    wrap.setAttribute('role', 'button');
+    wrap.setAttribute('aria-label', 'Enlarge diagram');
     block.parentElement.replaceWith(wrap);
     try {
       const id = 'mermaid-' + Date.now() + '-' + i;
@@ -998,6 +1290,89 @@ function runMermaidInContainer(container) {
     } catch (e) {
       wrap.innerHTML = `<pre class="mermaid-error">${escapeHtml(source)}</pre>`;
     }
+  });
+}
+
+// ── Diagram modal (click-to-enlarge) ───────────────────────────
+// Body-level markup (#diagram-modal, #diagram-modal-title,
+// #diagram-modal-viewport, #diagram-modal-close, [data-diagram-close]) is
+// authored in components/diagram-modal.html. Every lookup here is guarded, so
+// a page without that markup just keeps inline diagrams.
+let diagramModalOpener = null;
+
+function openDiagramModal(source) {
+  const modal = document.getElementById('diagram-modal');
+  const viewport = document.getElementById('diagram-modal-viewport');
+  if (!modal || !viewport || !source) return;
+  const svg = source.querySelector('svg');
+  if (!svg) return;
+
+  const titleEl = document.getElementById('diagram-modal-title');
+  if (titleEl) {
+    const block = source.closest('.notion-block');
+    const label = block ? block.querySelector('.notion-label') : null;
+    titleEl.textContent = label ? label.textContent : 'Diagram';
+  }
+
+  viewport.innerHTML = '';
+  viewport.appendChild(svg.cloneNode(true));
+  diagramModalOpener = source;
+  modal.hidden = false;
+  const closeBtn = document.getElementById('diagram-modal-close');
+  if (closeBtn) closeBtn.focus();
+}
+
+function closeDiagramModal() {
+  const modal = document.getElementById('diagram-modal');
+  if (!modal || modal.hidden) return;
+  modal.hidden = true;
+  const viewport = document.getElementById('diagram-modal-viewport');
+  if (viewport) viewport.innerHTML = '';
+  const opener = diagramModalOpener;
+  diagramModalOpener = null;
+  if (opener && document.contains(opener) && typeof opener.focus === 'function') {
+    opener.focus();
+  }
+}
+
+function initializeDiagramModal() {
+  const detailBody = document.getElementById('detail-body');
+  if (detailBody) {
+    detailBody.addEventListener('click', e => {
+      const source = typeof e.target.closest === 'function'
+        ? e.target.closest('.mermaid-container')
+        : null;
+      if (source && detailBody.contains(source)) openDiagramModal(source);
+    });
+    detailBody.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const focused = e.target;
+      if (!focused || !focused.classList || !focused.classList.contains('mermaid-container')) return;
+      if (!detailBody.contains(focused)) return;
+      // Keep Space from also firing the global reveal shortcut / scrolling.
+      e.preventDefault();
+      e.stopPropagation();
+      openDiagramModal(focused);
+    });
+  }
+
+  // Document-level delegation so the wiring survives late markup: the close
+  // button and the backdrop both carry [data-diagram-close].
+  document.addEventListener('click', e => {
+    const modal = document.getElementById('diagram-modal');
+    if (!modal || modal.hidden) return;
+    const closer = typeof e.target.closest === 'function'
+      ? e.target.closest('[data-diagram-close]')
+      : null;
+    if (closer && modal.contains(closer)) closeDiagramModal();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('diagram-modal');
+    if (!modal || modal.hidden) return;
+    e.preventDefault();
+    closeDiagramModal();
   });
 }
 
@@ -1045,7 +1420,7 @@ function renderMainPanel() {
   if (!state.selectedId) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (questionView) questionView.classList.add('hidden');
-    renderStatusBar();
+    
     return;
   }
 
@@ -1053,7 +1428,7 @@ function renderMainPanel() {
   if (!q) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (questionView) questionView.classList.add('hidden');
-    renderStatusBar();
+    
     return;
   }
 
@@ -1066,7 +1441,7 @@ function renderMainPanel() {
   const diffBadge = document.getElementById('qv-diff');
   if (diffBadge) {
     diffBadge.className = `diff-badge ${q.difficulty}`;
-    const diffMap = { E: 'Easy', M: 'Medium', H: 'Hard' };
+    const diffMap = DIFFICULTY_LABELS;
     diffBadge.textContent = diffMap[q.difficulty] || q.difficulty;
   }
   const qvStar = document.getElementById('qv-star');
@@ -1078,29 +1453,25 @@ function renderMainPanel() {
   const detailBody = document.getElementById('detail-body');
   if (detailBody) {
     detailBody.innerHTML = '';
-    
-    // Check if this is a behavioral question and needs special parsing
-    const isBehavioral = q.type === 'behavioral';
-    const isSystemDesign = q.type === 'system-design';
-    const sections = isBehavioral ? BEHAVIORAL_SECTIONS
-                 : isSystemDesign ? SD_SECTIONS
-                 : TECH_SECTIONS;
-    const contentData = isBehavioral ? parseBehavioralContent(q.answer || '') : q;
-    
-    sections.forEach(sec => {
-      const raw = isBehavioral
-                ? (q[sec.key] !== undefined ? q[sec.key] : contentData[sec.key])
-                : q[sec.key] !== undefined ? q[sec.key]
-                : sec.fallback ? q[sec.fallback] : undefined;
-      if (!raw) return;
 
-      const storageKey = `notion-collapsed::${q.id}::${sec.key}`;
-      const stored = localStorage.getItem(storageKey);
-      const isCollapsed = stored === null ? !sec.defaultOpen : stored === '1';
+    // Layout is declared data (DETAIL_LAYOUT); values come straight from the
+    // question, except behavioral content, which still parses `answer`.
+    const values = collectDetailValues(q);
+    const rows = buildDetailRows(q, values);
+
+    rows.forEach(({ key, width, rowStart }) => {
+      const raw = values[key];
+      const sec = detailSectionMeta(q.type, key);
+
+      // Collapse follows Learn/Quiz mode and is re-derived on every render —
+      // no stored card state is consulted (see purgeCollapsedCardStorage).
+      const isCollapsed = !state.learningMode;
 
       const block = document.createElement('div');
-      block.className = 'notion-block' + (isCollapsed ? ' collapsed' : '');
-      block.dataset.notionKey = sec.key;
+      block.className = `notion-block ${width}`
+        + (rowStart ? ' db-row-start' : '')
+        + (isCollapsed ? ' collapsed' : '');
+      block.dataset.notionKey = key;
 
       const head = document.createElement('button');
       head.type = 'button';
@@ -1117,13 +1488,12 @@ function renderMainPanel() {
         : `<p>${escapeHtml(String(raw))}</p>`;
 
       head.addEventListener('click', () => {
-        block.classList.toggle('collapsed');
-        const collapsed = block.classList.contains('collapsed');
-        localStorage.setItem(storageKey, collapsed ? '1' : '0');
+        const collapsed = !block.classList.contains('collapsed');
+        block.classList.toggle('collapsed', collapsed);
         head.setAttribute('aria-expanded', (!collapsed).toString());
         body.classList.toggle('collapsed', collapsed);
         body.hidden = collapsed;
-        
+
         // Update chevron icon
         const chevron = head.querySelector('.notion-chevron');
         if (chevron) {
@@ -1144,9 +1514,9 @@ function renderMainPanel() {
     tagsOut.innerHTML = '';
     (q.tags || []).forEach(tag => {
       const chip = document.createElement('span');
-      chip.className = 'tag-chip bb-tag' + (state.tagFilter === tag ? ' active' : '');
+      chip.className = 'tag-chip bb-tag' + (state.tagFilters.includes(tag) ? ' active' : '');
       chip.textContent = tag;
-      chip.addEventListener('click', () => filterByTag(tag));
+      chip.addEventListener('click', () => toggleTagFilter(tag));
       tagsOut.appendChild(chip);
     });
     if ((q.tags || []).length === 0) {
@@ -1190,39 +1560,26 @@ function renderMainPanel() {
   }
 
   updateRatingButtons(q.id);
-  syncDetailMetaMemoryDots(q);
+  syncDetailSectionChip(q);
 
   const quizCover = document.getElementById('quiz-reveal-cover');
   const bottomBarEl = document.getElementById('bottom-bar');
+  // Hide the strip entirely when both columns would be empty, instead of
+  // leaving a tall blank band under the answer cards.
+  if (bottomBarEl) {
+    const hasTags = (q.tags || []).length > 0;
+    const hasRelated = (q.related || []).some(id => Boolean(getQuestionById(id)));
+    bottomBarEl.hidden = !hasTags && !hasRelated;
+  }
   const quizCovered = Boolean(q && !state.learningMode && !state.cardRevealed);
   if (detailBody) detailBody.classList.toggle('quiz-covered', quizCovered);
   if (bottomBarEl) bottomBarEl.classList.toggle('quiz-covered', quizCovered);
   if (quizCover) quizCover.classList.toggle('hidden', !quizCovered);
 
-  renderStatusBar();
+  
 }
 
-function renderStatusBar() {
-  const siTopic = document.getElementById('si-topic');
-  const siSection = document.getElementById('si-section');
-  const siProgress = document.getElementById('si-progress');
 
-  if (siTopic) {
-    siTopic.textContent = TOPIC_LABELS[state.activeTab] || state.activeTab;
-  }
-
-  const tabQs = questions.filter(q => q.type === state.activeTab);
-  const seenCount = tabQs.filter(q => state.seen.has(q.id)).length;
-  const total = tabQs.length;
-  if (siProgress) {
-    siProgress.textContent = total ? `${seenCount} / ${total} seen` : '0 / 0 seen';
-  }
-
-  const q = state.selectedId ? getQuestionById(state.selectedId) : null;
-  if (siSection) {
-    siSection.textContent = q ? q.section : '—';
-  }
-}
 
 function flashSaved() {
   document.querySelectorAll('.saved-dot').forEach(dot => {
@@ -1253,9 +1610,12 @@ function toggleLearningMode() {
   if (btn) {
     // Quiz mode = active state (green), Learn mode = inactive state (default)
     btn.classList.toggle('active', !state.learningMode);
-    
-    // Update text to show current mode
-    const modeText = btn.querySelector('.mode-text');
+    // role="switch" is meaningless to screen readers unless aria-checked
+    // follows the mode (it used to stay at the markup's static "false").
+    btn.setAttribute('aria-checked', String(!state.learningMode));
+
+    // Update text to show current mode (id or class — whichever the markup ships)
+    const modeText = btn.querySelector('#mode-text, .mode-text');
     if (modeText) {
       modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
     }
@@ -1267,6 +1627,25 @@ function toggleLearningMode() {
     state.cardRevealed = state.learningMode;
     renderMainPanel();
   }
+}
+
+function toggleAIFilter() {
+  state.aiOnly = !state.aiOnly;
+  const btn = document.getElementById('ai-filter-btn');
+  if (btn) {
+    btn.classList.toggle('active', state.aiOnly);
+    btn.setAttribute('aria-pressed', state.aiOnly ? 'true' : 'false');
+  }
+  // Reset section pin so feed recomputes
+  state.activeFeedSection = null;
+  state.feedSectionPinned = false;
+  renderApp();
+}
+
+function hideAIQuestion(id) {
+  state.hiddenIds.add(id);
+  saveHiddenIds();
+  renderApp();
 }
 
 function updateRatingButtons(id) {
@@ -1307,8 +1686,8 @@ function setRating(id, rating) {
   updateRatingButtons(id);
   renderList();
   const q = getQuestionById(id);
-  if (q) syncDetailMetaMemoryDots(q);
-  renderStatusBar();
+  if (q) syncDetailSectionChip(q);
+  
 }
 
 /** Detail range: ordinal 0 unseen … 3 know (aligned with sidebar memory chips). */
@@ -1323,9 +1702,9 @@ function detailMemorySliderValueForId(id) {
 function detailMemorySliderAriaValuetext(id, sliderValue) {
   if (!id) return 'Unseen';
   if (sliderValue === 0) return 'Unseen';
-  if (sliderValue === 1 && state.seen.has(id) && !getRating(id)) return 'Not rated';
-  const labels = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
-  return labels[sliderValue] || 'Not rated';
+  if (sliderValue === 1 && state.seen.has(id) && !getRating(id)) return 'Forgot';
+  const labels = MEMORY_LABELS;
+  return labels[sliderValue] || 'Forgot';
 }
 
 /**
@@ -1349,30 +1728,6 @@ function applyDetailMemoryRange(id, rawValue) {
   renderMainPanel();
 }
 
-// ── Tag filter ─────────────────────────────────────────────────
-function filterByTag(tag) {
-  if (state.tagFilter === tag) {
-    state.tagFilter = null;
-  } else {
-    state.tagFilter = tag;
-  }
-  clearFeedSectionPin();
-  updateTagFilterBar();
-  renderList();
-  renderMainPanel(); // refresh detail panel and filter UI
-}
-
-function updateTagFilterBar() {
-  const bar = document.getElementById('tag-filter-bar');
-  const chipLabel = document.getElementById('tag-filter-chip-label');
-  if (state.tagFilter) {
-    bar.classList.remove('hidden');
-    chipLabel.textContent = state.tagFilter;
-  } else {
-    bar.classList.add('hidden');
-  }
-}
-
 // ── Navigation ─────────────────────────────────────────────────
 function navigateList(direction) {
   const filtered = getSortedFilteredQuestions();
@@ -1388,6 +1743,11 @@ function navigateList(direction) {
 
 function onTopicChange(value) {
   state.activeTab = value;
+  // Tag selections are topic-scoped facets — they don't carry across topics
+  if (state.tagFilters.length) {
+    state.tagFilters = [];
+    if (window.renderTagFilterUI) window.renderTagFilterUI();
+  }
   state.activeFeedSection = null;
   clearFeedSectionPin();
   state.selectedId = null;
@@ -1402,7 +1762,35 @@ function pushURLState() {
   const params = new URLSearchParams();
   params.set('tab', state.activeTab);
   if (state.selectedId) params.set('q', state.selectedId);
-  history.replaceState(null, '', '?' + params.toString());
+  const qs = params.toString();
+  history.replaceState(null, '', qs ? '#' + qs : location.pathname);
+}
+
+/**
+ * Deep links into an already-open tab: pasting `#tab=system-design&q=sd-75`
+ * (or the short `#sd-75`) onto a loaded page is a same-document navigation,
+ * and without this listener nothing re-renders. No feedback loop: every URL
+ * write goes through pushURLState's history.replaceState, which — unlike a
+ * user navigation — never fires `hashchange`.
+ */
+function initializeHashRouting() {
+  window.addEventListener('hashchange', () => {
+    const prevTab = state.activeTab;
+    const prevSelected = state.selectedId;
+    restoreStateFromURL();
+
+    const target = state.selectedId ? getQuestionById(state.selectedId) : null;
+    if (target) {
+      if (target.id === prevSelected && state.activeTab === prevTab) return;
+      // Re-runs renderList/renderMainPanel and canonicalises the hash
+      // (e.g. `#sd-75` → `#tab=system-design&q=sd-75`).
+      selectQuestion(target.id);
+      return;
+    }
+    if (!prevSelected && state.activeTab === prevTab) return;
+    // Hash points at a topic with no (valid) question: mirror a tab click.
+    onTopicChange(state.activeTab);
+  });
 }
 
 // ── History navigation ─────────────────────────────────────────
@@ -1429,170 +1817,700 @@ function updateHistoryButtons() {
   if (fwdBtn) fwdBtn.disabled = state.historyIdx >= state.history.length - 1;
 }
 
-// ── Search toggle ──────────────────────────────────────────────
-function toggleSearch() {
-  const expand = document.getElementById('search-expand');
-  const iconBtn = document.getElementById('search-icon-btn');
-  const input = document.getElementById('search-input');
-  if (!expand || !iconBtn) {
-    if (input) input.focus();
-    return;
-  }
-  if (expand.classList.contains('open')) {
-    closeSearch();
-  } else {
-    expand.classList.add('open');
-    iconBtn.classList.add('active');
-    setTimeout(() => input && input.focus(), 50);
-  }
-}
-
-function closeSearch() {
-  const expand = document.getElementById('search-expand');
-  const iconBtn = document.getElementById('search-icon-btn');
-  const input = document.getElementById('search-input');
-  if (expand) expand.classList.remove('open');
-  if (iconBtn) iconBtn.classList.remove('active');
-  if (input) input.value = '';
-  state.searchQuery = '';
-  clearFeedSectionPin();
-  renderList();
-}
-
-// ── Command palette (⌘E) ─────────────────────────────────────
+// ── Command palette (⌘⇧F / Ctrl+Shift+F; ⌘E / Ctrl+E kept) ────
 let cmdPaletteOpen = false;
+/** Render entries: { q, direct, score, titleHtml, snippetHtml, groupLabel } */
 let cmdResultsList = [];
+let cmdRowEls = [];
 let cmdSelectedIdx = 0;
+let cmdInvalidOperator = null;
+let cmdReturnFocus = null;
+/** Active #/@ completion context computed on the last filter pass, or null. */
+let cmdSuggestCtx = null;
 
-function questionSearchBlob(q) {
-  const tags = (q.tags || []).join(' ');
-  return `${q.title} ${q.section} ${tags} ${q.num} ${q.type} ${q.id}`;
+/** Cap for visible palette rows (direct hits first, body hits fill the rest). */
+const CMD_RESULT_LIMIT = 20;
+const CMD_RECENT_LIMIT = 5;
+const CMD_MAX_POSTINGS_PER_TERM = 400;
+const CMD_SNIPPET_WINDOW = 100;
+const CMD_BOUNDARY_CHARS = /[\s\-_/\\(){}[\],.;:&'"|·…+*^]/;
+
+function cmdIsMacPlatform() {
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  if (!nav) return false;
+  return /Mac|iPhone|iPad|iPod/.test(`${nav.platform || ''} ${nav.userAgent || ''}`);
+}
+const CMD_IS_MAC = cmdIsMacPlatform();
+
+/**
+ * VS Code-style fuzzy scorer. Returns { score, positions } or null when the
+ * pattern is not a subsequence. Positions index into `text` so callers can
+ * wrap the matched characters in <mark class="cmd-mark"> (escape first!).
+ * Contiguous-substring hits dominate; otherwise word/separator starts and
+ * camelCase humps are rewarded while skipped runs and a late start hurt.
+ */
+function cmdFuzzyScore(text, pattern) {
+  const t = String(text);
+  const p = String(pattern);
+  if (!t || !p) return null;
+  const tl = t.toLowerCase();
+  const pl = p.toLowerCase();
+  const direct = tl.indexOf(pl);
+  if (direct !== -1) {
+    const positions = [];
+    for (let i = 0; i < pl.length; i++) positions.push(direct + i);
+    return { score: 100 + pl.length * 2 - Math.min(direct, 20), positions };
+  }
+  let pi = 0;
+  let prev = -2;
+  let first = -1;
+  let score = 0;
+  const positions = [];
+  for (let ti = 0; ti < tl.length && pi < pl.length; ti++) {
+    if (tl[ti] !== pl[pi]) continue;
+    let s = 9;
+    if (ti === 0 || CMD_BOUNDARY_CHARS.test(t[ti - 1])) s += 12;
+    else if (ti === prev + 1) s += 8;
+    const cur = t.charCodeAt(ti);
+    const before = ti > 0 ? t.charCodeAt(ti - 1) : 0;
+    if (cur >= 65 && cur <= 90 && !(before >= 65 && before <= 90)) s += 10;
+    if (pi > 0 && ti > prev + 1) s -= Math.min(ti - prev - 1, 6);
+    score += s;
+    positions.push(ti);
+    prev = ti;
+    if (first < 0) first = ti;
+    pi++;
+  }
+  if (pi < pl.length) return null;
+  return { score: Math.max(1, score - Math.min(first, 12)), positions };
 }
 
-function fuzzyMatchScore(haystack, query) {
-  if (!query) return 1;
-  const h = haystack.toLowerCase();
-  const q = query.toLowerCase().trim();
-  if (!q) return 1;
-  if (h.includes(q)) return 100 + q.length;
-  let qi = 0;
-  let score = 0;
-  let run = 0;
-  for (let i = 0; i < h.length && qi < q.length; i++) {
-    if (h[i] === q[qi]) {
-      run++;
-      score += run * 2;
-      qi++;
+/** Escape `text`, then wrap the given character indices in <mark class="cmd-mark">. */
+function cmdHighlightHtml(text, positions) {
+  const s = String(text);
+  if (!positions || !positions.length) return escapeHtml(s);
+  const marked = new Set(positions.filter(i => i >= 0 && i < s.length));
+  let html = '';
+  let open = false;
+  for (let i = 0; i < s.length; i++) {
+    const hit = marked.has(i);
+    if (hit && !open) { html += '<mark class="cmd-mark">'; open = true; }
+    if (!hit && open) { html += '</mark>'; open = false; }
+    html += escapeHtml(s[i]);
+  }
+  if (open) html += '</mark>';
+  return html;
+}
+
+// ── Palette search structures (built once at load) ─────────────
+let cmdSearchStructuresBuilt = false;
+const cmdKnownTags = new Set();
+const cmdSectionsByNorm = new Map(); // normalized name → canonical section
+let cmdBodyFields = [];              // { questionId, fieldKey, sectionLabel, text, q }
+let cmdPostings = new Map();         // lowercase term → flat [fieldRef, offset, …]
+let cmdBodyIndexBuildMs = 0;
+let cmdTagCounts = new Map();        // lowercase tag → { name, count }
+let cmdSectionCounts = new Map();    // normalized section → { name, count }
+
+function cmdNormalizeSectionName(s) {
+  return String(s).toLowerCase().replace(/\s+/g, '');
+}
+
+/** Markdown → plain searchable text (fenced code incl. mermaid is dropped). */
+function cmdCleanBodyText(md) {
+  return String(md)
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/[#*_`|>~-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildCmdSearchStructures() {
+  const src = questions.length ? questions : QuestionDB.all();
+  cmdKnownTags.clear();
+  cmdSectionsByNorm.clear();
+  cmdTagCounts = new Map();
+  cmdSectionCounts = new Map();
+  src.forEach(q => {
+    (q.tags || []).forEach(tag => {
+      const name = String(tag);
+      const key = name.toLowerCase();
+      cmdKnownTags.add(key);
+      const info = cmdTagCounts.get(key) || { name, count: 0 };
+      info.count++;
+      cmdTagCounts.set(key, info);
+    });
+    const norm = cmdNormalizeSectionName(q.section);
+    if (norm) {
+      if (!cmdSectionsByNorm.has(norm)) cmdSectionsByNorm.set(norm, q.section);
+      const info = cmdSectionCounts.get(norm) || { name: q.section, count: 0 };
+      info.count++;
+      cmdSectionCounts.set(norm, info);
+    }
+  });
+  cmdBodyFields = [];
+  cmdPostings = new Map();
+  const t0 = performance.now();
+  src.forEach(q => {
+    const values = collectDetailValues(q);
+    Object.keys(values).forEach(fieldKey => {
+      const cleaned = cmdCleanBodyText(values[fieldKey]);
+      if (!cleaned) return;
+      const ref = cmdBodyFields.length;
+      cmdBodyFields.push({
+        questionId: q.id,
+        fieldKey,
+        sectionLabel: detailSectionMeta(q.type, fieldKey).label,
+        text: cleaned,
+        q,
+      });
+      const lower = cleaned.toLowerCase();
+      const re = /[a-z0-9]+/g;
+      let m;
+      while ((m = re.exec(lower))) {
+        let list = cmdPostings.get(m[0]);
+        if (!list) { list = []; cmdPostings.set(m[0], list); }
+        if (list.length < CMD_MAX_POSTINGS_PER_TERM * 2) list.push(ref, m.index);
+      }
+    });
+  });
+  cmdBodyIndexBuildMs = performance.now() - t0;
+  cmdSearchStructuresBuilt = true;
+  try {
+    window.__cmdBodyIndexBuildMs = Math.round(cmdBodyIndexBuildMs * 100) / 100;
+    window.__cmdBodyStats = { fields: cmdBodyFields.length, terms: cmdPostings.size };
+  } catch (e) {}
+}
+
+/**
+ * Split raw input into free text + `#tag` / `@section` operators.
+ * `@` consumes following plain tokens until a known section matches, so
+ * quoted-space names work: `@staff / platform` and `@arrays & strings`.
+ */
+function parseCmdQuery(raw) {
+  const parsed = { free: [], tags: [], section: null, invalid: [] };
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (tok[0] === '#') {
+      const name = tok.slice(1).toLowerCase();
+      if (name && cmdKnownTags.has(name)) parsed.tags.push(name);
+      else parsed.invalid.push(tok);
+      continue;
+    }
+    if (tok[0] === '@') {
+      if (parsed.section) { parsed.invalid.push(tok); continue; }
+      const parts = [tok.slice(1)];
+      let canon = cmdSectionsByNorm.get(cmdNormalizeSectionName(parts[0]));
+      let consumed = i;
+      if (!canon) {
+        for (let j = i + 1; j < tokens.length && !/^[#@]/.test(tokens[j]); j++) {
+          parts.push(tokens[j]);
+          canon = cmdSectionsByNorm.get(cmdNormalizeSectionName(parts.join(' ')));
+          if (canon) { consumed = j; break; }
+        }
+      }
+      if (canon) {
+        parsed.section = canon;
+        i = consumed;
+      } else {
+        parsed.invalid.push(tok);
+      }
+      continue;
+    }
+    parsed.free.push(tok);
+  }
+  return parsed;
+}
+
+/**
+ * Direct-field score. Weight: title › section › tags › type/id/num.
+ * Returns { score, titlePositions } or null when nothing direct matched.
+ */
+function cmdScoreDirect(q, freeText) {
+  const title = cmdFuzzyScore(q.title, freeText);
+  const section = cmdFuzzyScore(q.section, freeText);
+  let tag = null;
+  for (const rawTag of q.tags || []) {
+    const c = cmdFuzzyScore(rawTag, freeText);
+    if (c && (!tag || c.score > tag.score)) tag = c;
+  }
+  const ident = cmdFuzzyScore(`${q.type} ${q.id} ${q.num ?? ''}`, freeText);
+  const score = 3 * (title ? title.score : 0)
+    + 2 * (section ? section.score : 0)
+    + 2 * (tag ? tag.score : 0)
+    + 1.25 * (ident ? ident.score : 0);
+  if (!score) return null;
+  return { score, titlePositions: title ? title.positions : null };
+}
+
+/** Body hits: every query term must occur in the same indexed field. */
+function cmdBodyMatches(terms, accept) {
+  const hits = [];
+  if (!terms.length) return hits;
+  const lists = [];
+  for (const term of terms) {
+    const list = cmdPostings.get(term);
+    if (!list || !list.length) return hits;
+    lists.push(list);
+  }
+  lists.sort((a, b) => a.length - b.length);
+  let merged = new Map(); // fieldRef → offsets array (one per term)
+  for (let k = 0; k < lists.length; k++) {
+    const best = new Map(); // fieldRef → min offset for this term
+    const list = lists[k];
+    for (let i = 0; i < list.length; i += 2) {
+      const ref = list[i];
+      const off = list[i + 1];
+      if (!best.has(ref) || off < best.get(ref)) best.set(ref, off);
+    }
+    const next = new Map();
+    if (k === 0) {
+      best.forEach((off, ref) => next.set(ref, [off]));
     } else {
-      run = 0;
+      best.forEach((off, ref) => {
+        const acc = merged.get(ref);
+        if (acc) {
+          acc.push(off);
+          next.set(ref, acc);
+        }
+      });
+    }
+    merged = next;
+    if (!merged.size) return hits;
+  }
+  merged.forEach((offsets, ref) => {
+    const entry = cmdBodyFields[ref];
+    if (!entry || !accept(entry.q)) return;
+    let min = offsets[0];
+    let max = offsets[0];
+    offsets.forEach(o => { if (o < min) min = o; if (o > max) max = o; });
+    hits.push({
+      q: entry.q,
+      entry,
+      centerOffset: min,
+      score: 25 + (terms.length > 1 && max - min < 80 ? 12 : 0),
+    });
+  });
+  return hits;
+}
+
+/** ~100 chars centred on the match, terms wrapped in cmd-mark. Safe HTML. */
+function cmdSnippetInnerHtml(entry, centerOffset, terms) {
+  const text = entry.text;
+  let start = Math.max(0, centerOffset - 45);
+  if (start + CMD_SNIPPET_WINDOW > text.length) {
+    start = Math.max(0, text.length - CMD_SNIPPET_WINDOW);
+  }
+  const end = Math.min(text.length, start + CMD_SNIPPET_WINDOW);
+  const piece = text.slice(start, end);
+  const lower = piece.toLowerCase();
+  let re = null;
+  try {
+    re = new RegExp(terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  } catch (e) {}
+  let body = '';
+  let last = 0;
+  if (re) {
+    let m;
+    while ((m = re.exec(lower))) {
+      const len = m[0].length || 1;
+      if (m.index < last) continue;
+      if (m.index > last) body += escapeHtml(piece.slice(last, m.index));
+      body += `<mark class="cmd-mark">${escapeHtml(piece.slice(m.index, m.index + len))}</mark>`;
+      last = m.index + len;
     }
   }
-  return qi === q.length ? score : 0;
+  body += escapeHtml(piece.slice(last));
+  const pre = start > 0 ? '…' : '';
+  const post = end < text.length ? '…' : '';
+  return `${escapeHtml(entry.sectionLabel)}: ${pre}${body}${post}`;
 }
 
-function getCmdPaletteMatches(query) {
-  const src = questions.length ? questions : QuestionDB.all();
-  const trimmed = query.trim();
-  if (!trimmed) {
-    const sortedAll = [...src].sort((a, b) => {
-      const t = String(a.type).localeCompare(String(b.type));
-      if (t !== 0) return t;
-      const s = String(a.section).localeCompare(String(b.section));
-      if (s !== 0) return s;
-      return compareQuestionsImportanceDifficulty(a, b);
-    });
-    return sortedAll.slice(0, 100);
+/** Empty input: last 5 distinct history entries, else 5 starred questions. */
+function cmdEmptyEntries() {
+  const recent = [];
+  const used = new Set();
+  for (let i = state.history.length - 1; i >= 0 && recent.length < CMD_RECENT_LIMIT; i--) {
+    const id = state.history[i];
+    if (used.has(id)) continue;
+    const q = getQuestionById(id);
+    if (q) { used.add(id); recent.push(q); }
   }
-  return src
-    .map(x => ({ q: x, score: fuzzyMatchScore(questionSearchBlob(x), trimmed) }))
-    .filter(x => x.score > 0)
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        compareQuestionsImportanceDifficulty(a.q, b.q)
-    )
-    .map(x => x.q)
-    .slice(0, 80);
+  let list = recent;
+  let label = 'Recently opened';
+  if (!list.length) {
+    list = sortQuestionsByImportanceDifficulty(questions.filter(q => q.star)).slice(0, CMD_RECENT_LIMIT);
+    label = 'Starred';
+  }
+  return list.map((q, i) => ({
+    q,
+    direct: true,
+    score: 1,
+    titleHtml: escapeHtml(q.title),
+    snippetHtml: null,
+    groupLabel: i === 0 ? label : null,
+  }));
+}
+
+// ── Palette autocomplete (#tag / @section) ─────────────────────
+
+/**
+ * When the token at the caret starts with # or @ and does not yet resolve to
+ * a canonical name, the palette offers completions instead of question rows.
+ * Returns { kind, partial, start, end } (token span inside `raw`) or null.
+ * This is also what keeps a valid prefix like `#te` from being reported as an
+ * invalid filter while the user is still typing it.
+ */
+function cmdSuggestContext(raw, caret) {
+  if (!raw || caret < 0 || caret > raw.length) return null;
+  const m = /([#@]([^\s#@]*))$/.exec(raw.slice(0, caret));
+  if (!m) return null;
+  const kind = m[1][0] === '#' ? 'tag' : 'section';
+  const partial = m[2].toLowerCase();
+  if (partial) {
+    const resolved = kind === 'tag'
+      ? cmdKnownTags.has(partial)
+      : cmdSectionsByNorm.has(cmdNormalizeSectionName(partial));
+    if (resolved) return null;
+  }
+  return { kind, partial, start: caret - m[1].length, end: caret };
+}
+
+/**
+ * Completion rows for the suggest context. Source set is global (every tag /
+ * section across all 357 questions, not the topic-scoped sidebar lists),
+ * ranked by the same fuzzy scorer, bounded by CMD_RESULT_LIMIT, ordered by
+ * usage count when the token is still bare. Already-present operators are
+ * excluded so `#cache #c` cannot offer a second `#cache`.
+ */
+function cmdSuggestEntries(ctx, remainingQuery) {
+  const parsed = parseCmdQuery(String(remainingQuery).trim());
+  const isTag = ctx.kind === 'tag';
+  const usedTags = new Set(parsed.tags);
+  const usedSection = parsed.section ? cmdNormalizeSectionName(parsed.section) : null;
+  const out = [];
+  const consider = (name, count, skip) => {
+    if (skip) return;
+    if (ctx.partial) {
+      const s = cmdFuzzyScore(name, ctx.partial);
+      if (s) out.push({ name, count, score: s.score, html: cmdHighlightHtml(name, s.positions) });
+    } else {
+      out.push({ name, count, score: 0, html: escapeHtml(name) });
+    }
+  };
+  if (isTag) {
+    cmdTagCounts.forEach((info, key) => consider(info.name, info.count, usedTags.has(key)));
+  } else {
+    cmdSectionCounts.forEach((info, key) => consider(info.name, info.count, key === usedSection));
+  }
+  out.sort(ctx.partial
+    ? (a, b) => b.score - a.score || b.count - a.count || String(a.name).localeCompare(String(b.name))
+    : (a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)));
+  return out.slice(0, CMD_RESULT_LIMIT).map((c, i) => ({
+    q: null,
+    direct: false,
+    score: c.score,
+    suggest: { kind: ctx.kind, name: c.name, count: c.count },
+    titleHtml: c.html,
+    snippetHtml: null,
+    groupLabel: i === 0 ? (isTag ? 'Tags' : 'Sections') : null,
+  }));
+}
+
+/** Accept the highlighted completion: rewrite the token, keep focus typing. */
+function acceptCmdSuggestion() {
+  const ctx = cmdSuggestCtx;
+  const entry = ctx ? cmdResultsList[cmdSelectedIdx] : null;
+  const input = document.getElementById('cmd-input');
+  if (!entry || !entry.suggest || !input) return false;
+  const sigil = entry.suggest.kind === 'tag' ? '#' : '@';
+  const text = sigil + entry.suggest.name + ' ';
+  const before = input.value.slice(0, ctx.start);
+  const after = input.value.slice(ctx.end);
+  input.value = before + text + after;
+  const caret = (before + text).length;
+  input.focus();
+  try { input.setSelectionRange(caret, caret); } catch (e) {}
+  filterCmdPalette(input.value);
+  return true;
+}
+
+/**
+ * Query → render entries. Tier 1 is direct field hits (title/section/tags/id);
+ * tier 2 is body-only hits. A body hit can never outrank a direct hit for the
+ * same query and never duplicates the same question. Both tiers are cut at
+ * CMD_RESULT_LIMIT total visible rows.
+ */
+function getCmdPaletteMatches(query) {
+  if (!cmdSearchStructuresBuilt) buildCmdSearchStructures();
+  const parsed = parseCmdQuery(String(query).trim());
+  cmdInvalidOperator = parsed.invalid.length ? parsed.invalid[0] : null;
+  if (cmdInvalidOperator) return [];
+  const src = questions.length ? questions : QuestionDB.all();
+  const sectionNorm = parsed.section ? cmdNormalizeSectionName(parsed.section) : null;
+  const accept = q => {
+    if (sectionNorm && cmdNormalizeSectionName(q.section) !== sectionNorm) return false;
+    if (parsed.tags.length) {
+      const tags = (q.tags || []).map(t => String(t).toLowerCase());
+      if (!parsed.tags.every(t => tags.indexOf(t) !== -1)) return false;
+    }
+    return true;
+  };
+  const freeText = parsed.free.join(' ');
+  if (!freeText) {
+    // Operator-only browse: importance/difficulty order, no scoring involved.
+    return src
+      .filter(accept)
+      .sort(compareQuestionsImportanceDifficulty)
+      .slice(0, CMD_RESULT_LIMIT)
+      .map(q => ({
+        q,
+        direct: true,
+        score: 1,
+        titleHtml: escapeHtml(q.title),
+        snippetHtml: null,
+        groupLabel: null,
+      }));
+  }
+  const direct = [];
+  const directIds = new Set();
+  src.forEach(q => {
+    if (!accept(q)) return;
+    const scored = cmdScoreDirect(q, freeText);
+    if (!scored) return;
+    directIds.add(q.id);
+    direct.push({
+      q,
+      direct: true,
+      score: scored.score,
+      titleHtml: cmdHighlightHtml(q.title, scored.titlePositions),
+      snippetHtml: null,
+      groupLabel: null,
+    });
+  });
+  direct.sort((a, b) => b.score - a.score || compareQuestionsImportanceDifficulty(a.q, b.q));
+  const terms = (freeText.toLowerCase().match(/[a-z0-9]+/g) || []).slice(0, 6);
+  const bodyHits = cmdBodyMatches(terms, q => !directIds.has(q.id) && accept(q));
+  bodyHits.sort((a, b) => b.score - a.score || compareQuestionsImportanceDifficulty(a.q, b.q));
+  const bodyEntries = bodyHits
+    .slice(0, CMD_RESULT_LIMIT)
+    .map((hit, i) => ({
+      q: hit.q,
+      direct: false,
+      score: hit.score,
+      titleHtml: escapeHtml(hit.q.title),
+      snippetHtml: cmdSnippetInnerHtml(hit.entry, hit.centerOffset, terms),
+      groupLabel: i === 0 ? 'In answers' : null,
+    }));
+  return direct.slice(0, CMD_RESULT_LIMIT).concat(bodyEntries).slice(0, CMD_RESULT_LIMIT);
 }
 
 function renderCmdResults() {
   const container = document.getElementById('cmd-results');
   if (!container) return;
   container.innerHTML = '';
-  if (cmdResultsList.length === 0) {
+  cmdRowEls = [];
+  const frag = document.createDocumentFragment();
+  const addGroupLabel = text => {
+    const label = document.createElement('div');
+    label.className = 'cmd-group-label';
+    label.textContent = text;
+    frag.appendChild(label);
+  };
+  if (cmdInvalidOperator) {
+    // An unresolvable #/@ operator is a broken FILTER, not a title typo: it
+    // replaces the whole list with this banner so the two read differently.
+    addGroupLabel(`Unknown filter "${cmdInvalidOperator}" — not a known #tag or @section`);
+    const empty = document.createElement('div');
+    empty.className = 'cmd-result-empty';
+    empty.textContent = 'Remove or fix the filter to see results.';
+    frag.appendChild(empty);
+    container.appendChild(frag);
+    syncCmdAria();
+    return;
+  }
+  cmdResultsList.forEach((entry, i) => {
+    if (entry.groupLabel) addGroupLabel(entry.groupLabel);
+    if (entry.suggest) {
+      // Autocomplete rows are plain pickable names, not feed cards.
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cmd-suggest';
+      btn.id = `cmd-opt-${i}`;
+      btn.dataset.cmdIndex = String(i);
+      btn.setAttribute('role', 'option');
+      btn.setAttribute('aria-selected', 'false');
+      const sigil = entry.suggest.kind === 'tag' ? '#' : '@';
+      btn.innerHTML = sigil + (entry.titleHtml || escapeHtml(entry.suggest.name));
+      const count = document.createElement('span');
+      count.className = 'cmd-row-tail';
+      count.textContent = `${entry.suggest.count} question${entry.suggest.count === 1 ? '' : 's'}`;
+      btn.appendChild(count);
+      frag.appendChild(btn);
+      cmdRowEls.push(btn);
+      return;
+    }
+    const card = createFeedQuestionCard(entry.q);
+    card.classList.add('cmd-result-item');
+    // createFeedQuestionCard marks the current feed row with .selected; inside
+    // the palette that class is reserved for the cursor only.
+    card.classList.remove('selected');
+    card.id = `cmd-opt-${i}`;
+    card.dataset.cmdIndex = String(i);
+    card.setAttribute('role', 'option');
+    card.setAttribute('aria-selected', 'false');
+    const titleEl = card.querySelector('.qcard-title');
+    if (titleEl) titleEl.innerHTML = entry.titleHtml || escapeHtml(entry.q.title);
+    const footer = card.querySelector('.qcard-footer') || card.querySelector('.qcard-body');
+    if (footer) {
+      const tail = document.createElement('span');
+      tail.className = 'cmd-row-tail';
+      tail.textContent = `${entry.q.section} · ${entry.q.type}`;
+      footer.appendChild(tail);
+    }
+    if (entry.snippetHtml) {
+      const body = card.querySelector('.qcard-body') || card;
+      const snip = document.createElement('div');
+      snip.className = 'cmd-snippet';
+      snip.innerHTML = entry.snippetHtml;
+      body.appendChild(snip);
+    }
+    frag.appendChild(card);
+    cmdRowEls.push(card);
+  });
+  if (!cmdResultsList.length) {
     const empty = document.createElement('div');
     empty.className = 'cmd-result-empty';
     empty.textContent = 'No matching questions.';
-    container.appendChild(empty);
-    return;
+    frag.appendChild(empty);
   }
-  cmdResultsList.forEach((q, i) => {
-    // Create the feed card component
-    const card = createFeedQuestionCard(q);
-    
-    // Add command palette specific classes and attributes
-    card.classList.add('cmd-result-item');
-    if (i === cmdSelectedIdx) {
-      card.classList.add('selected');
-    }
-    card.setAttribute('role', 'option');
-    card.setAttribute('aria-selected', String(i === cmdSelectedIdx));
-    
-    // Add event handlers for command palette behavior
-    card.addEventListener('mousedown', e => e.preventDefault());
-    card.addEventListener('click', () => {
-      cmdSelectedIdx = i;
-      confirmCmdSelection();
-    });
-    container.appendChild(card);
-  });
-  const sel = container.querySelector('.cmd-result-item.selected');
-  if (sel) sel.scrollIntoView({ block: 'nearest' });
+  container.appendChild(frag);
+  setCmdSelection(0);
 }
 
 function filterCmdPalette(query) {
-  cmdResultsList = getCmdPaletteMatches(query);
+  const t0 = performance.now();
+  const input = document.getElementById('cmd-input');
+  const caret = input && typeof input.selectionStart === 'number' ? input.selectionStart : query.length;
+  cmdSuggestCtx = cmdSuggestContext(query, caret);
+  if (cmdSuggestCtx) {
+    const remaining = query.slice(0, cmdSuggestCtx.start) + ' ' + query.slice(cmdSuggestCtx.end);
+    cmdResultsList = cmdSuggestEntries(cmdSuggestCtx, remaining);
+    if (!cmdResultsList.length) {
+      // Nothing at all matches the partial — let the invalid-filter banner speak.
+      cmdSuggestCtx = null;
+      cmdResultsList = getCmdPaletteMatches(query);
+    } else {
+      cmdInvalidOperator = null;
+    }
+  } else {
+    cmdResultsList = getCmdPaletteMatches(query);
+  }
+  const tSearch = performance.now();
   cmdSelectedIdx = 0;
   renderCmdResults();
+  const t2 = performance.now();
+  try {
+    window.__cmdLastQueryStats = {
+      searchMs: Math.round((tSearch - t0) * 100) / 100,
+      renderMs: Math.round((t2 - tSearch) * 100) / 100,
+      totalMs: Math.round((t2 - t0) * 100) / 100,
+      rows: cmdResultsList.length,
+    };
+  } catch (e) {}
+}
+
+/** Cursor moves toggle class/aria on existing rows — no list rebuild. */
+function setCmdSelection(next) {
+  const n = cmdRowEls.length;
+  if (!n) {
+    syncCmdAria();
+    return;
+  }
+  const idx = ((next % n) + n) % n;
+  const current = cmdRowEls[cmdSelectedIdx];
+  if (idx === cmdSelectedIdx && current && current.classList.contains('selected')) {
+    syncCmdAria();
+    return;
+  }
+  if (current) {
+    current.classList.remove('selected');
+    current.setAttribute('aria-selected', 'false');
+  }
+  cmdSelectedIdx = idx;
+  const row = cmdRowEls[idx];
+  row.classList.add('selected');
+  row.setAttribute('aria-selected', 'true');
+  row.scrollIntoView({ block: 'nearest' });
+  syncCmdAria();
 }
 
 function moveCmdSelection(delta) {
-  if (cmdResultsList.length === 0) return;
-  cmdSelectedIdx = (cmdSelectedIdx + delta + cmdResultsList.length) % cmdResultsList.length;
-  renderCmdResults();
+  if (!cmdRowEls.length) return;
+  setCmdSelection(cmdSelectedIdx + delta);
+}
+
+/** Rows that fit in the visible list — the PageUp/PageDown step. */
+function cmdPageRows() {
+  const container = document.getElementById('cmd-results');
+  const first = cmdRowEls[0];
+  if (!container || !first || !first.offsetHeight) return 8;
+  return Math.max(1, Math.floor(container.clientHeight / first.offsetHeight));
+}
+
+function syncCmdAria() {
+  const input = document.getElementById('cmd-input');
+  if (!input) return;
+  const row = cmdRowEls[cmdSelectedIdx];
+  if (row) input.setAttribute('aria-activedescendant', row.id);
+  else input.removeAttribute('aria-activedescendant');
 }
 
 function closeCmdPalette() {
+  if (!cmdPaletteOpen) return;
+  cmdPaletteOpen = false;
   const overlay = document.getElementById('cmd-overlay');
   const input = document.getElementById('cmd-input');
+  const container = document.getElementById('cmd-results');
   if (overlay) {
     overlay.classList.add('hidden');
     overlay.setAttribute('aria-hidden', 'true');
   }
   if (input) {
     input.value = '';
+    input.removeAttribute('aria-activedescendant');
+    input.setAttribute('aria-expanded', 'false');
     input.blur();
   }
-  cmdPaletteOpen = false;
-  cmdResultsList = [];
-  cmdSelectedIdx = 0;
-  const container = document.getElementById('cmd-results');
   if (container) container.innerHTML = '';
+  cmdResultsList = [];
+  cmdRowEls = [];
+  cmdSelectedIdx = 0;
+  cmdInvalidOperator = null;
+  const back = cmdReturnFocus;
+  cmdReturnFocus = null;
+  if (back && back !== document.body && document.contains(back) && typeof back.focus === 'function') {
+    back.focus();
+  }
 }
 
 function openCmdPalette() {
   const overlay = document.getElementById('cmd-overlay');
   const input = document.getElementById('cmd-input');
   if (!overlay || !input) return;
+  cmdReturnFocus = document.activeElement;
   cmdPaletteOpen = true;
   overlay.classList.remove('hidden');
   overlay.setAttribute('aria-hidden', 'false');
   cmdSelectedIdx = 0;
   filterCmdPalette('');
-  requestAnimationFrame(() => {
-    input.focus();
-    input.select();
-  });
+  // Focus is synchronous on purpose: the old requestAnimationFrame deferred it
+  // by one frame (~1s measured on this throttled page), so typing right after
+  // opening landed on document.body and was dropped.
+  input.focus();
+  input.select();
+  input.setAttribute('aria-expanded', 'true');
 }
 
 function toggleCmdPalette() {
@@ -1601,126 +2519,94 @@ function toggleCmdPalette() {
 }
 
 function confirmCmdSelection() {
-  if (!cmdPaletteOpen || cmdResultsList.length === 0) return;
-  const q = cmdResultsList[cmdSelectedIdx];
-  if (!q) return;
+  if (!cmdPaletteOpen || !cmdResultsList.length) return;
+  const entry = cmdResultsList[cmdSelectedIdx];
+  if (!entry || entry.suggest || !entry.q) return;
   closeCmdPalette();
-  selectQuestion(q.id);
+  selectQuestion(entry.q.id);
+}
+
+/** While open, keep Tab inside the overlay — aria-modal="true" promises this. */
+function trapCmdFocus(backward) {
+  const overlay = document.getElementById('cmd-overlay');
+  if (!overlay) return;
+  const focusables = Array.prototype.filter.call(
+    overlay.querySelectorAll('input, button, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'),
+    el => !el.disabled && el.getClientRects().length > 0
+  );
+  if (!focusables.length) return;
+  const active = document.activeElement;
+  let idx = focusables.indexOf(active);
+  idx = idx === -1 ? 0 : (idx + (backward ? -1 : 1) + focusables.length) % focusables.length;
+  focusables[idx].focus();
 }
 
 function wireCommandPalette() {
   const input = document.getElementById('cmd-input');
   const backdrop = document.querySelector('#cmd-overlay .cmd-backdrop');
+  const container = document.getElementById('cmd-results');
   if (input) {
     input.addEventListener('input', e => filterCmdPalette(e.target.value));
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    if (container) input.setAttribute('aria-controls', container.id);
+    input.setAttribute('aria-expanded', 'false');
+  }
+  if (container) {
+    // One capture-phase listener owns all row mouse input: stopPropagation()
+    // during capture means the click never reaches the row's own
+    // createFeedQuestionCard click handler → exactly one commit per click.
+    container.addEventListener('mousedown', e => {
+      if (e.target && e.target.closest && e.target.closest('.cmd-result-item, .cmd-suggest')) e.preventDefault();
+    }, true);
+    container.addEventListener('click', e => {
+      const row = e.target && e.target.closest ? e.target.closest('.cmd-result-item, .cmd-suggest') : null;
+      if (!row || !container.contains(row)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(row.dataset.cmdIndex);
+      if (!Number.isFinite(idx)) return;
+      const entry = cmdResultsList[idx];
+      setCmdSelection(idx);
+      if (entry && entry.suggest) {
+        // Click accepts the completion — same path as Enter/Tab.
+        acceptCmdSuggestion();
+        return;
+      }
+      confirmCmdSelection();
+    }, true);
+    // Hover moves the cursor (commit stays Enter/click-only).
+    container.addEventListener('mouseover', e => {
+      const row = e.target && e.target.closest ? e.target.closest('.cmd-result-item, .cmd-suggest') : null;
+      if (!row || row === cmdRowEls[cmdSelectedIdx]) return;
+      const idx = Number(row.dataset.cmdIndex);
+      if (Number.isFinite(idx)) setCmdSelection(idx);
+    });
   }
   if (backdrop) {
     backdrop.addEventListener('click', () => closeCmdPalette());
   }
 }
 
-function exportProgressJson() {
-  const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    ratings: { ...state.ratings },
-    seen: [...state.seen],
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const day = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = `interview-prep-memory-${day}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  flashSaved();
+/** Topbar key chip for the primary shortcut (W1 owns the element; guarded). */
+function syncCmdKbdHint() {
+  const hint = document.getElementById('cmd-kbd-hint');
+  if (!hint) return;
+  hint.textContent = CMD_IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
 }
 
-/**
- * Merge imported `ratings` and `seen` into current state (incoming keys override for ratings).
- * Accepts either our export shape or a minimal `{ ratings, seen }` object.
- */
-function mergeImportedProgress(data) {
-  if (!data || typeof data !== 'object') {
-    throw new Error('Invalid JSON: expected an object');
-  }
-  if (data.ratings != null && typeof data.ratings !== 'object') {
-    throw new Error('Invalid ratings');
-  }
-  if (data.seen != null && !Array.isArray(data.seen)) {
-    throw new Error('Invalid seen list');
-  }
-
-  if (data.ratings) {
-    const next = { ...state.ratings };
-    for (const [id, val] of Object.entries(data.ratings)) {
-      if (val == null || val === '') {
-        delete next[id];
-        continue;
-      }
-      if (VALID_RATING_VALUES.has(val)) {
-        next[id] = val;
-      }
-    }
-    state.ratings = next;
-  }
-
-  if (data.seen) {
-    const nextSeen = new Set(state.seen);
-    data.seen.forEach(id => {
-      if (id != null && id !== '') nextSeen.add(String(id));
-    });
-    state.seen = nextSeen;
-  }
-
-  saveRatings();
-  saveSeen();
+/** ⌘⇧F / Ctrl+Shift+F is primary; ⌘E / Ctrl+E stays as the legacy alias. */
+function paletteShortcutMatches(e) {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return false;
+  const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+  if (key === 'f' && e.shiftKey) return true;
+  if (key === 'e' && !e.shiftKey) return true;
+  return false;
 }
 
-function wireExportImport() {
-  const exportBtn = document.getElementById('si-export');
-  const importBtn = document.getElementById('si-import');
-  const importInput = document.getElementById('import-input');
 
-  if (exportBtn) {
-    exportBtn.addEventListener('click', () => exportProgressJson());
-  }
 
-  if (importBtn && importInput) {
-    importBtn.addEventListener('click', () => importInput.click());
-  }
 
-  if (importInput) {
-    importInput.addEventListener('change', e => {
-      const file = e.target.files && e.target.files[0];
-      e.target.value = '';
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const text = String(reader.result || '');
-          const data = JSON.parse(text);
-          mergeImportedProgress(data);
-          flashSaved();
-          syncMemoryFilterUI();
-          renderList();
-          renderMainPanel();
-          pushURLState();
-        } catch (err) {
-          console.error(err);
-          window.alert('Could not import this file. Use a JSON export from Interview Prep, or a file with "ratings" and "seen" fields.');
-        }
-      };
-      reader.onerror = () => {
-        window.alert('Could not read the selected file.');
-      };
-      reader.readAsText(file);
-    });
-  }
-}
 
 // ── Event wiring ───────────────────────────────────────────────
 function syncTopicTabsActive(tab) {
@@ -1769,7 +2655,7 @@ function syncSidebarMemoryRange() {
   range.setAttribute('value', String(value)); // For CSS highlighting
   range.setAttribute('aria-valuenow', String(value));
   
-  const labels = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
+  const labels = MEMORY_LABELS;
   const labelText = !state.statusFilter ? 'No filter (double-click to clear)' : labels[value];
   range.setAttribute('aria-valuetext', labelText || 'Unseen');
 }
@@ -1827,7 +2713,7 @@ function wireResetMemoryButton() {
       state.seen = new Set();
       saveSeen();
       renderList();
-      renderStatusBar();
+      
       
       // Flash confirmation
       const icon = resetBtn.querySelector('.reset-icon');
@@ -1842,25 +2728,39 @@ function wireResetMemoryButton() {
   });
 }
 
-function initializeApp() {
+async function initializeApp() {
   initTheme();
   initZoom();
   questions = QuestionDB.all();
-  loadRatings();
-  loadSeen();
+  loadHiddenIds();
+  buildCmdSearchStructures();
+  // Load progress from server with localStorage fallback and one-time import
+  const serverAvailable = await loadProgressWithServerFallback();
+  if (!serverAvailable) {
+    loadRatings();
+    loadSeen();
+  }
+  purgeCollapsedCardStorage();
   restoreStateFromURL();
 }
 
 function restoreStateFromURL() {
-  const urlParams = new URLSearchParams(window.location.search);
+  const raw = window.location.hash.replace(/^#/, '');
+  const urlParams = new URLSearchParams(raw);
   const urlTab = urlParams.get('tab');
-  const urlQuestion = urlParams.get('q');
-  
+  let urlQuestion = urlParams.get('q');
+
+  // Documented short form `#sd-75`: a bare question id, no key=value pairs.
+  if (!urlQuestion && raw && raw.indexOf('=') === -1 && questions.some(item => item.id === raw)) {
+    urlQuestion = raw;
+  }
+  if (urlQuestion && !questions.some(item => item.id === urlQuestion)) urlQuestion = null;
+
   if (urlTab && VALID_TABS.includes(urlTab)) {
     state.activeTab = urlTab;
   }
-  
-  if (urlQuestion && questions.find(q => q.id === urlQuestion)) {
+
+  if (urlQuestion) {
     state.selectedId = urlQuestion;
     state.cardRevealed = state.learningMode;
     const questionFromUrl = getQuestionById(urlQuestion);
@@ -1869,6 +2769,12 @@ function restoreStateFromURL() {
       state.activeFeedSection = { type: questionFromUrl.type, section: questionFromUrl.section };
       clearFeedSectionPin();
     }
+  } else if (urlTab && VALID_TABS.includes(urlTab)) {
+    // The hash names a topic and no question. Authoritative so the same
+    // function can drive hashchange re-routing: drop any stale selection.
+    state.selectedId = null;
+    state.cardRevealed = false;
+    state.activeFeedSection = null;
   }
 }
 
@@ -1897,15 +2803,6 @@ function initializeTopicControls() {
 }
 
 function initializeSearchAndFilters() {
-  const searchInput = document.getElementById('search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', e => {
-      state.searchQuery = e.target.value.trim();
-      clearFeedSectionPin();
-      renderList();
-    });
-  }
-
   document.querySelectorAll('#diff-chips .chip[data-diff], #diff-filters .pill[data-diff]').forEach(btn => {
     const diff = btn.dataset.diff;
     if (!diff || diff === 'all') return;
@@ -1915,6 +2812,9 @@ function initializeSearchAndFilters() {
       renderList();
     });
   });
+
+  // Initialize tag filter search
+  initTagFilterSearch();
 }
 
 function initializeMemoryFilters() {
@@ -1937,7 +2837,7 @@ function initializeMemoryFilters() {
   if (sidebarMemoryRange) {
     sidebarMemoryRange.addEventListener('input', e => {
       const value = parseInt(e.target.value);
-      const statusMap = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
+      const statusMap = MEMORY_STATUS_BY_VALUE;
       e.target.setAttribute('value', value);
       onStatusFilterPick(statusMap[value]);
     });
@@ -1963,17 +2863,6 @@ function initializeMemoryFilters() {
 }
 
 function initializeEventListeners() {
-  const tagFilterClear = document.getElementById('tag-filter-clear');
-  if (tagFilterClear) {
-    tagFilterClear.addEventListener('click', () => {
-      state.tagFilter = null;
-      clearFeedSectionPin();
-      updateTagFilterBar();
-      renderList();
-      renderMainPanel();
-    });
-  }
-
   const cardHidden = document.getElementById('card-hidden-face');
   if (cardHidden) cardHidden.addEventListener('click', revealCard);
 
@@ -1993,7 +2882,12 @@ function initializeKeyboardHandlers() {
   document.addEventListener('keydown', e => {
     if (handleZoomShortcut(e)) return;
 
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
+    // ⌘⇧F / Ctrl+Shift+F (primary) and ⌘E / Ctrl+E (alias). Both are
+    // suppressed while focus is in a text field other than the palette
+    // input — ⌘E used to preventDefault unconditionally and ate the
+    // browser's/other app's keystroke even inside inputs.
+    if (paletteShortcutMatches(e)) {
+      if (isShortcutSuppressedTarget(e.target)) return;
       e.preventDefault();
       toggleCmdPalette();
       return;
@@ -2011,21 +2905,50 @@ function initializeKeyboardHandlers() {
 }
 
 function handleCommandPaletteKeyboard(e) {
-  const cmdPaletteKeys = {
+  const keys = {
     'Escape': () => closeCmdPalette(),
+    'Enter': () => {
+      if (cmdSuggestCtx) acceptCmdSuggestion();
+      else confirmCmdSelection();
+    },
     'ArrowDown': () => moveCmdSelection(1),
     'ArrowUp': () => moveCmdSelection(-1),
-    'Enter': () => confirmCmdSelection()
+    'PageDown': () => moveCmdSelection(cmdPageRows()),
+    'PageUp': () => moveCmdSelection(-cmdPageRows()),
+    'Home': () => setCmdSelection(0),
+    'End': () => setCmdSelection(cmdResultsList.length - 1),
   };
 
-  if (cmdPaletteKeys[e.key]) {
+  if (keys[e.key]) {
     e.preventDefault();
-    cmdPaletteKeys[e.key]();
+    keys[e.key]();
     return;
   }
 
-  if (e.target === document.getElementById('cmd-input')) return;
-  
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (cmdSuggestCtx) {
+      // In suggest mode Tab accepts the highlighted completion instead of
+      // walking focus; Shift+Tab is a no-op. Escape still closes the palette.
+      if (!e.shiftKey) acceptCmdSuggestion();
+      return;
+    }
+    // Real focus trap: the overlay says aria-modal="true", so Tab must not
+    // walk out of the dialog. Committing stays Enter-only — no arrow preview.
+    trapCmdFocus(e.shiftKey);
+    return;
+  }
+
+  const input = document.getElementById('cmd-input');
+  if (input && e.target !== input) {
+    // Focus can sit on the panel/body (e.g. after a mouse drag); printable
+    // keys should still type into the search box.
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      input.focus();
+    }
+  }
+  if (e.target === input) return;
+
   const blockWhileOpen = ['j', 'k', 'J', 'K', ' ', 'ArrowLeft', 'ArrowRight', '1', '2', '3'];
   if (blockWhileOpen.includes(e.key)) {
     e.preventDefault();
@@ -2044,7 +2967,7 @@ function handleMainKeyboardShortcuts(e) {
     '3': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'review'),
     'ArrowLeft': () => historyBack(),
     'ArrowRight': () => historyForward(),
-    'Escape': () => { closeSearch(); closeCmdPalette(); }
+    'Escape': () => closeCmdPalette()
   };
 
   if (shortcuts[e.key]) {
@@ -2058,7 +2981,8 @@ function initializeUIState() {
   const sidebar = document.querySelector('.sidebar');
   if (toggleBtn) {
     toggleBtn.classList.toggle('active', !state.learningMode);
-    const modeText = toggleBtn.querySelector('.mode-text');
+    toggleBtn.setAttribute('aria-checked', String(!state.learningMode));
+    const modeText = toggleBtn.querySelector('#mode-text, .mode-text');
     if (modeText) {
       modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
     }
@@ -2081,8 +3005,8 @@ function renderApp() {
   }
 }
 
-function init() {
-  initializeApp();
+async function init() {
+  await initializeApp();
 
   initializeTopicControls();
 
@@ -2092,11 +3016,13 @@ function init() {
   
   initializeEventListeners();
   wireCommandPalette();
-  wireExportImport();
+  initializeDiagramModal();
+  initializeHashRouting();
 
   initializeKeyboardHandlers();
 
   initializeUIState();
+  syncCmdKbdHint();
   renderApp();
   pushURLState();
 }
@@ -2149,5 +3075,121 @@ function initResize() {
   });
 }
 
+/**
+ * Fetch progress from the server.
+ * @returns {Promise<Object>} { ratings, seen } or throws
+ */
+async function fetchProgressFromServer() {
+  try {
+    const response = await fetch(`${SERVER_API_BASE}/api/progress`);
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+    const data = await response.json();
+    // Validate data structure
+    if (typeof data !== 'object' || !data.ratings || !Array.isArray(data.seen)) {
+      throw new Error('Invalid progress data from server');
+    }
+    // Ensure ratings values are valid
+    for (const rating of Object.values(data.ratings)) {
+      if (!VALID_RATING_VALUES.has(rating)) {
+        throw new Error(`Invalid rating in server data: ${rating}`);
+      }
+    }
+    // Ensure seen items are strings
+    for (const id of data.seen) {
+      if (typeof id !== 'string') {
+        throw new Error(`Invalid seen ID in server data: ${id}`);
+      }
+    }
+    return {
+      ratings: data.ratings,
+      seen: new Set(data.seen)
+    };
+  } catch (err) {
+    console.warn('Could not fetch progress from server:', err);
+    throw err;
+  }
+}
+
+/**
+ * Save progress to the server.
+ * @param {Object} progress - { ratings: { [id]: string }, seen: Set<string> }
+ * @returns {Promise<void>}
+ */
+async function saveProgressToServer({ ratings, seen }) {
+  try {
+    const response = await fetch(`${SERVER_API_BASE}/api/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ratings: ratings,
+        seen: Array.from(seen)
+      })
+    });
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+  } catch (err) {
+    console.error('Failed to save progress to server:', err);
+    throw err;
+  }
+}
+
+/**
+ * Import localStorage progress to the server (if server is empty).
+ * @returns {Promise<boolean>} true if imported
+ */
+async function importLocalStorageToServer() {
+  try {
+    // Load from localStorage
+    const rawRatings = localStorage.getItem('interview-ratings');
+    const rawSeen = localStorage.getItem('interview-seen');
+    if (!rawRatings && !rawSeen) return false; // Nothing to import
+
+    const ratings = rawRatings ? JSON.parse(rawRatings) : {};
+    const seenRaw = rawSeen ? JSON.parse(rawSeen) : [];
+    const seen = new Set(seenRaw);
+
+    // Validate localStorage data (same as in loadRatings/loadSeen)
+    for (const rating of Object.values(ratings)) {
+      if (!VALID_RATING_VALUES.has(rating)) {
+        throw new Error(`Invalid rating in localStorage: ${rating}`);
+      }
+    }
+    for (const id of seen) {
+      if (typeof id !== 'string') {
+        throw new Error(`Invalid seen ID in localStorage: ${id}`);
+      }
+    }
+
+    // Send to server
+    const response = await fetch(`${SERVER_API_BASE}/api/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ratings: ratings,
+        seen: Array.from(seen)
+      })
+    });
+    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+    const result = await response.json();
+    if (result.imported) {
+      // Clear localStorage after successful import
+      localStorage.removeItem('interview-ratings');
+      localStorage.removeItem('interview-seen');
+    }
+    return result.imported;
+  } catch (err) {
+    console.warn('Could not import localStorage to server:', err);
+    return false;
+  }
+}
+
+/**
+ * Clear localStorage progress keys.
+ */
+function clearLocalStorageProgress() {
+  localStorage.removeItem('interview-ratings');
+  localStorage.removeItem('interview-seen');
+}
+
 // ── Boot ───────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => { init(); initResize(); });
+document.addEventListener('DOMContentLoaded', async () => { await init(); initResize(); });

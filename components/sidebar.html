@@ -1,4 +1,4 @@
-    <aside class="sidebar">
+<aside class="sidebar">
       <div class="sb-header">
         <div class="sb-label">Sections</div>
       </div>
@@ -7,7 +7,23 @@
       <div class="divider"></div>
 
       <div class="filter-group">
-        <div class="sb-label">Difficulty</div>
+
+        <!-- Tag filter - searchable, sits right above Difficulty -->
+        <div class="tag-filter-section" id="tag-filter-section">
+          <div class="sb-label-row">
+            <div class="sb-label tag-filter-title">Tags</div>
+            <button type="button" class="tag-clear-all" id="tag-clear-all" title="Clear all selected tags" aria-label="Clear all selected tags" hidden>
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+          <div class="tag-search-wrapper">
+            <input type="text" id="tag-search-input" class="tag-search-input" placeholder="Search tags..." autocomplete="off" />
+            <div class="tag-search-results hidden" id="tag-search-results"></div>
+          </div>
+          <div class="tag-filter-selected" id="tag-filter-selected"></div>
+        </div>
+
+        <div class="sb-label sb-label-spaced">Difficulty</div>
         <div id="diff-chips" class="filter-chips filter-chips-diff">
           <button type="button" class="chip" data-diff="E" data-chip-label="Easy" title="Easy">
             <span class="chip-label">Easy</span>
@@ -22,6 +38,7 @@
             <span class="chip-count">(0)</span>
           </button>
         </div>
+
         <div class="sb-label sb-label-spaced">Importance</div>
         <div id="importance-chips" class="filter-chips filter-chips-importance">
           <button type="button" class="chip importance-chip" data-status="star" data-chip-label="Important" title="Important questions">
@@ -30,6 +47,7 @@
             <span class="chip-count">(0)</span>
           </button>
         </div>
+
         <div class="sb-label sb-label-spaced">Memory</div>
         <div class="memory-indicator-container">
           <div class="memory-progress-bar">
@@ -43,11 +61,5 @@
             <span class="memory-lbl-enhanced" data-step="3">KNEW</span>
           </div>
         </div>
-      </div>
-
-      <div class="tag-filter-bar hidden" id="tag-filter-bar">
-        <span class="tag-filter-label">Tag</span>
-        <span class="tag-filter-chip" id="tag-filter-chip-label"></span>
-        <button type="button" class="tag-filter-clear" id="tag-filter-clear">✕</button>
       </div>
     </aside>

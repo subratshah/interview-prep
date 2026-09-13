@@ -6,9 +6,8 @@ To preview changes locally, run `./start-server.sh` from the repo root and open 
 
 | File | Responsibility | Notable IDs / hooks |
 |------|----------------|----------------------|
-| `topbar.html` | Topic tabs, list filter search, command palette launcher, hidden `topic-select` sync, Learn/Quiz toggle | `topic-tabs`, `search-input`, `cmd-launch`, `topic-select`, `toggle-switch` |
-| `sidebar.html` | Section list (`sb-list`), difficulty chips, importance star chip, memory filter slider (`memory-filter-slider`), tag filter strip, sidebar export/import | `sb-list`, `diff-chips`, `importance-chips`, `memory-filter-slider`, `mem-filter-*`, `tag-filter-bar`, `si-export-sidebar`, `import-input-sidebar` |
+| `topbar.html` | Topic tabs, command palette launcher, hidden `topic-select` sync, Learn/Quiz toggle | `topic-tabs`, `cmd-launch`, `topic-select`, `toggle-switch` |
+| `sidebar.html` | Section list (`sb-list`), searchable multi-select tag filter, difficulty chips, importance star chip, memory filter slider | `sb-list`, `tag-filter-section`, `tag-search-input`, `diff-chips`, `importance-chips`, `sidebar-memory-range` |
 | `feed.html` | Feed header title/count and question card list | `feed-title`, `feed-count`, `feed-list` |
 | `detail-panel.html` | Empty state, question chrome, body, tags/related, flashcard, meta block | `main-panel`, `detail-empty`, `detail-question`, `detail-body`, `flashcard`, `cmd-*` consumers |
-| `statusbar.html` | Legends, breadcrumb, progress, saved/rating, status export/import | `app-statusbar`, `si-topic`, `si-section`, `si-progress`, `si-export`, `import-input` |
 | `command-palette.html` | Full-screen search overlay, results, hints | `cmd-overlay`, `cmd-input`, `cmd-results` |

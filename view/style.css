@@ -8,6 +8,14 @@
 }
 
 :root {
+  /* In-app zoom ladder. Lengths across this sheet are rem, so this one number
+     scales type, spacing, radii and every panel floor together — while the
+     layout viewport stays the real window, so panels reflow instead of the
+     whole page being magnified. The bare +/−/0 keys drive it in app.js;
+     ⌘/Ctrl +−0 is deliberately left to the browser, whose own zoom re-flows
+     the layout and is what you reset with. */
+  --z: 1;
+
   /* Surfaces */
   --bg: #0a0a0a;
   --surface: #111;
@@ -91,8 +99,8 @@
   /* Overlays */
   --overlay-bg: rgba(0, 0, 0, 0.58);
   --cmd-footer-bg: rgba(0, 0, 0, 0.25);
-  --panel-shadow: 0 28px 80px rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --elevation-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  --panel-shadow: 0 1.75rem 5rem rgba(0, 0, 0, 0.72), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --elevation-shadow: 0 1px 0.25rem rgba(0, 0, 0, 0.45);
 
 
   --font-sans: 'Inter', -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
@@ -179,8 +187,8 @@
 
   --overlay-bg: rgba(15, 23, 42, 0.35);
   --cmd-footer-bg: rgba(0, 0, 0, 0.04);
-  --panel-shadow: 0 28px 80px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  --elevation-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+  --panel-shadow: 0 1.75rem 5rem rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --elevation-shadow: 0 1px 0.25rem rgba(15, 23, 42, 0.08);
 
   /* Notion text colors for accessibility in light mode */
   --notion-body-text: var(--text-secondary);
@@ -217,11 +225,23 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 14px; /* Increased from 13px for better readability */
   line-height: 1.5; /* Improved line height for accessibility */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale; /* Better font rendering on Firefox */
+}
+
+/* 1rem = 18px at ladder 1.0. The sheet was swept from px against a 16px
+   reference, so this renders every size at 1.125× the original design px:
+   80% of the previous 22px base, comfortably below the old forced zoom: 1.5,
+   and low enough that the browser's own zoom (Ctrl/⌘ +−0) is the thing you
+   reach for to go bigger or smaller. */
+html {
+  font-size: calc(18px * var(--z));
+}
+
+body {
+  font-size: 0.875rem; /* 14px design size, rendered at the ladder */
 }
 
 .sr-only {
@@ -240,7 +260,10 @@ body {
 .app.shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* Percentage of the html/body 100% chain rather than 100vh: the shell then
+     fills the window exactly at any ladder step and any browser zoom, and each
+     column scrolls itself. */
+  height: 100%;
   min-height: 0;
 }
 
@@ -252,20 +275,55 @@ body {
 }
 
 /* ═══ Topbar ═══ */
+/* Three columns, the outer pair equal, so the pill sits at the true centre of
+   the window. Equal halves are also what keeps the two side groups from ever
+   reaching across it: each is confined to its own column, so a group that
+   cannot fit shrinks (the tab strip pans) instead of overlapping. Taking the
+   pill out of the flow to centre it looked cheaper — it is not: nothing then
+   constrains the left group, so it just runs under the pill. */
 .topbar {
-  height: 44px;
+  position: relative;
+  height: 2.75rem;
   flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
+  gap: 0.625rem;
+  padding: 0 0.875rem;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 0 var(--topbar-shadow);
+  container: topbar / inline-size;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.topbar-center {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 0;
+  justify-self: end;
+  /* The container stages below shrink this group to fit; if one of them is a
+     frame behind during a live drag, clipping a pixel of the track is better
+     than sliding over the centred search pill. */
+  overflow: hidden;
 }
 
 .logo {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--text);
@@ -274,6 +332,12 @@ body {
 
 .logo span {
   color: var(--accent);
+}
+
+/* The wordmark was split into two spans so the plain half can be dropped in
+   the tight band; keep it out of the accent colour the second span uses. */
+.logo .logo-first {
+  color: var(--text);
 }
 
 .topic-tabs {
@@ -288,9 +352,9 @@ body {
   border: none;
   background: transparent;
   font-family: inherit;
-  padding: 6px 11px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 0.375rem 0.6875rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted);
   cursor: pointer;
@@ -315,7 +379,7 @@ body {
   color: white;
   background: linear-gradient(135deg, var(--accent), var(--accent-gradient-end));
   box-shadow: 
-    0 1px 3px rgba(59, 130, 246, 0.3),
+    0 1px 0.1875rem rgba(59, 130, 246, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
   border: 1px solid var(--accent-border-soft);
 }
@@ -325,55 +389,33 @@ body {
   display: none;
 }
 
-.topbar-search-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 8px;
-  padding: 5px 10px;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  max-width: 190px;
-  flex-shrink: 0;
-}
-
-.topbar-search-wrap .search-icon {
-  font-size: 11px;
-  color: var(--dimmer);
-  opacity: 0.85;
-}
-
-.topbar-search {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-
-.topbar-search::placeholder {
-  color: var(--dim);
-}
-
 .cmd-launch {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-left: 6px;
-  padding: 6px 12px;
+  gap: 0.625rem;
+  /* The only topbar item allowed to give way, and the first to do so. No
+     percentage may appear anywhere in this expression — not even inside the
+     clamp() floor. The pill sizes the topbar's `auto` centre column, and a
+     percentage here resolves against that column's own size: a cycle Chrome
+     breaks by dropping the entire declaration, which collapsed the pill to
+     its content width (measured: 196.3px at a 1535px window with the old
+     `min(10rem, 100%)` floor, vs 437px with the pure rem/vw form below).
+     The rem ends track the --z ladder; the vw term tracks the window. The
+     inner min guards the upper bound with calc(100vw - 61rem): 61rem models
+     the pill at half its cap plus the left group (logo + the 28.9rem tab
+     strip) plus a small margin for font-metric drift, so the pill can never
+     reach across the tabs. That guard binds at a 1535px window (437px wide);
+     past roughly a 1920px window the 38vw term exceeds 40rem and the cap
+     takes over, holding the pill at 720px while the page keeps growing. */
+  width: clamp(11rem, min(38vw, calc(100vw - 61rem)), 40rem);
+  padding: 0.375rem 0.75rem;
   min-width: 0;
-  flex: 1;
-  max-width: 340px;
   background: linear-gradient(180deg, var(--cmd-launch-gradient-start) 0%, var(--cmd-launch-gradient-end) 100%);
   border: 1px solid var(--border2);
-  border-radius: 8px;
+  border-radius: 0.5rem;
   color: var(--dim);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
 }
@@ -392,21 +434,16 @@ body {
   white-space: nowrap;
 }
 
-.topbar-spacer {
-  flex: 1;
-  min-width: 8px;
-}
-
 .mode-toggle-inline,
 .theme-toggle-inline {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-shrink: 0;
 }
 
 .mode-label-sm {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   color: var(--dim);
   text-transform: uppercase;
@@ -414,7 +451,7 @@ body {
 }
 
 .theme-label-sm {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: normal;
   color: var(--dim);
   line-height: 1;
@@ -424,12 +461,12 @@ body {
 /* Theme label active states - highlight based on current theme */
 [data-theme="light"] .theme-toggle-inline .theme-label-sm:first-child {
   color: #ffc107;
-  filter: drop-shadow(0 0 4px rgba(255, 193, 7, 0.4));
+  filter: drop-shadow(0 0 0.25rem rgba(255, 193, 7, 0.4));
 }
 
 [data-theme="dark"] .theme-toggle-inline .theme-label-sm:last-child {
   color: #6c5ce7;
-  filter: drop-shadow(0 0 4px rgba(108, 92, 231, 0.4));
+  filter: drop-shadow(0 0 0.25rem rgba(108, 92, 231, 0.4));
 }
 
 /* Dim the inactive theme label */
@@ -443,18 +480,13 @@ body {
   filter: none;
 }
 
-/* Zoom controls are hidden in current design */
-.zoom-controls {
-  display: none;
-}
-
 /* === Modern UI Control Design === */
 
 /* ═══ Mode Controls (Mode + Theme + Reset) ═══ */
 .mode-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 /* Ensure controls are properly aligned */
@@ -468,19 +500,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px;
+  padding: 0.5rem 1rem;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 20px; /* Pill shape */
+  border-radius: 1.25rem; /* Pill shape */
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1;
   color: var(--text-secondary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(0.5rem);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -492,7 +524,7 @@ body {
   border-color: var(--border2);
   transform: translateY(-1px);
   box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.15),
+    0 0.25rem 1rem rgba(0, 0, 0, 0.15),
     0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
@@ -509,7 +541,7 @@ body {
   font-weight: 700;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   box-shadow: 
-    0 2px 4px rgba(197, 48, 48, 0.4),
+    0 2px 0.25rem rgba(197, 48, 48, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
@@ -519,10 +551,10 @@ body {
   border-color: #e53e3e;
   transform: translateY(-1px);
   box-shadow: 
-    0 4px 8px rgba(197, 48, 48, 0.5),
+    0 0.25rem 0.5rem rgba(197, 48, 48, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
     inset 0 -1px 0 rgba(0, 0, 0, 0.1),
-    0 0 20px rgba(229, 62, 62, 0.3);
+    0 0 1.25rem rgba(229, 62, 62, 0.3);
 }
 
 .reset-btn-danger:active {
@@ -530,7 +562,7 @@ body {
   transform: translateY(0);
   box-shadow: 
     0 1px 2px rgba(197, 48, 48, 0.4),
-    inset 0 1px 3px rgba(0, 0, 0, 0.2);
+    inset 0 1px 0.1875rem rgba(0, 0, 0, 0.2);
 }
 
 .reset-icon {
@@ -540,9 +572,9 @@ body {
 /* Minimal Theme Toggle */
 .minimal-toggle {
   position: relative;
-  width: 100px;
-  height: 24px;
-  border-radius: 12px;
+  width: 6.25rem;
+  height: 1.5rem;
+  border-radius: 0.75rem;
   background: var(--surface2);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -560,32 +592,29 @@ body {
   justify-content: center;
 }
 
+/* The label is permanently centred, so the 1.25rem knob always has clear space
+   on whichever end it is parked — the off state used to sit right on top of
+   "Learn" / "Light". */
 .minimal-text {
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
   position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   z-index: 1;
-  transition: all 0.3s ease;
+  transition: color 0.3s ease;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Add extra spacing between text and toggle knob */
-.minimal-text.mode-text {
-  left: 8px; /* Move text further left for more space */
-}
-
-.minimal-text.theme-text {
-  left: 8px; /* Consistent spacing for theme toggle too */
 }
 
 .minimal-knob {
   position: absolute;
   left: 2px;
   top: 2px;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
   border-radius: 50%;
   border: 1px solid var(--border);
@@ -594,33 +623,33 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 2px 0.25rem rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .minimal-icon-container {
   position: relative;
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 /* Sun Icon */
 .minimal-sun-icon {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
   opacity: 1;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .sun-center {
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   background: #f6ad55;
   border-radius: 50%;
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 0.1875rem;
+  left: 0.1875rem;
 }
 
 .sun-ray {
@@ -631,27 +660,27 @@ body {
   border-radius: 50%;
 }
 
-.sun-ray-1 { top: 0; left: 5px; }
+.sun-ray-1 { top: 0; left: 0.3125rem; }
 .sun-ray-2 { top: 2px; right: 0; }
-.sun-ray-3 { right: 0; top: 5px; }
+.sun-ray-3 { right: 0; top: 0.3125rem; }
 .sun-ray-4 { bottom: 2px; right: 0; }
-.sun-ray-5 { bottom: 0; left: 5px; }
+.sun-ray-5 { bottom: 0; left: 0.3125rem; }
 .sun-ray-6 { bottom: 2px; left: 0; }
-.sun-ray-7 { left: 0; top: 5px; }
+.sun-ray-7 { left: 0; top: 0.3125rem; }
 .sun-ray-8 { top: 2px; left: 0; }
 
 /* Moon Icon */
 .minimal-moon-icon {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .moon-crescent {
-  width: 8px;
-  height: 8px;
+  width: 0.5rem;
+  height: 0.5rem;
   border-radius: 50%;
   background: #9ca3af;
   position: absolute;
@@ -664,8 +693,8 @@ body {
   position: absolute;
   top: -1px;
   left: 2px;
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
   background: var(--surface2);
 }
@@ -679,13 +708,13 @@ body {
 }
 
 .moon-star-1 { top: 1px; right: 2px; }
-.moon-star-2 { bottom: 3px; right: 1px; }
+.moon-star-2 { bottom: 0.1875rem; right: 1px; }
 
 /* Mode Toggle Icons */
 .minimal-mode-icon {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -703,12 +732,12 @@ body {
 }
 
 .learn-book {
-  font-size: 8px;
+  font-size: 0.5rem;
   line-height: 1;
 }
 
 .quiz-check {
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1;
   font-weight: bold;
   color: #4ade80;
@@ -735,7 +764,7 @@ body {
 }
 
 #mode-toggle.active .minimal-knob {
-  transform: translateX(76px);
+  transform: translateX(4.75rem);
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   border-color: #16a34a;
 }
@@ -747,7 +776,7 @@ body {
 }
 
 .minimal-toggle.active .minimal-knob {
-  transform: translateX(76px);
+  transform: translateX(4.75rem);
   background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
   border-color: #4a5568;
 }
@@ -766,49 +795,133 @@ body {
   transform: rotate(0deg);
 }
 
+/* ── Tight-row collapse chain ─────────────────────────────────
+    The content widths are rem, so they are ladder-invariant: at ladder 1.0 the
+    left group needs 28.9rem (logo + four full topic tabs), the right group
+    18.5rem (two toggles carrying their words, plus RESET), and the pill is
+    pinned at the window centre. A side may not reach across the pill, so the
+    row stops fitting at about 71rem of window — 1278px on the current 18px
+    base, where it was 1562px on the old 22px one. Below that the row retires
+    its decorative words in the order
+    the arithmetic demands: the pill's sentence first, then the plain half of
+    the wordmark, then the tab strip pans rather than shortening a label, then
+    the toggle words, then RESET's word, and only in the last stage does the
+   pill itself step aside (⌘E still opens it). Thresholds are rem, and a
+   container query reads the row's own width, so a narrow window, native
+   browser zoom and the --z ladder all drive exactly the same chain. */
+@container topbar (max-width: 68rem) {
+  /* the ⌘E chip is the affordance; the sentence is not */
+  .cmd-launch {
+    width: auto;
+  }
+
+  .cmd-launch span:first-of-type {
+    display: none;
+  }
+}
+
+@container topbar (max-width: 63rem) {
+  .logo-first {
+    display: none;
+  }
+}
+
+@container topbar (max-width: 58rem) {
+  /* Last resort for the left side: all four labels stay whole, the strip pans. */
+  .topic-tabs {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topic-tabs::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@container topbar (max-width: 42rem) {
+  /* Icon-only switches that still slide. */
+  .minimal-text {
+    display: none;
+  }
+
+  .minimal-toggle {
+    width: 3.25rem;
+  }
+
+  #mode-toggle.active .minimal-knob,
+  .minimal-toggle.active .minimal-knob {
+    transform: translateX(2.75rem);
+  }
+}
+
+@container topbar (max-width: 30rem) {
+  .reset-btn {
+    padding: 0.5rem 0.625rem;
+    font-size: 0;
+  }
+
+  .reset-btn::before {
+    content: "\21BB";
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+}
+
+@container topbar (max-width: 26rem) {
+  .topbar-center {
+    display: none;
+  }
+}
+
 /* Hover effects */
 .minimal-toggle:hover {
   background: var(--surface);
   border-color: var(--border2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 0.5rem rgba(0, 0, 0, 0.1);
 }
 
 /* Theme toggle hover (when active/dark mode) */
 #theme-toggle.active:hover {
   background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
   border-color: #5a67d8;
-  box-shadow: 0 2px 8px rgba(90, 103, 216, 0.2);
+  box-shadow: 0 2px 0.5rem rgba(90, 103, 216, 0.2);
 }
 
 /* Mode toggle hover (when active/Quiz mode) */
 #mode-toggle.active:hover {
   background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
   border-color: #22c55e;
-  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  box-shadow: 0 2px 0.5rem rgba(34, 197, 94, 0.3);
 }
 
 .kbd-mini,
 .kbd-tiny,
 .kbd-pill {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 500;
   color: var(--dim);
   background: var(--border);
   border: 1px solid var(--border2);
-  border-radius: 4px;
-  padding: 2px 6px;
+  border-radius: 0.25rem;
+  padding: 2px 0.375rem;
 }
 
 .kbd-pill {
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 0.6875rem;
+  padding: 0.1875rem 0.5rem;
 }
 
 /* ═══ Sidebar ═══ */
 .sidebar {
-  width: 210px;
-  flex-shrink: 0;
+  /* A share of the window with a readable floor and a ceiling, so the panel
+     stops eating a small window and stops hogging a big one. flex-shrink lets
+     it give ground when the row is tight; the feed, being the widest base,
+     gives ground first. */
+  flex: 0 1 clamp(11rem, 15%, 18rem);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -817,23 +930,23 @@ body {
 }
 
 .sb-header {
-  padding: 12px 14px 8px;
+  padding: 0.75rem 0.875rem 0.5rem;
   flex-shrink: 0;
 }
 
 .sb-label {
-  font-size: 11px; /* Increased from 10px for better readability */
+  font-size: 0.6875rem; /* Increased from 10px for better readability */
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--dimmer);
-  padding-bottom: 6px;
+  padding-bottom: 0.375rem;
 }
 
 .sb-diff-hint {
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
   padding: 0;
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 1.35;
   font-weight: 400;
   text-transform: none;
@@ -855,12 +968,12 @@ body {
 }
 
 .sb-list-empty {
-  margin: 4px 4px 0;
-  padding: 12px 10px;
-  font-size: 11px;
+  margin: 0.25rem 0.25rem 0;
+  padding: 0.75rem 0.625rem;
+  font-size: 0.6875rem;
   line-height: 1.4;
   color: var(--muted);
-  border-radius: 8px;
+  border-radius: 0.5rem;
   border: 1px dashed var(--border2);
 }
 
@@ -889,31 +1002,31 @@ body {
 }
 
 .sb-label-spaced {
-  margin-top: 12px;
+  margin-top: 0.75rem;
 }
 
 .sb-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 8px;
+  padding: 0 0.5rem 0.5rem;
 }
 
 .sb-list::-webkit-scrollbar {
-  width: 4px;
+  width: 0.25rem;
 }
 
 .sb-list::-webkit-scrollbar-thumb {
   background: var(--border2);
-  border-radius: 3px;
+  border-radius: 0.1875rem;
 }
 
 .sb-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 8px 6px;
-  border-radius: 8px;
+  gap: 0.25rem;
+  padding: 0.5rem 0.5rem 0.375rem;
+  border-radius: 0.5rem;
   margin-bottom: 2px;
   cursor: pointer;
   border: 1px solid transparent;
@@ -953,11 +1066,11 @@ body {
 .sb-item-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .sb-item-label {
-  font-size: 13px; /* Increased from 12px for better accessibility */
+  font-size: 0.8125rem; /* Increased from 12px for better accessibility */
   font-weight: 500;
   color: var(--muted);
   flex: 1;
@@ -968,12 +1081,12 @@ body {
 }
 
 .sb-item-count {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
   color: var(--dim);
   background: var(--surface2);
-  padding: 2px 6px;
-  border-radius: 10px;
+  padding: 2px 0.375rem;
+  border-radius: 0.625rem;
   flex-shrink: 0;
   transition:
     background 0.18s ease,
@@ -981,7 +1094,7 @@ body {
 }
 
 .sb-progress {
-  height: 3px;
+  height: 0.1875rem;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
@@ -997,26 +1110,26 @@ body {
 .divider {
   height: 1px;
   background: var(--border);
-  margin: 4px 12px 8px;
+  margin: 0.25rem 0.75rem 0.5rem;
   flex-shrink: 0;
 }
 
 .filter-group {
-  padding: 0 12px 12px;
+  padding: 0 0.75rem 0.75rem;
   flex-shrink: 0;
 }
 
 .filter-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 0.3125rem;
 }
 
 .filter-chips-diff {
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .filter-chips-diff .chip {
@@ -1025,7 +1138,7 @@ body {
   justify-content: space-between;
   width: 100%;
   text-align: left;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   box-sizing: border-box;
 }
 
@@ -1035,7 +1148,7 @@ body {
 }
 
 .filter-chips-diff .chip-count {
-  font-size: 9px;
+  font-size: 0.5625rem;
   opacity: 0.8;
 }
 
@@ -1045,31 +1158,31 @@ body {
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  gap: 4px;
-  padding-bottom: 3px;
+  gap: 0.25rem;
+  padding-bottom: 0.1875rem;
 }
 
 .filter-chips-memory::-webkit-scrollbar {
-  height: 3px;
+  height: 0.1875rem;
 }
 
 .filter-chips-memory::-webkit-scrollbar-thumb {
   background: var(--border2);
-  border-radius: 3px;
+  border-radius: 0.1875rem;
 }
 
 .filter-chips-memory .chip {
   flex-shrink: 0;
-  padding: 4px 7px;
-  font-size: 9px;
+  padding: 0.25rem 0.4375rem;
+  font-size: 0.5625rem;
 }
 
 .chip {
   font-family: inherit;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
+  padding: 0.25rem 0.5625rem;
+  border-radius: 62.4375rem;
   background: var(--surface2);
   color: var(--muted);
   border: 1px solid transparent;
@@ -1091,7 +1204,7 @@ body {
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .filter-chips-importance .chip {
@@ -1100,7 +1213,7 @@ body {
   justify-content: space-between;
   width: 100%;
   text-align: left;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   box-sizing: border-box;
   background: var(--surface2);
   color: var(--muted);
@@ -1121,8 +1234,8 @@ body {
 }
 
 .importance-icon {
-  font-size: 12px;
-  margin-right: 6px;
+  font-size: 0.75rem;
+  margin-right: 0.375rem;
 }
 
 .importance-label {
@@ -1131,7 +1244,7 @@ body {
 }
 
 .filter-chips-importance .chip-count {
-  font-size: 9px;
+  font-size: 0.5625rem;
   opacity: 0.8;
 }
 
@@ -1225,13 +1338,13 @@ body {
 
 .memory-detail-field {
   flex: 1;
-  min-width: 140px;
-  max-width: 340px;
+  min-width: 8.75rem;
+  max-width: 21.25rem;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
   /* Align label row with range thumb centers (thumb width set on .memory-range). */
-  --memory-range-thumb: 16px;
+  --memory-range-thumb: 1rem;
   --memory-range-thumb-half: calc(var(--memory-range-thumb) / 2);
 }
 
@@ -1239,7 +1352,7 @@ body {
   position: relative;
   margin: 0;
   min-height: calc(1.2em + 1px);
-  font-size: 8px;
+  font-size: 0.5rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1285,7 +1398,7 @@ body {
 #detail-memory-range.memory-range,
 input.memory-range {
   width: 100%;
-  height: 22px;
+  height: 1.375rem;
   margin: 0;
   padding: 0;
   -webkit-appearance: none;
@@ -1301,8 +1414,8 @@ input.memory-range:disabled {
 }
 
 input.memory-range::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 999px;
+  height: 0.375rem;
+  border-radius: 62.4375rem;
   background: linear-gradient(
     90deg,
     var(--dot-empty) 0%,
@@ -1316,22 +1429,22 @@ input.memory-range::-webkit-slider-runnable-track {
 input.memory-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   box-sizing: border-box;
-  width: var(--memory-range-thumb, 16px);
-  height: var(--memory-range-thumb, 16px);
-  margin-top: calc((6px - var(--memory-range-thumb, 16px)) / 2);
+  width: var(--memory-range-thumb, 1rem);
+  height: var(--memory-range-thumb, 1rem);
+  margin-top: calc((0.375rem - var(--memory-range-thumb, 1rem)) / 2);
   border-radius: 50%;
   background: var(--text);
   border: 2px solid var(--surface);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border2);
+  box-shadow: 0 1px 0.25rem rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border2);
 }
 
 input.memory-range:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px var(--ring), 0 1px 4px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 0.1875rem var(--ring), 0 1px 0.25rem rgba(0, 0, 0, 0.45);
 }
 
 input.memory-range::-moz-range-track {
-  height: 6px;
-  border-radius: 999px;
+  height: 0.375rem;
+  border-radius: 62.4375rem;
   background: linear-gradient(
     90deg,
     var(--dot-empty) 0%,
@@ -1344,30 +1457,30 @@ input.memory-range::-moz-range-track {
 
 input.memory-range::-moz-range-thumb {
   box-sizing: border-box;
-  width: var(--memory-range-thumb, 16px);
-  height: var(--memory-range-thumb, 16px);
+  width: var(--memory-range-thumb, 1rem);
+  height: var(--memory-range-thumb, 1rem);
   border-radius: 50%;
   background: var(--text);
   border: 2px solid var(--surface);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border2);
+  box-shadow: 0 1px 0.25rem rgba(0, 0, 0, 0.45), 0 0 0 1px var(--border2);
 }
 
 input.memory-range:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 3px var(--ring), 0 1px 4px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 0.1875rem var(--ring), 0 1px 0.25rem rgba(0, 0, 0, 0.45);
 }
 
 /* ── Enhanced Memory Indicator ── */
 .memory-indicator-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
 }
 
 .memory-progress-bar {
   position: relative;
   width: 100%;
-  height: 32px;
+  height: 2rem;
   display: flex;
   align-items: center;
 }
@@ -1377,8 +1490,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
   top: 50%;
   left: 0;
   right: 0;
-  height: 6px;
-  border-radius: 999px;
+  height: 0.375rem;
+  border-radius: 62.4375rem;
   transform: translateY(-50%);
   background: linear-gradient(
     90deg,
@@ -1397,7 +1510,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
   z-index: 10;
   background: transparent;
   width: 100%;
-  height: 32px;
+  height: 2rem;
   margin: 0;
   padding: 0;
   -webkit-appearance: none;
@@ -1407,21 +1520,21 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .enhanced-memory-range::-webkit-slider-runnable-track {
   background: transparent;
-  height: 6px;
-  border-radius: 999px;
+  height: 0.375rem;
+  border-radius: 62.4375rem;
 }
 
 .enhanced-memory-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   box-sizing: border-box;
-  width: 20px;
-  height: 20px;
-  margin-top: calc((6px - 20px) / 2);
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: calc((0.375rem - 1.25rem) / 2);
   border-radius: 50%;
   background: var(--text);
-  border: 3px solid var(--surface);
+  border: 0.1875rem solid var(--surface);
   box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.6), 
+    0 2px 0.5rem rgba(0, 0, 0, 0.6), 
     0 0 0 1px var(--border2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   cursor: grab;
@@ -1431,7 +1544,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .enhanced-memory-range::-webkit-slider-thumb:hover {
   transform: scale(1.1);
   box-shadow: 
-    0 3px 12px rgba(0, 0, 0, 0.7), 
+    0 0.1875rem 0.75rem rgba(0, 0, 0, 0.7), 
     0 0 0 1px var(--border2),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
@@ -1443,25 +1556,25 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .enhanced-memory-range:focus-visible::-webkit-slider-thumb {
   box-shadow: 
-    0 0 0 3px var(--ring), 
-    0 2px 8px rgba(0, 0, 0, 0.6);
+    0 0 0 0.1875rem var(--ring), 
+    0 2px 0.5rem rgba(0, 0, 0, 0.6);
 }
 
 .enhanced-memory-range::-moz-range-track {
   background: transparent;
-  height: 6px;
-  border-radius: 999px;
+  height: 0.375rem;
+  border-radius: 62.4375rem;
 }
 
 .enhanced-memory-range::-moz-range-thumb {
   box-sizing: border-box;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 50%;
   background: var(--text);
-  border: 3px solid var(--surface);
+  border: 0.1875rem solid var(--surface);
   box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.6), 
+    0 2px 0.5rem rgba(0, 0, 0, 0.6), 
     0 0 0 1px var(--border2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   cursor: grab;
@@ -1474,8 +1587,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .enhanced-memory-range:focus-visible::-moz-range-thumb {
   box-shadow: 
-    0 0 0 3px var(--ring), 
-    0 2px 8px rgba(0, 0, 0, 0.6);
+    0 0 0 0.1875rem var(--ring), 
+    0 2px 0.5rem rgba(0, 0, 0, 0.6);
 }
 
 .memory-labels-enhanced {
@@ -1487,7 +1600,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .memory-lbl-enhanced {
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1510,8 +1623,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .memory-legend-slider {
   position: relative;
-  width: min(88px, 22vw);
-  height: 12px;
+  width: min(5.5rem, 22vw);
+  height: 0.75rem;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -1520,8 +1633,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .memory-legend-bar {
   display: block;
   width: 100%;
-  height: 5px;
-  border-radius: 999px;
+  height: 0.3125rem;
+  border-radius: 62.4375rem;
   background: linear-gradient(
     90deg,
     var(--dot-empty) 0%,
@@ -1547,8 +1660,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .memory-legend-ticks > i {
   display: block;
-  width: 5px;
-  height: 5px;
+  width: 0.3125rem;
+  height: 0.3125rem;
   border-radius: 50%;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -1580,58 +1693,190 @@ input.memory-range:focus-visible::-moz-range-thumb {
   box-shadow: inset 0 -1px 0 var(--accent);
 }
 
-.tag-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 10px 8px;
-  padding: 7px 10px;
-  background: var(--accent-bg);
-  border: 1px solid #1e3a5a;
-  border-radius: 8px;
+/* Tag filter section - sits directly above the Difficulty section */
+.tag-filter-section {
+  padding: 0 0 0.25rem;
 }
 
-.tag-filter-bar.hidden {
+.tag-filter-section .sb-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  margin-bottom: 2px;
+}
+
+.tag-filter-section .sb-label-row .sb-label {
+  padding-bottom: 0;
+}
+
+/* Clear-all (✕) button on the Tags header row */
+.tag-clear-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dim);
+  font-size: 0.6875rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.tag-clear-all:hover {
+  color: var(--hard);
+  background: var(--hard-bg);
+  border-color: var(--hard-border);
+}
+
+.tag-clear-all[hidden] {
   display: none;
 }
 
-.tag-filter-label {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--dim);
+/* Selected tags display — sits below the search bar */
+.tag-filter-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
 }
 
-.tag-filter-chip {
-  font-size: 11px;
-  color: var(--accent-soft);
+.tag-filter-selected:empty {
+  display: none;
+}
+
+.tag-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.375rem;
+  background: var(--accent-bg);
+  border: 1px solid #1e3a5a;
+  border-radius: 62.4375rem;
+  font-size: 0.625rem;
   font-weight: 500;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--accent-soft);
+  animation: tag-chip-in 0.15s ease;
 }
 
-.tag-filter-clear {
+@keyframes tag-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tag-selected-label {
+  white-space: nowrap;
+}
+
+.tag-selected-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.625rem;
+  line-height: 1;
+  border-radius: 50%;
+  transition: color 0.1s, background 0.1s;
 }
 
-.tag-filter-clear:hover {
+.tag-selected-remove:hover {
+  color: var(--hard);
+  background: var(--hard-bg);
+}
+
+/* Tag search wrapper */
+.tag-search-wrapper {
+  position: relative;
+}
+
+.tag-search-input {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.6875rem;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 0.5rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tag-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.tag-search-input::placeholder {
+  color: var(--dim);
+}
+
+/* Tag search results dropdown */
+.tag-search-results {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border2);
+  border-radius: 0.5rem;
+  box-shadow: var(--panel-shadow);
+  max-height: 12.5rem;
+  overflow-y: auto;
+  z-index: 100;
+  margin: 0;
+}
+
+.tag-search-results.hidden {
+  display: none;
+}
+
+.tag-search-result {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.tag-search-result:last-child {
+  border-bottom: none;
+}
+
+.tag-search-result:hover,
+.tag-search-result:focus {
+  background: var(--accent-bg);
+  color: var(--accent-soft);
+  outline: none;
 }
 
 /* ═══ Feed ═══ */
 .feed {
-  width: 400px;
-  flex-shrink: 0;
+  flex: 0 1 clamp(16rem, 40%, 34rem);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1642,14 +1887,14 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .feed-hd {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 12px 14px 10px;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem 0.625rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .feed-title {
-  font-size: 12px; /* Increased from 11px for better accessibility */
+  font-size: 0.75rem; /* Increased from 11px for better accessibility */
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1657,15 +1902,15 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .feed-diff-badge {
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--accent-soft);
   background: var(--accent-bg);
   border: 1px solid rgba(96, 165, 250, 0.35);
-  padding: 2px 7px;
-  border-radius: 5px;
+  padding: 2px 0.4375rem;
+  border-radius: 0.3125rem;
   flex-shrink: 0;
 }
 
@@ -1675,7 +1920,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .feed-counts {
   display: contents; /* This makes the children participate in the parent's flex layout */
-  font-size: 10px;
+  font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1694,22 +1939,22 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px;
+  padding: 0.5rem;
 }
 
 .feed-list::-webkit-scrollbar {
-  width: 4px;
+  width: 0.25rem;
 }
 
 .feed-list::-webkit-scrollbar-thumb {
   background: var(--border2);
-  border-radius: 3px;
+  border-radius: 0.1875rem;
 }
 
 .empty-list {
-  padding: 24px 14px;
+  padding: 1.5rem 0.875rem;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--dim);
   line-height: 1.5;
 }
@@ -1719,10 +1964,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
   position: relative;
   display: flex;
   align-items: stretch;
-  border-radius: 10px;
+  border-radius: 0.625rem;
   border: 1px solid var(--border2);
   background: var(--surface2);
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
   cursor: pointer;
   overflow: hidden;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
@@ -1746,27 +1991,27 @@ input.memory-range:focus-visible::-moz-range-thumb {
 /* Important: same ⭐ as detail header (#qv-star) and sidebar star-chip */
 .qcard-star {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  top: 0.375rem;
+  right: 0.5rem;
   z-index: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1;
   pointer-events: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 
 .qcard.starred .qcard-body {
-  padding-right: 30px;
+  padding-right: 1.875rem;
 }
 
 /* Feed card: single memory state marker (replaces five-dot row in footer). */
 .qcard-memory {
   position: absolute;
-  bottom: 7px;
-  right: 9px;
+  bottom: 0.4375rem;
+  right: 0.5625rem;
   z-index: 1;
-  width: 9px;
-  height: 9px;
+  width: 0.5625rem;
+  height: 0.5625rem;
   border-radius: 50%;
   pointer-events: none;
   box-sizing: border-box;
@@ -1821,10 +2066,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .qcard-stripe {
-  width: 4px;
+  width: 0.25rem;
   flex-shrink: 0;
   align-self: stretch;
-  border-radius: 10px 0 0 10px;
+  border-radius: 0.625rem 0 0 0.625rem;
   margin: -1px 0 -1px -1px;
 }
 
@@ -1844,14 +2089,14 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex: 1;
   min-width: 0;
   /* Extra right/bottom so tags/title clear the corner memory gem (see .qcard-memory). */
-  padding: 9px 16px 11px 10px;
+  padding: 0.5625rem 1rem 0.6875rem 0.625rem;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .qcard-title {
-  font-size: 14px; /* Increased from 12px for better accessibility */
+  font-size: 0.875rem; /* Increased from 12px for better accessibility */
   font-weight: 500;
   line-height: 1.4; /* Improved line height */
   color: var(--text);
@@ -1860,25 +2105,25 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .qcard-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   min-width: 0;
 }
 
 .qcard-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 0.25rem;
   flex: 1;
   min-width: 0;
 }
 
 .qcard-tag {
-  font-size: 9px;
-  padding: 2px 7px;
-  border-radius: 999px;
+  font-size: 0.5625rem;
+  padding: 2px 0.4375rem;
+  border-radius: 62.4375rem;
   background: var(--surface);
   color: var(--dim);
-  max-width: 100px;
+  max-width: 6.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1902,8 +2147,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .memory-dots.memory-dots--compact > span {
-  width: 4px;
-  height: 4px;
+  width: 0.25rem;
+  height: 0.25rem;
 }
 
 .memory-dots.memory-dots--tiny {
@@ -1911,8 +2156,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .memory-dots.memory-dots--tiny > span {
-  width: 3px;
-  height: 3px;
+  width: 0.1875rem;
+  height: 0.1875rem;
 }
 
 .memory-dots.memory-dots--chip {
@@ -1920,13 +2165,13 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .memory-dots.memory-dots--chip > span {
-  width: 3px;
-  height: 3px;
+  width: 0.1875rem;
+  height: 0.1875rem;
 }
 
 .memory-dots > span {
-  width: 5px;
-  height: 5px;
+  width: 0.3125rem;
+  height: 0.3125rem;
   border-radius: 50%;
   background: var(--dot-empty);
   flex-shrink: 0;
@@ -1985,16 +2230,15 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .memory-legend-keys {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.detail-meta .memory-dots {
-  flex-shrink: 0;
+  gap: 0.375rem;
 }
 
 /* ═══ Detail panel ═══ */
 .detail.main-panel {
-  flex: 1;
+  /* Grows into whatever the side panels leave, but never below a readable
+     answer column; min-width: 0 keeps a long code block from pushing the row
+     open instead of scrolling inside the panel. */
+  flex: 1 1 min(28rem, 100%);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2009,7 +2253,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 32px;
+  padding: 2.5rem 2rem;
   text-align: center;
 }
 
@@ -2018,43 +2262,46 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .empty-icon {
-  font-size: 36px;
-  margin-bottom: 12px;
+  font-size: 2.25rem;
+  margin-bottom: 0.75rem;
   opacity: 0.85;
 }
 
 .empty-title {
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   color: var(--text);
 }
 
 .empty-desc {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
-  max-width: 320px;
+  /* 20rem = 360px at the default 18px root. This was `2rem` (36px), which
+     forced the sentence to break roughly one word per line into a tall ribbon
+     — a rem-conversion slip, same family as the clamp minimum bug. */
+  max-width: 20rem;
   line-height: 1.55;
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .empty-state .kbd-hint {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 0.625rem;
   justify-content: center;
 }
 
 .kbd-hint-item {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--dim);
 }
 
 .kbd-hint-item kbd {
   font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 4px;
+  font-size: 0.625rem;
+  padding: 2px 0.3125rem;
+  border-radius: 0.25rem;
   background: var(--surface2);
   border: 1px solid var(--border2);
   margin: 0 1px;
@@ -2066,6 +2313,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* The answer column's width, not the window's, decides how many section
+     cards sit side by side — and it is *named* so the grid below can query it
+     instead of guessing from the viewport. Note that inline-size containment
+     also makes this box a containing block for `position: fixed` descendants,
+     which is why the diagram modal lives at body level, never in here. */
+  container: detail / inline-size;
 }
 
 .detail-inner.hidden {
@@ -2074,7 +2327,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .detail-hd {
   flex-shrink: 0;
-  padding: 16px 22px 14px;
+  padding: 1rem 1.375rem 0.875rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2082,8 +2335,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 10px;
-  margin-bottom: 12px;
+  gap: 0.5rem 0.625rem;
+  margin-bottom: 0.75rem;
 }
 
 .hist-nav {
@@ -2095,9 +2348,9 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
   border: 1px solid var(--border2);
   background: var(--surface2);
   color: var(--muted);
@@ -2117,17 +2370,17 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .q-header-num {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--dim);
 }
 
 .diff-badge {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 5px;
+  padding: 0.1875rem 0.5625rem;
+  border-radius: 0.3125rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2148,15 +2401,15 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .q-header-star {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .rating-bar {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   flex: 1;
   justify-content: flex-end;
-  min-width: 200px;
+  min-width: 12.5rem;
 }
 
 .rating-bar.hidden {
@@ -2165,12 +2418,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .rate-btn {
   flex: 1;
-  max-width: 140px;
+  max-width: 8.75rem;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--border2);
   background: var(--surface2);
   color: var(--muted);
@@ -2216,19 +2469,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 #detail-title.detail-title {
-  font-size: 22px; /* Increased from 19px for better prominence */
+  font-size: 1.375rem; /* Increased from 19px for better prominence */
   font-weight: 600;
   line-height: 1.35; /* Improved line height */
   letter-spacing: -0.02em;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
   color: var(--text);
-}
-
-.detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
 }
 
 .quiz-reveal-cover {
@@ -2238,11 +2484,11 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin: 22px 22px 16px;
-  padding: 28px 20px;
+  gap: 0.5rem;
+  margin: 1.375rem 1.375rem 1rem;
+  padding: 1.75rem 1.25rem;
   border: 1px dashed var(--border2);
-  border-radius: 12px;
+  border-radius: 0.75rem;
   background: var(--surface2);
   cursor: pointer;
   font-family: inherit;
@@ -2267,18 +2513,18 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .quiz-reveal-icon {
-  font-size: 26px;
+  font-size: 1.625rem;
   line-height: 1;
 }
 
 .quiz-reveal-title {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text);
 }
 
 .quiz-reveal-hint {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--dim);
 }
 
@@ -2288,10 +2534,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .meta-badge {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 5px;
+  padding: 0.1875rem 0.5625rem;
+  border-radius: 0.3125rem;
 }
 
 .meta-difficulty-E {
@@ -2315,33 +2561,109 @@ input.memory-range:focus-visible::-moz-range-thumb {
   border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
+/* Section chip, now the trailing item of the `.q-header` row. Sized a step
+   below `.meta-badge`/`.diff-badge` so it reads as a compact label rather than
+   a second badge competing with difficulty, and stays on one line whatever the
+   section is called. */
 .meta-sec {
   background: var(--surface);
   color: var(--dim);
   border: 1px solid var(--border2);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.4375rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 22px 20px;
+  padding: 1rem 1.375rem 1.25rem;
+  /* Section cards are grid items in a scroll container that has a definite
+     height. `.notion-block { overflow: hidden }` (needed for its rounded
+     corners) zeroes a grid item's automatic minimum size, so without an explicit
+     row sizing every implicit row collapsed to min-content — the header bar
+     alone — and the card reported scrollHeight == clientHeight, so no scrollbar
+     ever appeared and the body was simply cut off. `grid-auto-rows: max-content`
+     hands each row its real content height instead. */
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  /* Explicit, and explicitly *not* `dense`: the renderer declares which cards
+     share a row, and a packing mode that refills holes would silently re-pair
+     them (the measured defect: `keyPoints` landing beside `followUp`). Plain row
+     auto-placement walks the declared order, so a row means a row. */
+  grid-auto-flow: row;
+  /* One column by default; a second column is an explicit opt-in below, gated
+     on the answer pane's own width rather than the window's. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.625rem;
+}
+
+/* Two columns only once the pane can hold two cards at the 17rem reading floor
+   plus the gap (17rem × 2 + 0.625rem ≈ 34.6rem). Because this queries the named
+   container `.detail-inner`, the ladder (which moves rem, so both the floor and
+   this threshold together) cannot be fooled by a window that is merely wide. */
+@container detail (min-width: 35rem) {
+  .detail-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Every declared row starts a fresh grid row rather than being auto-placed
+     into the hole a previous row left: a row whose second seat is empty (e.g.
+     `capacity`, which is a lone half on sd-75) is a deliberate, visible gap, not
+     a bug to paper over. Inside the query only, so the class is inert in the
+     single-column state — where column 1 is the only column anyway. */
+  .detail-body > .db-row-start {
+    grid-column: 1;
+  }
+
+  /* Written after `.db-row-start` at the same specificity, so a spanning card
+     that carries both classes still wins with `1 / -1`. */
+  .detail-body > .db-full {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Qualified so it outranks the .notion-block rule further down the sheet. */
+.detail-body > .notion-block {
+  margin-bottom: 0;
+}
+
+/* Which cards span the full width is declared by the renderer, not inferred
+   from content: two columns mean a `:has()` guess would strand half the row
+   behind it. `.db-full` keeps anything that cannot survive being half as wide
+   (diagrams, wide tables, code) on its own row; `.db-half` is the explicit
+   opt-in to the two-column flow and is also the reset for a re-rendered card;
+   `.db-row-start` — the row barrier the renderer puts on the first card of
+   every declared row — is handled in the container query above. */
+.db-full {
+  grid-column: 1 / -1;
+}
+
+.db-half {
+  grid-column: auto;
 }
 
 .detail-body::-webkit-scrollbar {
-  width: 6px;
+  width: 0.375rem;
 }
 
 .detail-body::-webkit-scrollbar-thumb {
   background: var(--border2);
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 /* Notion blocks (app.js structure) */
 .notion-block {
   border: 1px solid var(--border2);
-  border-radius: 10px;
-  margin-bottom: 10px;
+  border-radius: 0.625rem;
+  margin-bottom: 0.625rem;
   overflow: hidden;
   background: var(--surface2);
 }
@@ -2349,15 +2671,15 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .notion-block-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   width: 100%;
   text-align: left;
-  padding: 10px 14px;
+  padding: 0.625rem 0.875rem;
   border: none;
   background: var(--surface2);
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.12s;
@@ -2368,15 +2690,15 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .notion-chevron {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--dim);
-  width: 14px;
+  width: 0.875rem;
   transition: color 0.18s ease;
   flex-shrink: 0;
 }
 
 .notion-icon {
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
 }
 
@@ -2385,11 +2707,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .notion-block-body {
-  padding: 12px 16px 16px;
+  padding: 0.75rem 1rem 1rem;
   border-top: 1px solid var(--border);
-  font-size: 13px; /* Increased from 12px for better accessibility */
+  font-size: 0.8125rem; /* Increased from 12px for better accessibility */
   line-height: 1.6; /* Improved line height */
   color: var(--notion-body-text);
+  /* Wide markdown tables and long inline code pan sideways here instead of
+     being cut off by the card's `overflow: hidden`. This is only safe because
+     the box has no height, max-height or overflow-y — the row is sized by
+     `grid-auto-rows: max-content` above. Never add a vertical constraint here:
+     it reintroduces the clipped, scrollbar-less card this replaced. The spec
+     does flip the used `overflow-y` to `auto` next to a non-visible
+     `overflow-x`; with no height to overflow against, that half is inert — no
+     vertical scrollbar can appear here. */
+  overflow-x: auto;
 }
 
 .notion-block-body.collapsed,
@@ -2417,10 +2748,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .notion-block-body code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   background: var(--code-bg);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 2px 0.375rem;
+  border-radius: 0.25rem;
   color: var(--accent-soft);
   border: 1px solid var(--border2);
 }
@@ -2428,19 +2759,49 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .notion-block-body pre {
   background: var(--code-bg);
   border: 1px solid var(--border2);
-  border-left: 3px solid var(--accent);
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-left: 0.1875rem solid var(--accent);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
   overflow-x: auto;
-  margin: 10px 0;
+  margin: 0.625rem 0;
 }
 
 .notion-block-body pre code {
   background: transparent;
   border: none;
   padding: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--text);
+}
+
+/* Markdown tables (system-design `dataModel` / `tradeoffs`, schema notes).
+   These had no rules at all, so a rendered table inherited only the UA sheet:
+   no separators, no padding, centred headers. Minimal set, hairlines in px per
+   the sheet convention, colours from the existing border variables. A table
+   wider than the card pans inside `.notion-block-body` above. */
+.notion-block-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.625rem 0;
+  font-size: 0.75rem;
+}
+
+.notion-block-body th,
+.notion-block-body td {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.notion-block-body th {
+  color: var(--strong-text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--border2);
+}
+
+.notion-block-body tbody tr:last-child > td {
+  border-bottom: none;
 }
 
 .notion-block-body a {
@@ -2453,11 +2814,17 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--surface2);
-  min-height: 72px;
+  min-height: 4.5rem;
+}
+
+/* An id selector plus an attribute outranks the `display: flex` above, so the
+   attribute really does hide the bar (`.quiz-covered` still uses !important). */
+#bottom-bar[hidden] {
+  display: none;
 }
 
 .bb-col {
-  padding: 12px 18px 14px;
+  padding: 0.5rem 1.125rem 0.625rem;
 }
 
 .bb-tags-wrap {
@@ -2472,25 +2839,32 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .bb-label {
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--dimmer);
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .bb-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
+  /* The same two-row ceiling as `.bb-related` below, or the tags column becomes
+     the tall one: a chip is 0.25rem padding × 2 + a 1.5 × 0.625rem line
+     (0.9375rem) + 1px border × 2 = 1.4375rem + 2px, so two wrapped rows plus the
+     0.375rem gap is 3.25rem + 4px. Measured: sd-75's six tags wrapped to three
+     rows and drove the bar to 141.8px even with the related list capped. */
+  max-height: calc(3.25rem + 4px);
+  overflow-y: auto;
 }
 
 .tag-chip.bb-tag,
 .bb-tag {
-  font-size: 10px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  font-size: 0.625rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 62.4375rem;
   background: var(--accent-bg);
   color: var(--accent-soft);
   border: 1px solid #274a7a;
@@ -2511,21 +2885,27 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .bb-related {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-height: 140px;
+  gap: 0.25rem;
+  /* Exactly two visible rows. Each `.bb-related-item` is border-box: 0.375rem
+     padding × 2 + one 1.5 × 0.6875rem line (1.03125rem) + the 1px transparent
+     border × 2 = 1.78125rem + 2px. Two of those plus the 0.25rem gap above is
+     3.8125rem + 4px; anything past that stays reachable by scrolling here
+     instead of pushing the whole bar — and therefore the answer pane — up.
+     The old flat 8.75rem is what made this bar measure 225px. */
+  max-height: calc(3.8125rem + 4px);
   overflow-y: auto;
 }
 
 .bb-related-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   width: 100%;
   text-align: left;
   font-family: inherit;
-  font-size: 11px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  font-size: 0.6875rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
@@ -2548,7 +2928,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .no-related {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--dim);
 }
 
@@ -2560,187 +2940,22 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: none !important;
 }
 
-/* ═══ Status bar ═══ */
-.app-statusbar.statusbar {
-  height: 26px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 0 14px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  font-size: 10px;
-  color: var(--muted);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.app-statusbar.statusbar::-webkit-scrollbar {
-  display: none;
-}
-
-.status-legend {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border-right: 1px solid var(--border2);
-}
-
-.status-legend:first-of-type {
-  padding-left: 0;
-}
-
-.status-legend-label {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--dimmer);
-}
-
-.legend-stripes {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.leg-stripe {
-  width: 3px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.leg-stripe.E {
-  background: var(--easy);
-}
-
-.leg-stripe.M {
-  background: var(--medium);
-}
-
-.leg-stripe.H {
-  background: var(--hard);
-}
-
-.status-sep {
-  width: 1px;
-  height: 14px;
-  background: var(--border2);
-  margin: 0 12px;
-  flex-shrink: 0;
-}
-
-.app-statusbar .status-sep {
-  margin: 0 10px;
-}
-
-.si-topic,
-.si-section,
-.si-progress {
-  font-weight: 500;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.si-crumb {
-  color: var(--dimmer);
-  margin: 0 2px;
-  user-select: none;
-}
-
-.si-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-}
-
-.si-data-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.si-data-btn {
-  appearance: none;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-  padding: 4px 7px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: color 0.12s ease, background 0.12s ease;
-}
-
-.si-data-btn:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.saved-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.saved-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--easy);
-  flex-shrink: 0;
-  box-shadow: 0 0 8px rgba(78, 201, 148, 0.35);
-}
-
-.saved-text {
-  color: var(--dim);
-  font-size: 10px;
-}
-
-
-
-@keyframes saved-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(78, 201, 148, 0.55);
-    transform: scale(1);
-  }
-  60% {
-    box-shadow: 0 0 0 7px rgba(78, 201, 148, 0);
-    transform: scale(1.25);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(78, 201, 148, 0);
-    transform: scale(1);
-  }
-}
-
-.saved-dot.flash {
-  animation: saved-pulse 0.55s ease-out;
-}
-
 /* ═══ Memory filter slider ═══ */
 .memory-slider--filter {
-  margin-top: 8px;
-  padding: 8px;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 0.375rem;
   background: var(--surface2);
 }
 
 .memory-filter-track-shell {
   position: relative;
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 
 .memory-filter-track {
-  height: 3px;
+  height: 0.1875rem;
   background: var(--border2);
   border-radius: 2px;
   position: relative;
@@ -2758,7 +2973,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .memory-filter-tickstrip {
   display: flex;
   justify-content: space-between;
-  margin-top: 4px;
+  margin-top: 0.25rem;
 }
 
 .memory-filter-tick {
@@ -2766,12 +2981,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  font-size: 9px;
+  font-size: 0.5625rem;
   color: var(--dim);
   cursor: pointer;
   padding: 2px;
-  border-radius: 3px;
-  min-width: 20px;
+  border-radius: 0.1875rem;
+  min-width: 1.25rem;
 }
 
 .memory-filter-tick:hover {
@@ -2780,7 +2995,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .memory-filter-tick-notch {
   width: 2px;
-  height: 8px;
+  height: 0.5rem;
   background: var(--border2);
   border-radius: 1px;
 }
@@ -2793,20 +3008,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .memory-filter-hits {
   display: flex;
   gap: 1px;
-  margin-top: 6px;
+  margin-top: 0.375rem;
 }
 
 .memory-filter-hit {
   flex: 1;
-  padding: 4px 2px;
+  padding: 0.25rem 2px;
   background: none;
   border: none;
   color: var(--dim);
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 500;
   text-align: center;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 0.1875rem;
   transition: all 0.15s ease;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -2843,7 +3058,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .memory-filter-pos {
   display: block;
-  font-size: 8px;
+  font-size: 0.5rem;
   opacity: 0.6;
 }
 
@@ -2880,7 +3095,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 72px;
+  padding-top: 4.5rem;
 }
 
 .cmd-overlay.hidden {
@@ -2890,31 +3105,41 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .cmd-backdrop {
   position: absolute;
   inset: 0;
-  background: var(--overlay-bg);
-  backdrop-filter: blur(6px);
+  /* VS Code quick input: the page stays readable, so no dim and no blur.
+     The element must stay full-bleed and present — app.js dismisses the
+     palette on a click here — it is just transparent now. */
+  background: transparent;
 }
 
 .cmd-panel {
   position: relative;
-  width: min(520px, calc(100vw - 32px));
+  /* Floor and ceiling in rem so the palette grows with the ladder; the vw term
+     is the window, so browser zoom narrows it and re-centres it instead of
+     leaving it pinned at a fixed size with clipped edges. Never narrower than
+     the pill it launches from (38vw there vs 46vw here). Without the dim, the
+     lift is carried entirely by the shadow and ring. */
+  width: clamp(28rem, 46vw, 52rem);
   background: linear-gradient(180deg, var(--cmd-panel-gradient-start) 0%, var(--cmd-panel-gradient-end) 100%);
   border: 1px solid var(--border2);
-  border-radius: 14px;
-  box-shadow: var(--panel-shadow);
+  border-radius: 0.875rem;
+  box-shadow:
+    var(--panel-shadow),
+    0 0.625rem 1.75rem rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
 .cmd-panel-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
   border-bottom: 1px solid var(--border);
 }
 
 .cmd-wedge {
   color: var(--dimmer);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .cmd-input {
@@ -2923,7 +3148,7 @@ input.memory-range:focus-visible::-moz-range-thumb {
   background: transparent;
   color: var(--text);
   font-family: inherit;
-  font-size: 15px;
+  font-size: 0.9375rem;
   outline: none;
 }
 
@@ -2932,31 +3157,33 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .cmd-esc {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .cmd-results {
-  max-height: min(360px, 48vh);
+  /* Raised from 24rem so the added .cmd-snippet line still leaves ~7 rows in
+     view; 72vh keeps the panel's bottom edge off a short window's taskbar. */
+  max-height: min(30rem, 72vh);
   overflow-y: auto;
-  padding: 8px;
+  padding: 0.5rem;
 }
 
 .cmd-results::-webkit-scrollbar {
-  width: 5px;
+  width: 0.3125rem;
 }
 
 .cmd-results::-webkit-scrollbar-thumb {
   background: var(--border2);
-  border-radius: 3px;
+  border-radius: 0.1875rem;
 }
 
 .cmd-result-empty {
-  padding: 20px 14px;
+  padding: 1.25rem 0.875rem;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--dim);
 }
 
@@ -2965,8 +3192,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex-direction: column;
   gap: 2px;
   align-items: stretch;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
   cursor: pointer;
   transition: background 0.1s;
   border: 1px solid transparent;
@@ -2974,8 +3201,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 /* Command palette uses qcard components - adjust for inline display */
 .cmd-result-item.qcard {
-  margin: 0 0 8px 0;
-  border-radius: 8px;
+  margin: 0 0 0.5rem 0;
+  border-radius: 0.5rem;
   background: var(--surface2);
   border: 1px solid var(--border2);
   padding: 0;
@@ -3003,24 +3230,24 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 /* Adjust qcard styling for command palette context */
 .cmd-result-item.qcard .qcard-body {
-  padding: 12px 16px;
+  padding: 0.75rem 1rem;
 }
 
 .cmd-result-item.qcard .qcard-title {
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.35;
 }
 
 .cmd-result-item.qcard .qcard-footer {
-  margin-top: 6px;
+  margin-top: 0.375rem;
 }
 
 /* Ensure difficulty stripe is visible in command palette */
 .cmd-result-item.qcard .qcard-stripe {
-  width: 4px;
+  width: 0.25rem;
   flex-shrink: 0;
   align-self: stretch;
-  border-radius: 8px 0 0 8px;
+  border-radius: 0.5rem 0 0 0.5rem;
   margin: -1px 0 -1px -1px;
   display: block;
 }
@@ -3037,31 +3264,98 @@ input.memory-range:focus-visible::-moz-range-thumb {
   background: var(--hard);
 }
 
+/* ── Rich-row contract (emitted by the palette renderer, not the feed) ──
+   Everything here is scoped under .cmd-results so these class names can
+   never touch a feed card, and none of it changes the box a row had before:
+   no padding, no border, no font-size on the highlighted text itself. */
+
+/* Matched-character highlight inside titles, snippets and tails. Overrides
+   the UA yellow/black look, inherits the row's own colour, and uses a tint
+   that survives dark surfaces, light surfaces, and the blue selected row.
+   background-only by design: padding or a border would move the baseline. */
+.cmd-results .cmd-mark {
+  color: inherit;
+  background: rgba(250, 204, 21, 0.32);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  line-height: inherit;
+}
+
+/* "Classic › System Design" tail, right-aligned. It sits in the card's
+   existing flex row; margin-left pins it right, and the max/overflow pair
+   means a long section name is clipped, never widening or reflowing the
+   card. Only renders inside palette results. */
+.cmd-results .cmd-row-tail {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  color: var(--dim);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+/* One muted body-snippet line under the title for body-only matches. */
+.cmd-results .cmd-snippet {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--dim);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+/* Section label above a group of rows ("Recently opened", "Starred").
+   Not a row: no hover target, no click, nothing to select. */
+.cmd-results .cmd-group-label {
+  padding: 0.625rem 0.75rem 0.25rem;
+  color: var(--dimmer);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
 .cmd-footer {
   display: flex;
-  gap: 16px;
-  padding: 10px 16px;
+  flex-wrap: nowrap;
+  gap: 1rem;
+  padding: 0.625rem 1rem;
   border-top: 1px solid var(--border);
   background: var(--cmd-footer-bg);
+  overflow: hidden;
 }
 
 .cmd-hint {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--dim);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
+  white-space: nowrap;
 }
 
 /* Mermaid */
 .mermaid-container {
-  margin: 14px 0;
-  padding: 14px;
+  position: relative;
+  margin: 0.875rem 0;
+  padding: 0.875rem;
   background: var(--code-bg);
-  border-radius: 10px;
+  border-radius: 0.625rem;
   border: 1px solid var(--border2);
   overflow-x: auto;
   text-align: center;
+  /* Click-to-enlarge: app.js wires a click/Enter handler and makes the box
+     focusable, so the cursor and the ring both have to say "activatable". */
+  cursor: zoom-in;
 }
 
 .mermaid-container svg {
@@ -3069,10 +3363,166 @@ input.memory-range:focus-visible::-moz-range-thumb {
   height: auto;
 }
 
+/* Corner affordance. `.mermaid-container` is a scroll container, so this rides
+   the padding-box origin rather than the visible corner once a diagram pans —
+   a wide diagram is rare, and the ⤢ is a hint, not a control. */
+.mermaid-container::after {
+  content: "⤢";
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.1875rem 0.3125rem;
+  border: 1px solid var(--border2);
+  border-radius: 0.375rem;
+  background: var(--surface2);
+  color: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.mermaid-container:hover::after,
+.mermaid-container:focus-visible::after {
+  opacity: 1;
+  color: var(--text);
+}
+
+.mermaid-container:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .mermaid-error {
   color: var(--hard);
-  font-size: 11px;
+  font-size: 0.6875rem;
   white-space: pre-wrap;
+}
+
+/* ═══ Diagram modal ═══
+   Mounted at body level, next to the command palette. It cannot live inside
+   `.detail-inner`: that box has `container: detail / inline-size`, and
+   inline-size containment makes it the containing block for `position: fixed`
+   descendants, which would trap the overlay inside the answer pane. */
+.diagram-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100; /* one step above .cmd-overlay, so both can co-exist */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.diagram-modal[hidden] {
+  display: none;
+}
+
+.diagram-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(0.375rem);
+}
+
+.diagram-modal-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Width is the ceiling the frame gets, height is fitted to the diagram and
+     capped. A shrink-to-fit width is not available here: an inline `<svg>` with
+     only a viewBox has no intrinsic size, so its max-content contribution is
+     indefinite and the panel collapsed to the width of its own title — measured
+     at 126px around a 1590px diagram. Reading a vector at ~92vw is the point of
+     the feature anyway; a narrower diagram just gets air on both sides. */
+  width: 92vw;
+  max-width: 92vw;
+  max-height: 84vh;
+  background: linear-gradient(180deg, var(--cmd-panel-gradient-start) 0%, var(--cmd-panel-gradient-end) 100%);
+  border: 1px solid var(--border2);
+  border-radius: 0.875rem;
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+}
+
+.diagram-modal-hd {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--cmd-footer-bg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.diagram-modal-hd > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagram-modal-hd > button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.diagram-modal-hd > button:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.diagram-modal-hd > button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.diagram-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  /* Safety net: a diagram taller than the panel pans here rather than being
+     clipped by the panel's overflow. There is deliberately no pan/zoom control
+     — the copy is the cloned <svg>, sized to fit. */
+  overflow: auto;
+}
+
+/* The cloned diagram must be allowed to scale *down* into the panel, so it gets
+   both caps — in viewport units, because a percentage would resolve against a
+   content-sized parent and collapse (see .diagram-modal-panel above). Height
+   stays auto so the viewBox ratio drives the box: a 4000×3000 test diagram
+   clamped by the height cap narrowed its own width to match instead of
+   squashing. `max-width` is deliberately *not* `!important`: mermaid writes an
+   inline `max-width` equal to the diagram's natural width, and leaving it in
+   force means a small diagram is centred at its own size instead of being blown
+   up to fill the frame. */
+.diagram-modal-body svg {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(84vh - 6.25rem);
 }
 
 .qcard-source {
@@ -3080,13 +3530,13 @@ input.memory-range:focus-visible::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin-left: 5px;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.3125rem;
   border: 1px solid var(--accent-border-soft);
-  border-radius: 6px;
+  border-radius: 0.375rem;
   background: var(--accent-bg);
   color: var(--accent-soft);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1;
 }

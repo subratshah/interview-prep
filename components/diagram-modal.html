@@ -1,0 +1,15 @@
+<!-- Click-to-enlarge diagram overlay. Mounted at body level (see
+     index.template.html): `.detail-inner` has inline-size containment, which
+     would make it the containing block for this `position: fixed` layer and
+     trap it inside the answer pane. The id/attribute contract below is used by
+     view/app.js — do not rename. -->
+<div class="diagram-modal" id="diagram-modal" role="dialog" aria-modal="true" aria-labelledby="diagram-modal-title" hidden>
+  <div class="diagram-modal-backdrop" data-diagram-close></div>
+  <div class="diagram-modal-panel">
+    <div class="diagram-modal-hd">
+      <span id="diagram-modal-title">Diagram</span>
+      <button type="button" id="diagram-modal-close" data-diagram-close aria-label="Close diagram">✕</button>
+    </div>
+    <div class="diagram-modal-body" id="diagram-modal-viewport"></div>
+  </div>
+</div>
