@@ -230,6 +230,30 @@ function loadRatings() {
   } catch (e) {}
 }
 
+/** Raw localStorage ratings for the boot merge; null when absent/unreadable. */
+function readLocalRatings() {
+  try {
+    const raw = localStorage.getItem('interview-ratings');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Raw localStorage seen ids as a Set for the boot merge; null when absent. */
+function readLocalSeen() {
+  try {
+    const raw = localStorage.getItem('interview-seen');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.filter(id => typeof id === 'string')) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function saveRatings() {
   try {
     localStorage.setItem('interview-ratings', JSON.stringify(state.ratings));
@@ -304,26 +328,49 @@ function purgeCollapsedCardStorage() {
 async function loadProgressWithServerFallback() {
   try {
     const { ratings, seen } = await fetchProgressFromServer();
-    // If server has data, use it
-    if (ratings && Object.keys(ratings).length > 0 || seen && seen.size > 0) {
-      state.ratings = ratings;
-      state.seen = seen;
+    const serverHasData =
+      (ratings && Object.keys(ratings).length > 0) || (seen && seen.size > 0);
+    // Server is empty: one-time wholesale import of whatever localStorage held.
+    if (!serverHasData) {
+      const hasLocal = localStorage.getItem('interview-ratings') || localStorage.getItem('interview-seen');
+      if (hasLocal) {
+        const imported = await importLocalStorageToServer();
+        if (imported) {
+          const fresh = await fetchProgressFromServer();
+          state.ratings = fresh.ratings;
+          state.seen = fresh.seen;
+          return true;
+        }
+      }
+      // Server empty and nothing to import: start fresh
+      state.ratings = {};
+      state.seen = new Set();
       return true;
     }
-    // Server is empty: try one-time import from localStorage
-    const hasLocal = localStorage.getItem('interview-ratings') || localStorage.getItem('interview-seen');
-    if (hasLocal) {
-      const imported = await importLocalStorageToServer();
-      if (imported) {
-        const fresh = await fetchProgressFromServer();
-        state.ratings = fresh.ratings;
-        state.seen = fresh.seen;
-        return true;
+    // Server has data. A same-origin localStorage that still holds progress
+    // means an orphaned delta — ratings made while this browser could not
+    // reach the API (server down, or the data moved between ports/origins).
+    // Merge it in instead of dropping it: the server wins on rating
+    // conflicts, local-only ids are added, `seen` is a union.
+    const localRatings = readLocalRatings();
+    const localSeen = readLocalSeen();
+    if (localRatings || localSeen) {
+      const mergedRatings = Object.assign({}, localRatings || {}, ratings);
+      const mergedSeen = new Set(seen);
+      if (localSeen) localSeen.forEach(id => mergedSeen.add(id));
+      state.ratings = mergedRatings;
+      state.seen = mergedSeen;
+      try {
+        await saveProgressToServer({ ratings: mergedRatings, seen: mergedSeen });
+        clearLocalStorageProgress();
+      } catch (e) {
+        // PUT failed: still show the merge for this session; it retries on the
+        // next boot because localStorage was kept.
       }
+    } else {
+      state.ratings = ratings;
+      state.seen = seen;
     }
-    // Server empty and nothing to import: start fresh
-    state.ratings = {};
-    state.seen = new Set();
     return true;
   } catch (err) {
     // Server unavailable – fallback handled by caller
@@ -336,9 +383,10 @@ function getRating(id) {
   return state.ratings[id] || null;
 }
 
-/** CSS state class for `.memory-dots` and feed `.qcard-memory` (knew | shaky | forgot | unseen | '').
- *  Derived from detailMemorySliderValueForId — the single seen/rating precedence — so the feed gem,
- *  the dots, the detail slider and the roadmap fill can never disagree. */
+/** Residual accessor (0 emitters since the gem re-point, kept deliberately per
+ *  §B-5): knew | shaky | forgot | unseen from the ONE source,
+ *  detailMemorySliderValueForId, so any future consumer still cannot disagree
+ *  with the roadmap fill or the status phrase. */
 function memoryDotStateClassForId(id) {
   if (!id) return '';
   return MEMORY_DOT_CLASS_BY_VALUE[detailMemorySliderValueForId(id)] || '';
@@ -412,7 +460,7 @@ const DIFFICULTY_LABELS = { E: 'Easy', M: 'Medium', H: 'Hard' };
 const MEMORY_STATUS_BY_VALUE = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
 const MEMORY_VALUE_BY_STATUS = { unseen: 0, review: 1, shaky: 2, know: 3 };
 const MEMORY_LABELS = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
-/** Slider ordinal → `.memory-dots` / `.qcard-memory` state class. */
+/** Slider ordinal → legacy `.qcard-memory` state word (residual, see above). */
 const MEMORY_DOT_CLASS_BY_VALUE = { 0: 'unseen', 1: 'forgot', 2: 'shaky', 3: 'knew' };
 
 /**
@@ -439,8 +487,12 @@ function sortQuestionsByImportanceDifficulty(items) {
 
 function getFilteredQuestions() {
   return questions.filter(q => {
-    // Hide AI questions that user deleted
-    if (state.hiddenIds.has(q.id)) return false;
+    // `interview-hidden` is NO LONGER a display filter: the user wants hidden
+    // questions visible everywhere — feed, the sections pane, and sidebar counts.
+    // The hide/unhide API and the store stay (the feature is kept), and hidden
+    // questions remain marked recoverable (roadmap cells still carry `data-ghost`),
+    // they are simply not excluded here any more. So per-topic counts here sum to
+    // every question, and no other display path re-subtracts them.
     // Browsing is always scoped to the active topic; facets narrow within it
     if (q.type !== state.activeTab) return false;
     if (state.diffFilter && q.difficulty !== state.diffFilter) return false;
@@ -567,9 +619,10 @@ function selectFeedSection(type, section) {
   renderList();
   renderMainPanel();
 
-  // A roadmap band *is* a section, so a sidebar click in roadmap mode keeps the
-  // mode and jumps to that band — the same thing a rail click does.
-  if (state.showRoadmap) roadmapShowBand(section);
+  // A roadmap row *is* a section, so a sidebar click in roadmap mode keeps the
+  // mode and jumps to that row — keyed by the (topic, section) pair because
+  // section names repeat across topics.
+  if (state.showRoadmap) roadmapShowRow(type, section);
 }
 
 function onSidebarSectionClick(section) {
@@ -826,36 +879,15 @@ function syncDetailSectionChip(q) {
   chip.hidden = false;
 }
 
-/** Single memory gem on feed question cards (bottom-right); states match `.memory-dots.*`. */
-function memoryCardIndicatorMarkup(stateClass, memLabel) {
-  const cls = stateClass ? ` ${stateClass}` : '';
-  return `<div class="qcard-memory${cls}" role="img" aria-label="${escapeHtml(memLabel)}"></div>`;
-}
-
-/**
- * Five-dot memory row. Use tag `span` inside `<button>` (flow content forbidden).
- * Variants: default | compact | tiny | chip — see `.memory-dots--*` in style.css.
- */
-function memoryDotsMarkup(stateClass, opts = {}) {
-  const {
-    variant = 'default',
-    tag = 'div',
-    roleLabel = null,
-  } = opts;
-  const cls = stateClass ? ` ${stateClass}` : '';
-  let mod = '';
-  if (variant === 'compact') mod += ' memory-dots--compact';
-  else if (variant === 'tiny') mod += ' memory-dots--tiny';
-  else if (variant === 'chip') mod += ' memory-dots--chip';
-  const aria = roleLabel != null
-    ? ` role="img" aria-label="${escapeHtml(roleLabel)}"`
-    : ' aria-hidden="true"';
-  const inner = '<span></span>'.repeat(5);
-  return `<${tag} class="memory-dots${cls}${mod}"${aria}>${inner}</${tag}>`;
+/** Single memory gem on feed question cards (bottom-right): the app-wide
+ *  vocabulary (§B-5) — difficulty hue + memory alpha, the same `rm-diff-*` /
+ *  `rm-mem-*` classes (and the same one source for the level) a roadmap leaf
+ *  uses, so the gem and the tree can never read a rating differently. */
+function memoryCardIndicatorMarkup(diffCode, memLevel, memLabel) {
+  return `<div class="qcard-memory rm-diff-${diffCode} rm-mem-${memLevel}" role="img" aria-label="${escapeHtml(memLabel)}"></div>`;
 }
 
 function createFeedQuestionCard(q) {
-  const dotStateClass = memoryDotStateClassForId(q.id);
   const memLabel = `Memory: ${memoryStatusPhraseForId(q.id)}`;
 
   const starBadge = q.star
@@ -877,7 +909,7 @@ function createFeedQuestionCard(q) {
 
   card.innerHTML = `
     ${starBadge}
-    ${memoryCardIndicatorMarkup(dotStateClass, memLabel)}
+    ${memoryCardIndicatorMarkup(q.difficulty, detailMemorySliderValueForId(q.id), memLabel)}
     <div class="qcard-stripe ${q.difficulty}" aria-hidden="true"></div>
     <div class="qcard-body">
       <div class="qcard-title">${escapeHtml(q.title)}</div>
@@ -1489,7 +1521,7 @@ function initializeDiagramModal() {
 // ── Select a question ──────────────────────────────────────────
 function selectQuestion(id) {
   // Opening a question is the pane saying "show me this answer", so roadmap mode
-  // ends here — every path into a question (feed card, J/K, palette, roadmap
+  // ends here — every path into a question (feed card, arrow keys, palette, roadmap
   // cell, ghost un-hide, hash link) funnels through this function.
   setRoadmapMode(false);
 
@@ -1592,16 +1624,19 @@ function renderMainPanel() {
     rows.forEach(row => {
       if (row.band) {
         // Packed run of single-card rows (see buildDetailRows): one grid
-        // item hosting an inner column-first flow. The row count, min(n, 2),
-        // is what makes the run STACK: with `grid-auto-flow: column` cards 1
-        // and 2 land in rows 1–2 of the inner first column, and a run of 3+
-        // overflows into the inner second column starting at its row 1 —
-        // never one card per inner row side by side. The .db-band rules only
-        // apply their two-column flow inside the container query, so the
-        // one-column state just stacks.
+        // item spanning the body and hosting its own two columns, filled in
+        // declared order by plain ROW flow — card 1 lands at (row 1, col 1)
+        // and card 2 at (row 1, col 2) side by side, and a 3rd card falls to
+        // (row 2, col 1) at half width. Every row is sized by `.db-band`'s
+        // `grid-auto-rows: max-content`, so the renderer writes no row
+        // template — with all rows max-content, the old inline
+        // `repeat(min(n,2), max-content)` was cosmetic. And `grid-auto-flow:
+        // column` must not come back: it was the regression that put both
+        // cards of every 2-card band in the first column and left the second
+        // one empty. The two-column template is the container query's opt-in
+        // in style.css; the one-column state is a plain vertical stack.
         const band = document.createElement('div');
         band.className = 'db-band';
-        band.style.gridTemplateRows = `repeat(${Math.min(row.band.length, 2)}, max-content)`;
         const bodies = [];
         row.band.forEach(key => {
           const card = createDetailCard(q, values, key, 'db-half', false);
@@ -1769,11 +1804,11 @@ function toggleRoadmap() {
   if (!on) hideRoadmapTooltip();
   renderApp();
   if (on) {
-    // Opening lands on the band holding the question that was already open (with
-    // no selection, on the top of the path). Asked for *after* the render, so the
-    // band it looks for is in the DOM by the time it is looked for.
+    // Opening lands on the row holding the question that was already open (with
+    // no selection, on the top of the matrix). Asked for *after* the render, so
+    // the row it looks for is in the DOM by the time it is looked for.
     const q = state.selectedId ? getQuestionById(state.selectedId) : null;
-    roadmapShowBand(q ? q.section : null);
+    roadmapShowRow(q ? q.type : null, q ? q.section : null);
   }
 }
 
@@ -1783,29 +1818,52 @@ function exitRoadmapMode() {
   renderApp();
 }
 
-// ── Roadmap pane ─────────────────────────────────────────────────
+// ── Roadmap matrix ───────────────────────────────────────────────
 //
-// The path for `state.activeTab`: one band per milestone (a band *is* a section —
-// see data/roadmaps.js), each holding a heatmap cell per question. A cell is a
-// real `<a href="#<id>">`, so ⌘-click and middle-click open a question in a new
-// tab through the app's own hash routing without any extra code.
+// A section-by-question MATRIX: four labelled topic blocks, one row per question
+// `section` (27 rows), one heatmap cell per question (357 cells) laid across that
+// row. The branching trunk→branch→twig→leaf tree this replaced is gone — no trunk
+// geometry, no per-row known tally, no twig label row. One continuous scroll; no
+// drill-down state. A cell is a real `<a href="#<id>">`, so ⌘/middle-click opens
+// a question through the app's own hash routing with no extra code.
 //
-// Three defects in the feed-list version this replaces, and where they went:
-// · `completed` counted *any* rating (`getRating(id)` truthy), so a question
-//   marked “Forgot” was booked as progress. Here `known` is rating === 'know'.
-// · hidden questions were dropped from the rows but still counted in `total`, so
-//   no band's fraction matched what was on screen. Here they render as ghost
-//   cells and count in the total.
-// · one click handler on the whole milestone card opened its *first* question —
-//   through a selector function that was never defined, so the click threw.
-//   Every cell is its own link now.
-const ROADMAP_RAIL_LABEL_MAX = 10;  // spec: rail labels truncate to ~10 characters
+// Cell identity (§ frozen CSS handoff): cell size and gutter are B's `--rm-cell` /
+// gutter tokens (never inlined here); encoding is hue = difficulty
+// (`rm-diff-E|M|H`), alpha = memory (`rm-mem-0…3`, ONLY from
+// detailMemorySliderValueForId), a bold border = starred (`rm-star` — B thickens the
+// cell's edge, NOT a ★ glyph inside the cell), and the browser's own focus ring for
+// the roving tab stop. Hidden questions stay
+// in the grid and render like any other cell (the user's decision), so no ghost
+// class and no dashed style are emitted from JS — but a hidden cell still carries
+// `data-ghost` so the one un-hide path keeps working without a visual tell. There
+// is no you-are-here and no next-gap mark; the current question's `rm-cur` outline
+// is gated behind ROADMAP_MARK_CURRENT below.
+//
+// Column order inside a row is starred-first, then E → M → H, stable on data
+// order (roadmapColumnOrder). Every number the pane prints — the `<n> questions,
+// <m> starred` block headers and the aggregate — is read back off the cells the
+// builders just emitted, one derivation per fact, so a count and its cells cannot
+// disagree.
+//
+// Lessons kept from the tree: `known` is rating === 'know' (never "any rating");
+// every cell is its own link (no card-wide click handler); one roving tab stop.
+const ROADMAP_ROW_KEY_SEP = '\u0000'; // separator for the (topic, section) row key
+// — `Concurrency` is a section of android AND data-structures and `Architecture`
+// of android AND system-design, so with four blocks on screen the section name
+// alone is not an identifier.
+// Cell size (22px, `--rm-cell`) and gutter (3px) are the CSS agent's tokens —
+// never inlined here; this file only emits the matrix structure and classes.
+const ROADMAP_MARK_CURRENT = true; // gate the open question's `rm-cur` outline.
+// The user is still choosing between "no mark" and a 1px outline in the mock, so
+// flipping this one constant adds or drops it without touching the builders.
+const ROADMAP_MATRIX_TOPICS = ['android', 'data-structures', 'system-design', 'behavioral'];
+// Matrix block order is FIXED and deliberately NOT the VALID_TABS tab order.
 // Geometry read from getBoundingClientRect is px, so the two gaps that are really
 // sheet lengths are declared in rem and converted through the live root font size
 // (the same reading runMermaidInContainer uses): at ladder 70% they shrink with
 // everything else instead of drifting. The sticky head is measured, not assumed.
 const ROADMAP_TOOLTIP_GAP_REM = 0.5; // air between a cell and its tooltip
-const ROADMAP_SCROLL_PAD_REM = 0.5;  // air under the pinned head when jumping to a band
+const ROADMAP_SCROLL_PAD_REM = 0.5;  // air under the pinned head when jumping to a row
 function roadmapRem() {
   const px = parseFloat(getComputedStyle(document.documentElement).fontSize);
   return Number.isFinite(px) && px > 0 ? px : 16;
@@ -1813,60 +1871,86 @@ function roadmapRem() {
 const roadmapTooltipGap = () => ROADMAP_TOOLTIP_GAP_REM * roadmapRem();
 const roadmapScrollPad = () => ROADMAP_SCROLL_PAD_REM * roadmapRem();
 
-let roadmapBands = [];        // the model the last render drew (rail tooltips read it)
-let roadmapCells = [];        // every cell, in path order — this is the roving order
-let roadmapBandOrder = [];    // band names, path order
-let roadmapScrollRequest = null; // { section: string | null } | null
+let roadmapCells = [];             // every cell, in matrix row-major order — the roving order
+let roadmapRows = [];              // one array of cell elements per row, global order (keyboard grid)
+let roadmapRowIndexOf = new Map(); // 'topic\u0000section' → global row index (jump/scroll requests)
+let roadmapScrollRequest = null;   // { topic, section, block } | null
 let roadmapTooltipEl = null;
 let roadmapTipSubject = null;
-let roadmapHoverSection = null;
+let roadmapMatrixEl = null;        // the #roadmap-matrix host, found or made once
 
-/** The only definition of progress on this pane: `know`, not “any rating”. */
+/** The only definition of progress on this pane: `know`, not “any rating”. It is
+ *  consistent with the lit cells by derivation: `rm-mem-3` comes from
+ *  detailMemorySliderValueForId, which maps `know` → 3 and nothing else. The
+ *  matrix prints no known tally, so this stays the semantic anchor for other
+ *  surfaces (and the census); the renderer counts `rm-mem-3` off the emitted DOM. */
 function roadmapIsKnown(id) {
   return getRating(id) === 'know';
 }
 
-/** Difficulty → cell shape: E circle, M rounded square, H sharp square. */
-function roadmapShapeFor(q) {
-  const d = q.difficulty;
-  return d === 'E' || d === 'H' ? d : 'M';
+/** The open question, wherever its row sits — used by Jump-to-current and the
+ *  enter-roadmap scroll. */
+function roadmapCurrentQuestion() {
+  return state.selectedId ? getQuestionById(state.selectedId) : null;
 }
 
-function roadmapCurrentSection() {
-  const q = state.selectedId ? getQuestionById(state.selectedId) : null;
-  return q && q.type === state.activeTab ? q.section : null;
+/** Column order inside a row: starred first, then difficulty E → M → H; ties keep
+ *  data order. Only `q.star` and `q.difficulty` feed the key, and the trailing
+ *  original-index tie-break makes it provably stable and deterministic without
+ *  trusting Array#sort, so a re-render of the same data can never reshuffle. */
+function roadmapColumnOrder(items) {
+  const rank = { E: 0, M: 1, H: 2 };
+  const rankOf = q => (rank[q.difficulty] === undefined ? 3 : rank[q.difficulty]);
+  return items
+    .map((q, i) => ({ q, i }))
+    .sort((a, b) => (a.q.star === b.q.star ? 0 : a.q.star ? -1 : 1)
+      || (rankOf(a.q) - rankOf(b.q))
+      || (a.i - b.i))
+    .map(x => x.q);
 }
 
-/** RoadmapDB's band order + membership, resolved against the live registry. */
-function roadmapBandsForActiveTopic() {
-  const roadmap = RoadmapDB ? RoadmapDB.getRoadmap(state.activeTab) : [];
+/**
+ * THE single grouping for the roadmap matrix: one entry per question `section`,
+ * `{ topic, section, items }`, in the exact order the renderer walks it — topic
+ * blocks in the fixed ROADMAP_MATRIX_TOPICS order, rows in data order within a
+ * block, columns in roadmapColumnOrder (starred-first, then E → M → H). Every
+ * candidate frame (V1 plain blocks, V2 per-row known bar, V3 weakest-sections
+ * strip, V4 Now/Next/Later by memory state) shares this list and differs only in
+ * how the render loop WRAPS it, so switching frames is a renderer change, not a
+ * data-model change. It deliberately carries NO counts: every printed number is
+ * read back off the emitted cells. Membership and section order come from
+ * `data/roadmaps.js` (RoadmapDB), never a second hand-maintained list.
+ */
+function roadmapSections() {
   const byId = new Map(questions.map(q => [q.id, q]));
-  return roadmap.map(band => {
-    // Starred first, then data order. Array#sort is stable, so comparing only on
-    // `star` keeps the sequence RoadmapDB produced — the order the questions are
-    // written in /data. The feed's importance+difficulty sort is not wanted here:
-    // the path reads as a sequence.
-    const items = band.questions
-      .map(id => byId.get(id))
-      .filter(Boolean)
-      .sort((a, b) => Number(!!b.star) - Number(!!a.star));
-    const counts = { E: 0, M: 0, H: 0 };
-    let known = 0;
-    items.forEach(q => {
-      counts[roadmapShapeFor(q)] += 1;
-      if (roadmapIsKnown(q.id)) known += 1;
+  const rows = [];
+  ROADMAP_MATRIX_TOPICS.forEach(topic => {
+    const roadmap = RoadmapDB ? RoadmapDB.getRoadmap(topic) : [];
+    roadmap.forEach(band => {
+      rows.push({
+        topic,
+        section: band.milestone,
+        items: roadmapColumnOrder(band.questions.map(id => byId.get(id)).filter(Boolean)),
+      });
     });
-    return { name: band.milestone, items, counts, known };
   });
+  return rows;
 }
 
-function roadmapCellAriaLabel(q, band) {
+/** Full state in the accessible name. A matrix cell shows no text, so the
+ *  aria-label is the ONLY place the id, section, difficulty word, importance,
+ *  memory word and the hidden/un-hide affordance are stated — it must be accurate,
+ *  because nothing else marks those facts. `pos`/`total` are the cell's column
+ *  position within its row in the order actually rendered (starred-first, then
+ *  E → M → H), because the arrows walk that order. */
+function roadmapCellAriaLabel(q, sectionName, pos, total) {
   const mem = detailMemorySliderValueForId(q.id);
   const bits = [
     q.title,
-    `Section ${band.name}`,
-    `Question ${q.id}`,
-    DIFFICULTY_LABELS[roadmapShapeFor(q)],
+    `Section ${sectionName}`,
+    `Question ${pos} of ${total}`,
+    `id ${q.id}`,
+    DIFFICULTY_LABELS[q.difficulty] || q.difficulty,
     `Memory: ${MEMORY_LABELS[mem]}`,
   ];
   if (q.star) bits.push('Important');
@@ -1874,131 +1958,166 @@ function roadmapCellAriaLabel(q, band) {
   return bits.join('. ');
 }
 
-function buildRoadmapBand(band) {
-  const el = document.createElement('div');
-  el.className = 'roadmap-band';
-  el.dataset.band = band.name;
+/** One matrix cell: a real anchor carrying its whole state in classes + aria-label.
+ *  `rm-star` marks importance (B draws a bold border on the cell — never a ★ glyph
+ *  inside it), difficulty is hue (`rm-diff-*`), memory is alpha (`rm-mem-*`, ONLY
+ *  from detailMemorySliderValueForId). Hidden questions render like any other cell
+ *  (no ghost class) but keep `data-ghost`, so this cell's click can still undo the
+ *  hide (roadmapUnhideAndOpen). The open question gets `rm-cur` only while
+ *  ROADMAP_MARK_CURRENT is on. `data-rmr` (row) and `data-rmc` (column) drive the
+ *  ragged-grid arrow model. */
+function roadmapBuildCell(q, topic, sectionName, rowIndex, colIndex, total) {
+  const cell = document.createElement('a');
+  cell.className = `rm-cell rm-diff-${q.difficulty} rm-mem-${detailMemorySliderValueForId(q.id)}`
+    + (q.star ? ' rm-star' : '')
+    + (ROADMAP_MARK_CURRENT && q.id === state.selectedId ? ' rm-cur' : '');
+  cell.href = `#${q.id}`;
+  cell.dataset.rmq = q.id;
+  cell.dataset.rmb = topic;
+  cell.dataset.rmr = String(rowIndex);
+  cell.dataset.rmc = String(colIndex);
+  // One tab stop for the whole matrix: arrows move the roving focus (see
+  // onRoadmapGridKeyDown); Tab moves to the next control outside it.
+  cell.tabIndex = -1;
+  cell.setAttribute('aria-label', roadmapCellAriaLabel(q, sectionName, colIndex + 1, total));
+  if (state.hiddenIds.has(q.id)) cell.dataset.ghost = '1';
+  return cell;
+}
 
-  const hd = document.createElement('h3');
-  hd.className = 'roadmap-band-hd';
-  const name = document.createElement('span');
-  name.className = 'roadmap-band-name';
-  name.textContent = band.name;
-  const tally = document.createElement('span');
-  tally.className = 'roadmap-band-tally';
-  tally.textContent = `— ${band.known}/${band.items.length} known`;
-  const diffs = document.createElement('span');
-  diffs.className = 'roadmap-band-diffs';
-  diffs.textContent = `E·${band.counts.E} M·${band.counts.M} H·${band.counts.H}`;
-  hd.appendChild(name);
-  hd.appendChild(tally);
-  hd.appendChild(diffs);
+/**
+ * A matrix row = the section label, then its cell grid (`div.rm-cells[role=group]`).
+ * `row` is one entry from roadmapSections — `{ topic, section, items }` — and
+ * `rowIndex` is its GLOBAL row index across all blocks (data-rmr), so a jump or a
+ * frame regrouping needs only the walk order, not a per-block offset. Hidden
+ * questions are simply part of `items` and render like every other cell. The only
+ * visible label is the section name; an optional `rm-row-sub` would appear only if
+ * a frame turns labels on, so rows are name-only by default. No per-row known or
+ * E/M/H tally — the tree's twig label row is gone.
+ */
+function roadmapBuildRow(row, rowIndex) {
+  const el = document.createElement('div');
+  el.className = 'rm-row';
+  el.dataset.topic = row.topic;
+  el.dataset.section = row.section;
+
+  const lab = document.createElement('div');
+  lab.className = 'rm-row-lab';
+  const name = document.createElement('div');
+  name.className = 'rm-row-name';
+  name.title = row.section;
+  name.textContent = row.section;
+  lab.appendChild(name);
+  // rm-row-sub is emitted only when a labels option is on; no current frame asks,
+  // so it is deliberately absent from the default path.
 
   const cells = document.createElement('div');
-  cells.className = 'roadmap-cells';
+  cells.className = 'rm-cells';
   cells.setAttribute('role', 'group');
-  cells.setAttribute('aria-label', `${band.name}: ${band.items.length} question${band.items.length === 1 ? '' : 's'}`);
-
-  band.items.forEach(q => {
-    const hidden = state.hiddenIds.has(q.id);
-    const cell = document.createElement('a');
-    cell.className = `roadmap-cell rm-shape-${roadmapShapeFor(q)} rm-mem-${detailMemorySliderValueForId(q.id)}`
-      + (hidden ? ' roadmap-cell-ghost' : '')
-      + (q.id === state.selectedId ? ' is-current' : '');
-    cell.href = `#${q.id}`;
-    cell.dataset.rmq = q.id;
-    cell.dataset.band = band.name;
-    // One tab stop for the whole map: arrows move the roving focus (see
-    // onRoadmapGridKeyDown), Tab moves to the next control outside it.
-    cell.tabIndex = -1;
-    cell.setAttribute('aria-label', roadmapCellAriaLabel(q, band));
-    if (hidden) cell.dataset.ghost = '1';
+  cells.setAttribute('aria-label',
+    `${row.section}: ${row.items.length} question${row.items.length === 1 ? '' : 's'}`);
+  const total = row.items.length;
+  const rowCells = [];
+  row.items.forEach((q, i) => {
+    const cell = roadmapBuildCell(q, row.topic, row.section, rowIndex, i, total);
     cells.appendChild(cell);
+    rowCells.push(cell);
     roadmapCells.push(cell);
   });
 
-  el.appendChild(hd);
+  el.appendChild(lab);
   el.appendChild(cells);
-  return el;
+  return { el, rowCells };
 }
 
 /**
- * The rail as one inline SVG: a segment per milestone, wide by cell count,
- * filled by % known. Geometry is measured rather than assumed — the viewBox is
- * the element's own px box, so one user unit is one CSS px and
- * `preserveAspectRatio="none"` cannot smear the labels. Because the box comes
- * from `clientHeight`, which is `rem` in the sheet, every proportion inside it
- * tracks the size ladder with the rest of the UI.
+ * One topic block: `section.rm-block[data-topic]` with an `h2.rm-block-hd`
+ * (`span.rm-block-name` + `span.rm-block-count`) then its rows. `rows` are the
+ * roadmapSections entries belonging to this topic and `startRow` is the first
+ * GLOBAL row index, so data-rmr stays unique across the whole matrix. The header's
+ * "<n> questions, <m> starred" is read back off the cells just emitted (their
+ * classes), never a second data pass. Grouping rows into blocks is a render-loop
+ * concern: roadmapSections stays the canonical order, so a frame that regroups
+ * (V4 Now/Next/Later) changes only what it hands to the render loop, not here.
  */
-function buildRoadmapRail(host, bands, attempt) {
-  host.innerHTML = '';
-  const total = bands.reduce((n, b) => n + b.items.length, 0);
-  if (!total) return;
-  const w = host.clientWidth;
-  const h = host.clientHeight;
-  // A pane that has not been laid out yet measures 0; retry once per frame.
-  if ((!w || !h) && (attempt || 0) < 3) {
-    window.requestAnimationFrame(() => buildRoadmapRail(host, bands, (attempt || 0) + 1));
-    return;
-  }
-  if (!w || !h) return;
+function roadmapBuildBlock(topic, label, rows, startRow) {
+  const el = document.createElement('section');
+  el.className = 'rm-block';
+  el.dataset.topic = topic;
+  el.setAttribute('aria-labelledby', `rm-block-${topic}`);
 
-  const fs = Math.max(6, Math.round(h * 0.24));
-  const barH = Math.round(h * 0.24);
-  const barY = 2;
-  const pad = 2;
-  const labelY = Math.min(h - 1, barY + barH + Math.round(fs * 1.5));
-  const rx = Math.round(barH / 2);
-  const gap = bands.length > 1 ? 2 : 0;
-  const usable = Math.max(1, w - pad * 2 - gap * (bands.length - 1));
-  const current = roadmapCurrentSection();
+  const hd = document.createElement('h2');
+  hd.className = 'rm-block-hd';
+  const name = document.createElement('span');
+  name.className = 'rm-block-name';
+  name.id = `rm-block-${topic}`;
+  name.textContent = label;
+  const count = document.createElement('span');
+  count.className = 'rm-block-count';
+  hd.appendChild(name);
+  hd.appendChild(count);
+  el.appendChild(hd);
 
-  const edges = [];
-  let acc = 0;
-  bands.forEach(b => {
-    acc += (b.items.length / total) * usable;
-    edges.push(Math.round(acc));
+  const blockCells = [];
+  let rowIndex = startRow;
+  rows.forEach(row => {
+    roadmapRowIndexOf.set(`${topic}${ROADMAP_ROW_KEY_SEP}${row.section}`, rowIndex);
+    const built = roadmapBuildRow(row, rowIndex);
+    roadmapRows.push(built.rowCells);
+    for (let i = 0; i < built.rowCells.length; i++) blockCells.push(built.rowCells[i]);
+    rowIndex += 1;
+    el.appendChild(built.el);
   });
 
-  const parts = bands.map((band, i) => {
-    const left = i === 0 ? pad : pad + edges[i - 1] + i * gap;
-    const right = pad + edges[i] + i * gap;
-    const segW = Math.max(1, right - left);
-    const fillW = Math.round(segW * (band.items.length ? band.known / band.items.length : 0));
-    const label = roadmapRailLabel(band.name, segW, fs);
-    return '<g class="roadmap-rail-seg" data-band="' + escapeHtml(band.name) + '">'
-      + '<rect class="rr-track" x="' + left + '" y="' + barY + '" width="' + segW + '" height="' + barH + '" rx="' + rx + '"></rect>'
-      + (fillW > 0 ? '<rect class="rr-fill" x="' + left + '" y="' + barY + '" width="' + fillW + '" height="' + barH + '" rx="' + rx + '"></rect>' : '')
-      // you-are-here: a ring on the segment holding the open question. Stroke,
-      // never the state colour — the fill already says how much is known.
-      + (band.name === current ? '<rect class="rr-here" x="' + (left - 1.5) + '" y="' + (barY - 1.5) + '" width="' + (segW + 3) + '" height="' + (barH + 3) + '" rx="' + (rx + 1.5) + '"></rect>' : '')
-      + (label ? '<text class="rr-label" x="' + (left + segW / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="' + fs + '">' + escapeHtml(label) + '</text>' : '')
-      + '</g>';
-  });
-
-  host.innerHTML = '<svg class="roadmap-rail-svg" width="100%" height="100%" viewBox="0 0 '
-    + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
-    + parts.join('') + '</svg>';
+  // Read the block's own numbers off the cells it just emitted — one derivation.
+  const starred = blockCells.filter(c => c.classList.contains('rm-star')).length;
+  count.textContent = `${blockCells.length} questions, ${starred} starred`;
+  return { el, rowCount: rows.length };
 }
 
-/**
- * The cap is ~10 characters; a narrow band gets fewer, so a label can never run
- * into its neighbour's. The full name is in the tooltip. Below two characters of
- * room the label is dropped rather than reduced to an ellipsis.
- */
-function roadmapRailLabel(name, segW, fs) {
-  const room = Math.floor((segW - 2) / (fs * 0.62));
-  const max = Math.min(ROADMAP_RAIL_LABEL_MAX, room);
-  if (max < 2) return '';
-  if (name.length <= max) return name;
-  return `${name.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+// ── Roadmap matrix host ──────────────────────────────────────────
+/** One runtime host under #detail-roadmap: #roadmap-matrix. The shipped partials
+ *  may already carry it once the §B markup lands (the coordinator finalises
+ *  components/detail-panel.html with the matrix statics and legend, and drops the
+ *  pre-tree #roadmap-bands / #roadmap-rail there); prefer that node, else append
+ *  once. Idempotent, and it never touches the retired pre-tree hosts — the static
+ *  runtime migration this replaced was a stopgap while the pane was a tree, and the
+ *  matrix needs none of it. */
+function roadmapMatrixHost() {
+  if (roadmapMatrixEl && roadmapMatrixEl.parentNode) return roadmapMatrixEl;
+  const found = document.getElementById('roadmap-matrix');
+  if (found) { roadmapMatrixEl = found; return found; }
+  const pane = document.getElementById('detail-roadmap');
+  if (!pane) return null;
+  const host = document.createElement('div');
+  host.id = 'roadmap-matrix';
+  host.className = 'roadmap-matrix';
+  pane.appendChild(host);
+  roadmapMatrixEl = host;
+  return host;
+}
+
+/** Partition the canonical roadmapSections() list into topic blocks — consecutive
+ *  same-topic rows. This is a RENDER-LOOP step: a frame that regroups (V4
+ *  Now/Next/Later) replaces THIS function, not the data model. Returns
+ *  { topic, label, rows[] } in walk order (four blocks, 27 rows total). */
+function roadmapGroupBlocks(sections) {
+  const blocks = [];
+  let cur = null;
+  sections.forEach(row => {
+    if (!cur || cur.topic !== row.topic) {
+      cur = { topic: row.topic, label: TOPIC_LABELS[row.topic] || row.topic, rows: [] };
+      blocks.push(cur);
+    }
+    cur.rows.push(row);
+  });
+  return blocks;
 }
 
 function renderRoadmapPane() {
   const pane = document.getElementById('detail-roadmap');
-  const bandsHost = document.getElementById('roadmap-bands');
-  const railHost = document.getElementById('roadmap-rail');
-  if (!pane || !bandsHost || !railHost) return;
+  if (!pane) return;
+  const host = roadmapMatrixHost();
+  if (!host) return;
 
   const titleEl = document.getElementById('roadmap-title');
   const aggregateEl = document.getElementById('roadmap-aggregate');
@@ -2010,49 +2129,50 @@ function renderRoadmapPane() {
   const keptScroll = wasVisible ? pane.scrollTop : 0;
   const focused = document.activeElement;
   const keptId = wasVisible && focused && focused.classList
-    && focused.classList.contains('roadmap-cell') ? focused.dataset.rmq : null;
+    && focused.classList.contains('rm-cell') ? focused.dataset.rmq : null;
 
   pane.classList.remove('hidden');
 
-  roadmapBands = roadmapBandsForActiveTopic();
+  const sections = roadmapSections();
   roadmapCells = [];
-  roadmapBandOrder = roadmapBands.map(b => b.name);
-  roadmapHoverSection = null;
+  roadmapRows = [];
+  roadmapRowIndexOf = new Map();
 
-  if (titleEl) {
-    titleEl.textContent = `🗺️ Roadmap · ${TOPIC_LABELS[state.activeTab] || state.activeTab}`;
-  }
+  // The pane holds all four topics, so the head is app-wide.
+  if (titleEl) titleEl.textContent = '🗺️ Roadmap · all topics';
+  if (jumpBtn) jumpBtn.disabled = !roadmapCurrentQuestion();
 
-  const total = roadmapBands.reduce((n, b) => n + b.items.length, 0);
-  const known = roadmapBands.reduce((n, b) => n + b.known, 0);
-  if (aggregateEl) {
-    aggregateEl.textContent = `${known} of ${total} known`;
-    aggregateEl.title = 'Only “Knew” counts as known.';
-  }
-  if (jumpBtn) jumpBtn.disabled = !roadmapCurrentSection();
-
-  bandsHost.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  roadmapBands.forEach(band => frag.appendChild(buildRoadmapBand(band)));
-  if (roadmapBands.length) {
-    bandsHost.appendChild(frag);
-  } else {
+  host.innerHTML = '';
+  let startRow = 0;
+  roadmapGroupBlocks(sections).forEach(block => {
+    const built = roadmapBuildBlock(block.topic, block.label, block.rows, startRow);
+    startRow += built.rowCount;
+    host.appendChild(built.el);
+  });
+  if (!roadmapCells.length) {
     const empty = document.createElement('div');
     empty.className = 'roadmap-empty';
-    empty.textContent = 'No roadmap for this topic yet.';
-    bandsHost.appendChild(empty);
+    empty.textContent = 'No roadmap data loaded yet.';
+    host.appendChild(empty);
+  }
+  if (aggregateEl) {
+    // Both header numbers are counted off the cells just emitted — one derivation,
+    // the same rule as the block headers; `known` is rm-mem-3 (= rating 'know').
+    const known = roadmapCells.filter(c => c.classList.contains('rm-mem-3')).length;
+    aggregateEl.textContent = `${known} of ${roadmapCells.length} known`;
+    aggregateEl.title = 'Only “Knew” counts as known.';
   }
 
-  buildRoadmapRail(railHost, roadmapBands);
-
-  // Re-pick the roving tab stop: keep the keyboard where it was if that question
-  // is still on the path, else the open question, else the band being jumped to,
-  // else the first cell of the path.
+  // Re-pick the roving tab stop: keep the keyboard where it was if that question is
+  // still on the matrix, else the open question, else the first cell of the row
+  // being jumped to, else the first cell.
   const cellById = new Map(roadmapCells.map(c => [c.dataset.rmq, c]));
   let active = (keptId && cellById.get(keptId)) || null;
   if (!active && state.selectedId) active = cellById.get(state.selectedId) || null;
   if (!active && roadmapScrollRequest && roadmapScrollRequest.section) {
-    active = roadmapCells.filter(c => c.dataset.band === roadmapScrollRequest.section)[0] || null;
+    const ri = roadmapRowIndexOf.get(
+      `${roadmapScrollRequest.topic}${ROADMAP_ROW_KEY_SEP}${roadmapScrollRequest.section}`);
+    if (ri != null && roadmapRows[ri] && roadmapRows[ri].length) active = roadmapRows[ri][0];
   }
   if (!active) active = roadmapCells[0] || null;
   roadmapSetActiveCell(active);
@@ -2080,21 +2200,39 @@ function roadmapFocusCell(cell) {
 }
 
 /**
- * Ask the pane to land on a band (null = the top of the path) and take the jump
- * now if the DOM is already there. Safe to call before or after a render, which
- * is what lets a topic switch, a rail click and a sidebar click share one path.
+ * Ask the pane to land on a section ROW (null, null = the top of the matrix) and
+ * take the jump now if the DOM is already there. Safe to call before or after a
+ * render, which is what lets a topic switch, a sidebar click and Jump-to-current
+ * share one path. Both halves of the key matter: section names repeat across
+ * topics, so a row is only ever identified by its (topic, section) pair.
  */
-function roadmapShowBand(section) {
-  roadmapScrollRequest = { section: section || null };
+function roadmapShowRow(topic, section) {
+  roadmapScrollRequest = { topic: topic || null, section: section || null, block: false };
   applyRoadmapScrollRequest();
 }
 
-function roadmapBandElement(section) {
+/** A topic-tab click lands on that topic's block head, keeping roadmap mode —
+ *  the matrix no longer restarts at the top of the pane. */
+function roadmapShowBlock(topic) {
+  roadmapScrollRequest = { topic: topic || null, section: null, block: true };
+  applyRoadmapScrollRequest();
+}
+
+function roadmapBlockElement(topic) {
+  const pane = document.getElementById('detail-roadmap');
+  if (!pane || !topic) return null;
+  return Array.prototype.find.call(
+    pane.querySelectorAll('.rm-block'),
+    el => el.dataset.topic === topic
+  ) || null;
+}
+
+function roadmapRowElement(topic, section) {
   const pane = document.getElementById('detail-roadmap');
   if (!pane || !section) return null;
   return Array.prototype.find.call(
-    pane.querySelectorAll('.roadmap-band'),
-    el => el.dataset.band === section
+    pane.querySelectorAll('.rm-row'),
+    el => el.dataset.topic === topic && el.dataset.section === section
   ) || null;
 }
 
@@ -2107,17 +2245,19 @@ function applyRoadmapScrollRequest() {
   if (!pane || pane.classList.contains('hidden')) return;
   roadmapScrollRequest = null;
 
-  if (!req.section) {
+  if (!req.section && !req.block) {
     pane.scrollTop = 0;
     return;
   }
-  const bandEl = roadmapBandElement(req.section);
-  // A section that is not a band (a filter hid it, or the tab moved under us)
-  // must not yank the pane somewhere the user did not ask for.
-  if (!bandEl) return;
+  const target = req.section
+    ? roadmapRowElement(req.topic, req.section)
+    : roadmapBlockElement(req.topic);
+  // A row or block that is not in the matrix (a tab moved under us, a renamed
+  // section) must not yank the pane somewhere the user did not ask for.
+  if (!target) return;
 
   const head = pane.querySelector('.roadmap-head');
-  const top = bandEl.getBoundingClientRect().top - pane.getBoundingClientRect().top
+  const top = target.getBoundingClientRect().top - pane.getBoundingClientRect().top
     + pane.scrollTop - (head ? head.offsetHeight : 0) - roadmapScrollPad();
   const clamped = Math.max(0, Math.round(top));
   if (typeof pane.scrollTo === 'function') {
@@ -2125,7 +2265,7 @@ function applyRoadmapScrollRequest() {
   } else {
     pane.scrollTop = clamped;
   }
-  roadmapFlashBand(bandEl);
+  roadmapFlashRow(target);
 }
 
 function roadmapScrollBehavior() {
@@ -2133,13 +2273,14 @@ function roadmapScrollBehavior() {
   return reduce ? 'auto' : 'smooth';
 }
 
-/** Transient: the jump is invisible on a band that is already at the top. */
-function roadmapFlashBand(bandEl) {
-  bandEl.classList.remove('band-flash');
-  void bandEl.offsetWidth;
-  bandEl.classList.add('band-flash');
-  const clear = () => bandEl.classList.remove('band-flash');
-  bandEl.addEventListener('animationend', clear, { once: true });
+/** Transient: the jump is invisible on a row/block already at the top. B styles
+ *  `.rm-row-flash`; the old `.twig-flash` keyframe is retired with the tree. */
+function roadmapFlashRow(el) {
+  el.classList.remove('rm-row-flash');
+  void el.offsetWidth;
+  el.classList.add('rm-row-flash');
+  const clear = () => el.classList.remove('rm-row-flash');
+  el.addEventListener('animationend', clear, { once: true });
   setTimeout(clear, 1200);
 }
 
@@ -2194,14 +2335,17 @@ function hideRoadmapTooltip() {
   roadmapTipSubject = null;
 }
 
-/** Full title + section + difficulty + memory state + star flag. No preview. */
+/** Full title + section + difficulty + memory state + star flag. No preview —
+ *  the tooltip is the only place a cell's title appears at all. The section comes
+ *  from the question, not a data attribute (matrix cells carry rmb/rmr/rmc, not a
+ *  twig name). `⭐ Important` stays glyphed: it is tooltip text, outside the cell. */
 function roadmapCellTipLines(cell) {
   const q = getQuestionById(cell.dataset.rmq);
   if (!q) return null;
   const mem = detailMemorySliderValueForId(q.id);
   const lines = [
     q.title,
-    `${cell.dataset.band} · ${DIFFICULTY_LABELS[roadmapShapeFor(q)]} · ${MEMORY_LABELS[mem]}`,
+    `${q.section} · ${DIFFICULTY_LABELS[q.difficulty] || q.difficulty} · ${MEMORY_LABELS[mem]}`,
   ];
   const extra = [];
   if (q.star) extra.push('⭐ Important');
@@ -2210,32 +2354,12 @@ function roadmapCellTipLines(cell) {
   return lines;
 }
 
-function roadmapRailTipLines(section) {
-  const band = roadmapBands.find(b => b.name === section);
-  if (!band) return null;
-  return [
-    band.name,
-    `${band.known} of ${band.items.length} known`,
-    `E·${band.counts.E} M·${band.counts.M} H·${band.counts.H}`,
-  ];
-}
-
-/** Rail hover marks the matching band, so a segment is never a guess. */
-function roadmapSetBandHover(section) {
-  if (roadmapHoverSection === section) return;
-  roadmapHoverSection = section;
-  const pane = document.getElementById('detail-roadmap');
-  if (!pane) return;
-  Array.prototype.forEach.call(pane.querySelectorAll('.roadmap-band'), el => {
-    el.classList.toggle('band-hover', Boolean(section) && el.dataset.band === section);
-  });
-}
-
 // ── Roadmap interaction ──────────────────────────────────────────
 /**
  * The app's only un-hide path. `interview-hidden` used to be written by
  * hideAIQuestion() and never removed anywhere, so a question hidden by mistake
- * was gone for good. A ghost cell exists to undo exactly that.
+ * was gone for good. A matrix cell has no ghost look, but it keeps `data-ghost`
+ * so clicking a hidden question's cell still undoes the hide and opens it.
  */
 function roadmapUnhideAndOpen(id) {
   state.hiddenIds.delete(id);
@@ -2243,8 +2367,8 @@ function roadmapUnhideAndOpen(id) {
   selectQuestion(id);
 }
 
-function onRoadmapBandsClick(e) {
-  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+function onRoadmapMatrixClick(e) {
+  const cell = e.target && e.target.closest ? e.target.closest('.rm-cell') : null;
   if (!cell) return;
   const id = cell.dataset.rmq;
   if (!id) return;
@@ -2253,6 +2377,8 @@ function onRoadmapBandsClick(e) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
   e.preventDefault();
   hideRoadmapTooltip();
+  // A hidden cell renders like any other (no ghost class) but keeps data-ghost, so
+  // the pane's only un-hide path still fires — see the roadmapBuildCell flag.
   if (cell.dataset.ghost) {
     roadmapUnhideAndOpen(id);
     return;
@@ -2260,59 +2386,36 @@ function onRoadmapBandsClick(e) {
   selectQuestion(id);
 }
 
-/** Same-column cell one visual row down (step -1: up) inside a band. */
-function roadmapRowNeighbour(cells, at, step) {
-  const from = cells[at];
-  if (!from || !from.getBoundingClientRect) return null;
-  const base = from.getBoundingClientRect();
-  if (!base.height) return null;
-  const rows = new Map();
-  cells.forEach((c, i) => {
-    const top = Math.round(c.getBoundingClientRect().top);
-    const bucket = rows.get(top);
-    if (bucket) bucket.push(i);
-    else rows.set(top, [i]);
-  });
-  const tops = [...rows.keys()].sort((a, b) => a - b);
-  const rowAt = tops.indexOf(Math.round(base.top));
-  if (rowAt === -1) return null;
-  const want = tops[rowAt + step];
-  if (want === undefined) return null;
-  const bucket = rows.get(want);
-  let best = bucket[0];
-  let bestDx = Infinity;
-  bucket.forEach(i => {
-    const dx = Math.abs(cells[i].getBoundingClientRect().left - base.left);
-    if (dx < bestDx) { bestDx = dx; best = i; }
-  });
-  return cells[best];
-}
-
+/**
+ * Grid neighbour for a ragged matrix, driven by data-rmr (global row) and
+ * data-rmc (column within that row). Left/Right stay inside a row; Home/End land
+ * on the row's real first/last cell; Up/Down move to the neighbouring row keeping
+ * the column, but CLAMP to that row's last cell when it is shorter — so from a
+ * wide row's column 20, Down lands on the last cell of a 6-cell row rather than
+ * falling off. The row arrays come from roadmapRows in emit order, so movement
+ * always matches the aria-label positions.
+ */
 function roadmapAdjacentCell(cell, key) {
-  const flat = roadmapCells;
-  const at = flat.indexOf(cell);
-  if (at === -1) return null;
-  const inBand = flat.filter(c => c.dataset.band === cell.dataset.band);
-  const bandAt = inBand.indexOf(cell);
-  if (key === 'Home') return inBand[0];
-  if (key === 'End') return inBand[inBand.length - 1];
-  if (key === 'ArrowRight') return flat[Math.min(flat.length - 1, at + 1)];
-  if (key === 'ArrowLeft') return flat[Math.max(0, at - 1)];
-
+  if (!cell) return null;
+  const r = parseInt(cell.dataset.rmr, 10);
+  const c = parseInt(cell.dataset.rmc, 10);
+  if (Number.isNaN(r) || Number.isNaN(c)) return null;
+  const row = roadmapRows[r];
+  if (!row || !row.length) return null;
+  if (key === 'Home') return row[0];
+  if (key === 'End') return row[row.length - 1];
+  if (key === 'ArrowRight') return row[Math.min(c + 1, row.length - 1)];
+  if (key === 'ArrowLeft') return row[Math.max(c - 1, 0)];
   const step = key === 'ArrowDown' ? 1 : -1;
-  const row = roadmapRowNeighbour(inBand, bandAt, step);
-  if (row) return row;
-  // No row left in this band: carry on into the next one, which is what lets the
-  // arrows walk the whole path without leaving the pane.
-  const nextBand = roadmapBandOrder[roadmapBandOrder.indexOf(cell.dataset.band) + step];
-  if (!nextBand) return null;
-  const cells = flat.filter(c => c.dataset.band === nextBand);
-  return step > 0 ? cells[0] : cells[cells.length - 1];
+  const target = roadmapRows[r + step];
+  // At the top of the first row / bottom of the last: no move, focus stays.
+  if (!target || !target.length) return null;
+  return target[Math.min(c, target.length - 1)];
 }
 
 function onRoadmapGridKeyDown(e) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  const cell = e.target && e.target.closest ? e.target.closest('.rm-cell') : null;
   if (!cell) return;
   // Enter is left to the browser: it activates the anchor, which is the cell's
   // real purpose (and gives hash routing, so ⌘-click semantics match).
@@ -2325,80 +2428,52 @@ function onRoadmapGridKeyDown(e) {
   }
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].indexOf(e.key) === -1) return;
   e.preventDefault();
-  // The document-level shortcuts alias ArrowUp/Down to J/K on the *feed*; while
-  // the map has the keyboard, arrows must not move that selection as well.
+  // The document-level feed shortcuts are ArrowUp/ArrowDown; while
+  // the matrix has the keyboard, arrows must not move that selection as well.
   e.stopPropagation();
   roadmapFocusCell(roadmapAdjacentCell(cell, e.key));
 }
 
 function onRoadmapCellPointer(e) {
-  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  const cell = e.target && e.target.closest ? e.target.closest('.rm-cell') : null;
   if (!cell) { hideRoadmapTooltip(); return; }
   if (cell === roadmapTipSubject) return;
   showRoadmapTooltip(cell, roadmapCellTipLines(cell));
 }
 
 function onRoadmapCellLeave(e) {
-  const cell = e.target && e.target.closest ? e.target.closest('.roadmap-cell') : null;
+  const cell = e.target && e.target.closest ? e.target.closest('.rm-cell') : null;
   if (!cell) return;
   const to = e.relatedTarget;
-  if (to && to.closest && to.closest('.roadmap-cell') === cell) return;
+  if (to && to.closest && to.closest('.rm-cell') === cell) return;
   hideRoadmapTooltip();
-}
-
-function roadmapRailSegment(target) {
-  return target && target.closest ? target.closest('.roadmap-rail-seg') : null;
-}
-
-function onRoadmapRailMove(e) {
-  const seg = roadmapRailSegment(e.target);
-  roadmapSetBandHover(seg ? seg.dataset.band : null);
-  if (!seg) { hideRoadmapTooltip(); return; }
-  if (seg === roadmapTipSubject) return;
-  showRoadmapTooltip(seg, roadmapRailTipLines(seg.dataset.band));
-}
-
-function onRoadmapRailLeave() {
-  roadmapSetBandHover(null);
-  hideRoadmapTooltip();
-}
-
-function onRoadmapRailClick(e) {
-  const seg = roadmapRailSegment(e.target);
-  if (!seg) return;
-  e.preventDefault();
-  roadmapShowBand(seg.dataset.band);
 }
 
 function roadmapJumpToCurrent() {
-  const section = roadmapCurrentSection();
-  if (!section) return;
-  roadmapShowBand(section);
+  const q = roadmapCurrentQuestion();
+  if (!q) return;
+  roadmapShowRow(q.type, q.section);
 }
 
 function initializeRoadmap() {
   const pane = document.getElementById('detail-roadmap');
-  const bandsHost = document.getElementById('roadmap-bands');
-  const railHost = document.getElementById('roadmap-rail');
+  if (!pane) return;
+  const host = roadmapMatrixHost();
+  if (!host) return;
 
-  if (bandsHost) {
-    bandsHost.addEventListener('click', onRoadmapBandsClick);
-    bandsHost.addEventListener('keydown', onRoadmapGridKeyDown);
-    // Tooltip on hover *and* on focus: the pointer and the keyboard must see the
-    // same metadata, and the cells carry none of it visibly.
-    bandsHost.addEventListener('mouseover', onRoadmapCellPointer);
-    bandsHost.addEventListener('mouseout', onRoadmapCellLeave);
-    bandsHost.addEventListener('focusin', onRoadmapCellPointer);
-    bandsHost.addEventListener('focusout', onRoadmapCellLeave);
-  }
-  if (railHost) {
-    railHost.addEventListener('mousemove', onRoadmapRailMove);
-    railHost.addEventListener('mouseleave', onRoadmapRailLeave);
-    railHost.addEventListener('click', onRoadmapRailClick);
-  }
+  host.addEventListener('click', onRoadmapMatrixClick);
+  host.addEventListener('keydown', onRoadmapGridKeyDown);
+  // Tooltip on hover *and* on focus: the pointer and the keyboard must see the
+  // same metadata, and the cells carry none of it visibly.
+  host.addEventListener('mouseover', onRoadmapCellPointer);
+  host.addEventListener('mouseout', onRoadmapCellLeave);
+  host.addEventListener('focusin', onRoadmapCellPointer);
+  host.addEventListener('focusout', onRoadmapCellLeave);
   // The tooltip is placed against the cell's viewport rect, so it has to go when
-  // the pane scrolls under it.
-  if (pane) pane.addEventListener('scroll', hideRoadmapTooltip, { passive: true });
+  // the pane scrolls under it. (No trunk listeners: the trunk is gone; the block
+  // and row heads are reached by the sidebar / Jump, and topic tabs by their own
+  // handlers, so the matrix host needs only cell events.)
+  pane.addEventListener('scroll', hideRoadmapTooltip, { passive: true });
 }
 
 function hideAIQuestion(id) {
@@ -2525,9 +2600,10 @@ function onTopicChange(value) {
   pushURLState();
   renderList();
   renderMainPanel(null);
-  // A tab switch keeps roadmap mode and shows that topic's path from the top
-  // (there is no question to land on any more).
-  if (state.showRoadmap) roadmapShowBand(null);
+  // A tab switch keeps roadmap mode and shows that topic's block from its head
+  // (all four blocks are on screen, so a tab click lands on that topic's block
+  // rather than resetting to the top of the pane).
+  if (state.showRoadmap) roadmapShowBlock(value);
 }
 
 // ── URL state ──────────────────────────────────────────────────
@@ -3737,7 +3813,7 @@ function handleCommandPaletteKeyboard(e) {
   }
   if (e.target === input) return;
 
-  const blockWhileOpen = ['j', 'k', 'J', 'K', ' ', 'ArrowLeft', 'ArrowRight', '1', '2', '3'];
+  const blockWhileOpen = [' ', 'ArrowLeft', 'ArrowRight', '1', '2', '3'];
   if (blockWhileOpen.includes(e.key)) {
     e.preventDefault();
   }
@@ -3751,9 +3827,7 @@ function handleMainKeyboardShortcuts(e) {
   const consumed = e.defaultPrevented;
 
   const shortcuts = {
-    'j': () => navigateList(1),
     'ArrowDown': () => navigateList(1),
-    'k': () => navigateList(-1),
     'ArrowUp': () => navigateList(-1),
     ' ': () => revealCard(),
     '1': () => state.selectedId && state.cardRevealed && setRating(state.selectedId, 'know'),

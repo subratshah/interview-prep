@@ -48,25 +48,94 @@
   --accent-inset: rgba(96, 165, 250, 0.12);
   --ring: rgba(59, 130, 246, 0.35);
 
-  /* Semantic difficulty */
-  --easy: #4ec994;
-  --medium: #ddb456;
-  --hard: #f87171;
-  --easy-bg: #0d2a1a;
-  --medium-bg: #2a2010;
-  --hard-bg: #2a1010;
-  --easy-border: #1a4a2a;
-  --medium-border: #4a3a10;
-  --hard-border: #4a1a1a;
+  /* Difficulty — THE ONE INDIRECTION LAYER. Every difficulty surface in this
+     sheet (roadmap cells, legend swatches, chips, card stripes, detail badges)
+     reads --diff-easy / --diff-medium / --diff-hard and nothing else, so
+     repainting the scale is a three-line edit per theme and no rule is touched.
+     The values are the final record's derived high-spread set — maximum in-gamut
+     chroma at each rank, hues kept from the triad before it: E #aeb3fe (L* 75.1,
+     Lab C 40.5, h 292°), M #1af690 (86.1, C 78.9, h 153°), H #d43e05 (48.8, C 82.1,
+     h 46°), gaps 11.0 / 37.3 / 26.2 L*. Lineage: these replace the lifted Okada pair
+     (E #8B7CF6 / M #3DDC84 / H #FF7A55), and before that E #56B4E9 / M #E9B44C /
+     H #F0704A.
+     Why these particular values are load-bearing: memory is painted as
+     ALPHA over an opaque matte, so a level separates from its neighbours only if
+     its hue is far enough from the matte in L*. Dark matte #181818 (L* 8.2),
+     recomputed for this pass by compositing in sRGB-encoded channels, which is what
+     the browser does when a translucent fill lands on the matte:
+       E  8.2 → 27.1 → 47.4 → 75.1   (ΔL* 18.9 / 20.2 / 27.7, contrast vs
+                                                      the matte 1.0/1.7/3.6/9.0)
+       M  8.2 → 29.7 → 53.5 → 86.1   (ΔL* 21.5 / 23.8 / 32.5, 1.0/1.9/4.5/12.4)
+       H  8.2 → 17.9 → 30.5 → 48.8   (ΔL*  9.7 / 12.6 / 18.3, 1.0/1.3/1.9/3.8)
+     Eighteen alpha steps across both themes, and one of them is thin: dark HARD
+     travels only 9.7 L* from hollow to forgot. Every other pair in the file clears
+     12. That is the price of the record's L* 49 for `#d43e05` on a matte at L* 8.2,
+     and it is the reason "unseen hard" and "forgot hard" are the closest-looking
+     neighbours in the matrix.
+     What this palette costs, stated plainly: E and M are only 11.0 L* apart (they
+     were ~26 apart in the Okada lift), so the two lightest levels now separate on
+     hue angle — 139° between them — rather than on lightness, and dark HARD's full
+     fill reaches only 3.8:1 against its own matte. E is also a blue 6.5° from
+     `--accent` in Lab hue (and 15.3° from the light accent), which is closer than
+     the old value sat. So no hue
+     may mean "progress": a progress bar, a you-are-here mark, or any other
+     non-difficulty indicator in the roadmap reads `--rm-neutral` / `--text`, never
+     `--accent` / `--selected-border`. That law outlived the trunk geometry it was
+     first written against — both of those surfaces are deleted with the tree — and
+     it is why these three are the only blues a roadmap may spend on anything.
+     The pale `-bg` partner is DERIVED from these three in the shared geometry
+     block below — they used to be six more hand-picked hexes, which is how a green
+     plate ended up under a blue chip. So is the `-fg` trio beside it: these three
+     values are the FIELD colour (a cell's hue, a stripe, a plate), while a chip, pill
+     or badge label is TEXT drawn on a 14% tint of itself, which is a harder job — with
+     this set, hue-as-text lands at 3.62:1 for dark hard. `-fg` mixes these hues toward
+     `--text` and fixes it in one formula for all six themes (see the shared block).
+     Borders are deliberately not tokenised: a
+     border mixes against `transparent` inline, because a border tinted with the
+     panel's own colour is invisible. */
+  --diff-easy: #aeb3fe;
+  --diff-medium: #1af690;
+  --diff-hard: #d43e05;
+  /* Kept as aliases: they are the names AGENTS.md documents, and nothing in
+     view/, components/ or index.html can read a custom property from JS — so
+     these exist for outside readers only, never as a second source of truth. */
+  --easy: var(--diff-easy);
+  --medium: var(--diff-medium);
+  --hard: var(--diff-hard);
 
-  /* Memory scale */
-  --mem-lit: #c8c8c8;
-  --mem-mid: #888;
-  --mem-dark: #444;
-  --dot-empty: #2a2a2a;
-  --knew-bg: #0d2a1a;
-  --shaky-bg: #2a2010;
-  --forgot-bg: #2a1010;
+  /* Destructive / generic-warning chrome — deliberately NOT a difficulty.
+     `--hard` now means exactly one thing: a Hard question. The three
+     affordances that only meant "dangerous click" (tag clear-all ✕, selected
+     tag remove ✕, a failed mermaid render) read this trio instead. The hexes
+     start identical to --hard* on purpose, so repointing them moves nothing
+     visually while the vocabulary splits; drifting them later is a design
+     change, not this pass. Declared in BOTH theme blocks: a token missing from
+     one block silently invalidates every declaration that consumes it there
+     (that is the `--selected-bg-start` / dark-cursor bug class). */
+  --danger: #f87171;
+  --danger-bg: #2a1010;
+  --danger-border: #4a1a1a;
+
+  /* The three memory-status plate tints that used to be declared here are
+     deleted: once the rating buttons and the filter slider were gone, grep found
+     0 readers in this sheet, in view/ and in components/. They were the last
+     trace of "memory is a colour", which is the private dialect this pass removes
+     — memory is alpha over the difficulty hue on a matte in the tree, and alpha of
+     one neutral ink on the card, never a third palette. The old four-step grey
+     *scale* (the four literal memory tokens this sheet used to carry) went the
+     same way, for the same reason: a second answer to the same question. */
+
+  /* The feed card's memory dot: ONE neutral ink, no hue at all. Its own token
+     rather than `--muted`/`--dim`/`--dimmer` so the card can drift from the tree
+     without either surface dragging the other, and so a future "make the dot
+     greyer" edit cannot accidentally restyle a border that shares a grey. Dark
+     theme needs a light ink (the dot sits on `--surface2` #181818); the ladder it
+     drives, computed: unseen (edge only) L* 8.2 → forgot 26.7 → shaky 46.4 → knew
+     73.3, steps of 18.4 / 19.8 / 26.9 ΔL*, i.e. contrast 1.69 / 3.48 / 8.56
+     against the card. Light inverts it on #f1f3f4: 95.7 → 79.4 → 58.6 → 24.4,
+     steps of 16.3 / 20.8 / 34.2. Every step is far above a lightness JND, in a
+     channel no difficulty hue touches. */
+  --card-mem-ink: #b4b4b4;
   --imp: #f59e0b;
   --imp-bg: rgba(245, 158, 11, 0.12);
   --imp-border: rgba(245, 158, 11, 0.35);
@@ -142,23 +211,51 @@
   --accent-inset: rgba(37, 99, 235, 0.08);
   --ring: rgba(37, 99, 235, 0.25);
 
-  --easy: #059669;
-  --medium: #d97706;
-  --hard: #dc2626;
-  --easy-bg: #ecfdf5;
-  --medium-bg: #fffbeb;
-  --hard-bg: #fef2f2;
-  --easy-border: #6ee7b7;
-  --medium-border: #fcd34d;
-  --hard-border: #fca5a5;
+  /* Light side of the same indirection layer (see the dark note for the rules
+     these had to satisfy): the record's derived set, deep rather than lifted because
+     4:1 on a near-white matte costs the light end. Lineage: these replace
+     E #6D5AE0 / M #0F9D58 / H #E8590C, and before that the Okada pair below.
+     Light matte #f1f3f4 (L* 95.7), measured the same way:
+       E #2b0395  95.7 → 76.2 → 51.9 → 19.0  (ΔL* 19.5 / 24.3 / 32.9; contrast
+                                                vs the matte 1.0/1.7/3.8/12.2)
+       M #06703e  95.7 → 82.0 → 65.4 → 41.2  (ΔL* 13.7 / 16.6 / 24.2; 1.0/1.4/2.4/5.6)
+       H #832d01  95.7 → 79.6 → 59.9 → 31.1  (ΔL* 16.1 / 19.8 / 28.7; 1.0/1.5/2.9/8.1)
+     Every step clears 13.7 ΔL*, which is the reason this set exists: the value M had
+     before travelled only 6.9 on its first step, the weakest corner of the old
+     encoding, and the E-M L* gap of 0.6 that made light medium and hard the same
+     colour is now 22.2. What the depth costs is ordering: full-strength L* is
+     19.0 / 41.2 / 31.1, so in light the EASIEST hue is the darkest of the three and
+     lightness no longer runs with difficulty in either direction — the scale is
+     carried by hue angle (308° / 153° / 50°) and chroma (86 / 44 / 55), never by
+     "harder looks darker". Nothing may lean on that ordering: a sort, a legend or a
+     sentence that says "the dark ones are the hard ones" is wrong in one of the two
+     themes. Do NOT darken or lighten these three to fix a chip, a badge or a
+     stripe — that is what `--diff-*-fg` exists for, and the three of them plus the
+     roadmap cells move together with these six lines and nothing else. */
+  --diff-easy: #2b0395;
+  --diff-medium: #06703e;
+  --diff-hard: #832d01;
+  --easy: var(--diff-easy);
+  --medium: var(--diff-medium);
+  --hard: var(--diff-hard);
 
-  --mem-lit: #374151;
-  --mem-mid: #6b7280;
-  --mem-dark: #9ca3af;
-  --dot-empty: #e5e7eb;
-  --knew-bg: #ecfdf5;
-  --shaky-bg: #fffbeb;
-  --forgot-bg: #fef2f2;
+  /* Destructive chrome keeps its OWN red. It was the same hex as the old
+     `--hard` (#dc2626) and must not move now that `--diff-hard` is a red in both
+     themes — #d43e05 on the matte and #832d01 here, which is closer to a brown than
+     to this #dc2626, and the two still have to be told apart at a glance:
+     a ✕ that clears every selected tag is not a difficulty label. This trio is
+     the reason `--hard` could be freed for difficulty-only meaning. */
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fca5a5;
+
+  /* The light halves of the three memory-status plate tints are deleted with
+     their dark counterparts — 0 readers, see the note in the dark block. */
+
+  /* Light side of the memory dot's own ink: a dark neutral, because the card it
+     sits on is `--surface2` #f1f3f4. Same ladder shape as the dark theme,
+     inverted — see the dark note. */
+  --card-mem-ink: #3a3a3a;
   --imp: #d97706;
   --imp-bg: rgba(217, 119, 6, 0.1);
   --imp-border: rgba(217, 119, 6, 0.35);
@@ -195,6 +292,218 @@
   --notion-list-text: var(--text-secondary);
 
   color-scheme: light;
+}
+
+/* ── Roadmap cell geometry (theme-independent) ─────────────────────────────
+   One fixed square per cell, one fixed gutter. Nothing here is a percentage of a
+   measured box and nothing is a `clamp()` minimum — both forms resolve against the
+   box being sized, which is the cycle that collapsed the old rail
+   (`buildRoadmapRail` split `host.clientWidth`, so the pane width decided the rail
+   length, five different ways). A matrix that wants a length proportional to a
+   count must multiply an absolute unit declared in THIS block by that count, and
+   never take a share of the pane: that is the one law the deleted trunk geometry
+   leaves behind, and it is what lets the size ladder move the cells, the labels
+   and the pane together.
+   These live in `:root`, NOT inside one theme block, and that is the same safe
+   pattern `--z` / `--font-sans` / `--font-mono` already use: `:root` matches
+   <html> under either theme and `[data-theme="light"]` only *restates* colours,
+   so a `:root` declaration is read by both themes. What must never sit here is
+   a literal colour — those go in both theme blocks, because a token declared in
+   one block only is invisible in the other (the `--selected-bg-start` bug).
+   The numeric choices are the spec's `[G]`; the law (absolute, never a share of
+   the box being sized) is the settled part. */
+:root {
+  /* The per-leaf trunk unit (`--rm-unit`) and the four trunk thicknesses this
+     block used to carry are deleted with the trunk geometry they measured. A
+     matrix that needs a progress bar per row declares it in `.rm-row-bar` below,
+     absolute, and never derives a length from a share of the box it sizes. */
+
+  /* Cell size, gutter, label column, row pitch — the record's literal pixels: 22px,
+     3px, 150px, 3px. All four are absolute, so the size ladder (`--z`) moves the cells,
+     the labels and the pane together.
+     The anti-squish guarantee is NOT here, it is `flex: none` on `.rm-cell`: a flex
+     item with the default `flex-shrink: 1` would be squeezed under `--rm-cell` by a
+     row too long for the pane, which is exactly the failure the contract forbids.
+     Widest row, recomputed from these four values rather than quoted from the mock:
+     34×21.9996 + 33×2.9988 = 846.9px of cells; + a 3px column-gap + the 150px label
+     = 999.9px of row; + the pane's own 1.375rem (24.75px) padding on both sides
+     = 1049.4px of scrollable content against a 700px pane. The record's 1007px is the
+     mock's `150 + 10 + run`: here the label's 6.75px indent sits INSIDE the 150px
+     track, because `* { box-sizing: border-box }` is this file's first rule. At the
+     ladder floor (`--z` 0.7) the same row is 700.0px wide and needs no horizontal
+     scroll at all. Height: 27 rows × 25px, less the four row-gaps that
+     `.rm-block .rm-row:last-child` removes (663px), plus 4 block headers (~41px each
+     at the current type) plus 4 block margins (13.5px) ≈ 881px.
+     THESE FOUR ARE `Npx / 18`, NOT THE SHEET'S `N / 16`. The record names literal
+     pixels, 1rem is `calc(18px * var(--z))`, and 22px spelled the 16-reference way
+     (`1.375rem`) measured 24.74px in the running app — so the approved row width
+     never existed. Divided by the ladder's own base, all four together: 21.9996px,
+     2.9988px, 149.9994px and 2.9988px at `--z` 1. They move as a set because the
+     cell-to-gutter-to-label ratio is what was approved. What does NOT move is this
+     sheet's type, still authored at 1/16, so one ratio the record implies cannot be
+     preserved: the mock's cell-to-label-name size is 22:12, and `0.75rem` is 13.5px,
+     giving 22:13.5. If the record ever means "literal pixels everywhere", that is a
+     change to the ladder's reference and not to these four lines. */
+  --rm-cell: 1.2222rem;
+
+  /* Cell gutter. 3px per the record. It also has to hold the `.rm-cur` locator,
+     which the contract paints OUTSIDE the box: 1px matte + 1px ink = 2px, leaving
+     1px of air — 0.9988px here, which is still an air gap. That is why this value
+     went back down from the 0.375rem the tree's position marks needed. */
+  --rm-gap: 0.1666rem;
+
+  /* The row-label column. Fixed, never a share of the row — a percentage track is
+     the cycle AGENTS.md records, because the track resolves against the grid it is
+     sizing. 150px is the record's number. */
+  --rm-label: 8.3333rem;
+
+  /* Row pitch, same 3px as the cells: what makes a section read as one band rather
+     than 27 separate rows. A row's height is the cell square plus whatever its
+     label stack needs (`.rm-row-name` + optional `.rm-row-sub` + optional
+     `.rm-row-bar`), so rows with a subtitle are taller and the ragged cell run
+     stays vertically centred in them. */
+  --rm-row-gap: 0.1666rem;
+
+  /* Starred is a BORDER WEIGHT, not a silhouette (final record: "square with a bold
+     2px border"), so `--rm-notch` is deleted with the chamfer. The clip channel
+     itself stays, idle: `--rm-silhouette: none` is now its only value, and the
+     `clip-path` on the fill layer costs nothing while leaving exactly one place to
+     put a shape if the record ever revisits one. Both silhouettes that lived here are
+     archived so the work stays recoverable without the playground — the chamfer the
+     mock shipped (`polygon(0 0, 55% 0, 100% 45%, 100% 100%, 0 100%)`: legs of 45%, a
+     9×9px bite on the 20px fill box, 10.1% of its area), and before it the 5-point
+     star at inner radius exactly 0.5 of the outer (the textbook 0.382 thins every arm
+     to ~2 device px at 14px; tips at 52.5° instead of ~25.8°, arm bases 29.4%):
+       polygon(50% 0%, 64.69% 29.78%, 97.55% 34.55%, 73.78% 57.73%, 79.39% 90.45%,
+               50% 75%, 20.61% 90.45%, 26.22% 57.73%, 2.45% 34.55%, 35.31% 29.78%)
+     What a cell's paint layer is clipped to. ONE property, so a cell has exactly one
+     silhouette source; `none` today, and the starred rule reaches for a border
+     instead. Applied to the FILL LAYER and never the anchor: `clip-path` cuts
+     everything an element paints — descendants, pseudo-elements, box-shadow — so a
+     clip on the anchor would take the memory edge, the `.rm-cur` ring and the focus
+     outline with it. Percentages inside a `polygon()` are physical, not logical, so a
+     future silhouette would still cut the top-RIGHT under RTL: mirror it with
+     `scaleX(-1)` if the app ever ships RTL. */
+  --rm-silhouette: none;
+
+  /* The opaque panel-colour matte every alpha fill sits on. Because the fill
+     composites over THIS (background-color) and not over whatever happens to be
+     behind the cell, a hover, a focus ring or a selected card cannot change how
+     confident a cell looks: 25% is always 25% hue + 75% matte. */
+  --rm-matte: var(--surface2);
+
+  /* Memory = alpha over the difficulty hue. Unseen is hollow (0% and only the
+     outline, 1px, or 2px on a starred cell), know is full strength; these two are the
+     only judgement calls. */
+  --rm-alpha-forgot: 25%;
+  --rm-alpha-shaky: 55%;
+
+  /* The sliders' hue: the memory scale must not borrow a question's difficulty
+     colour, or the control would recolour every time you open something. */
+  --rm-neutral: var(--text);
+
+  /* Difficulty tints, DERIVED — not six more literals. These used to be
+     hand-picked hexes in each theme block, which is how a chip's plate could end
+     up a different family from its own text (a green plate under a blue chip is
+     the live example this pass found). Mixing each level against `--surface`
+     keeps them in the theme automatically: light mixes toward near-white, dark
+     toward near-black, from the same three source hues. This is what makes the
+     indirection total — repaint `--diff-*` and the chips, badges and hover
+     states follow, because there is nothing else left to edit. A formula rather
+     than a literal colour, so it belongs in this shared block exactly like
+     `--rm-matte: var(--surface2)`: `--surface` and `--diff-*` both re-resolve on
+     <html> per theme.
+     Measured, so nobody has to rediscover it (hue-as-text on its own plate): with the
+     record's set, dark 7.46 / 9.81 / 3.62 and light 9.62 / 4.78 / 6.70. The swap fixed
+     both light failures it inherited (2.85 and 2.87 before) and broke dark hard, which
+     now sits under AA — and two of the six fail only on hover, where the plate deepens
+     (dark hard 3.01, light medium 3.75). Hence the foreground trio below: it is the only
+     place in the sheet where text is not the plain hue, and the reason is a plate, not a
+     preference. */
+  --diff-easy-bg: color-mix(in srgb, var(--diff-easy) 14%, var(--surface));
+  --diff-medium-bg: color-mix(in srgb, var(--diff-medium) 14%, var(--surface));
+  --diff-hard-bg: color-mix(in srgb, var(--diff-hard) 14%, var(--surface));
+
+  /* The foreground partners: `--diff-*` at 60% mixed into `--text`. ONE uniform
+     formula for all three levels, no hand-tuned exception — the coordinator's rule and
+     the right one, because the alternative was two levels that already passed carrying
+     a third level's special case, which no comment could justify at 60%.
+     A formula over two inherited values, so it belongs in this shared block exactly
+     like the `-bg` trio above: `--diff-*` and `--text` both re-resolve per theme, and
+     all six results are derived here rather than spelled out anywhere.
+     What it buys, against the plate each label actually sits on (rest / hover):
+       dark   9.36, 6.38  /  10.23, 6.44  /  6.20, 5.16   (plain hue: 7.46, 5.08 /
+                                                 9.81, 6.18 / 3.62, 3.01)
+       light 10.63, 7.42  /   6.93, 5.44  /  8.67, 6.49   (plain hue: 9.62, 6.72 /
+                                                4.78, 3.75 / 6.70, 5.02)
+     Six of six above AA at rest and on hover. The plain hue had one failure at rest and
+     two more that only appeared under the pointer.
+     What it costs: mixing toward `--text` flattens the spread between the three (dark
+     L* gaps 11.0 / 37.3 / 26.2 become 4.7 / 23.1 / 18.4; light 22.2 / 10.1 / 12.1 become
+     15.6 / 7.3 / 8.3) and cuts chroma — dark easy falls to C 23.8, nearly a tint of the
+     ink. Acceptable HERE and nowhere else: a chip and a badge name their level in words
+     (`Easy` / `Medium` / `Hard`), so their hue is decoration on a label that already
+     carries the fact. That is exactly why the roadmap cell keeps the plain hue, where
+     colour IS the only mark: do not point `--rm-hue` at `-fg`. A cell drawn in the
+     foreground mix is a cell drawn 40% toward grey at every level, and the alpha ladder
+     would lose the very separation its existence depends on. */
+  --diff-easy-fg: color-mix(in srgb, var(--diff-easy) 60%, var(--text));
+  --diff-medium-fg: color-mix(in srgb, var(--diff-medium) 60%, var(--text));
+  --diff-hard-fg: color-mix(in srgb, var(--diff-hard) 60%, var(--text));
+  /* There is deliberately no `--diff-*-border` trio here. A border mixes against
+     `transparent`, not against `--surface`, because a chip sits on a panel and a
+     border carrying the panel's own colour is invisible; its three readers inline
+     that mix. My parse gate flagged the trio as declared-but-never-read, so the
+     honest move was to delete tokens that document a recipe nothing consumes —
+     the indirection is still total, because all three readers go through
+     `--diff-*` for their colour. */
+
+  /* The feed card's memory ladder — the gem's OWN numbers, deliberately not
+     `--rm-alpha-*`. They start at the same values because both are "the same
+     four states", but they are two separate dials: the cell's ladder is read at
+     22px against a difficulty hue, the dot's at 9px against a card, and the
+     thing that makes one legible can flatten the other. Numbers, not colours, so
+     they live in this shared block and both themes read them. */
+  --card-mem-alpha-forgot: 25%;
+  --card-mem-alpha-shaky: 55%;
+  /* The constant edge that keeps all four states the same apparent size. */
+  --card-mem-edge: 45%;
+
+  /* The four memory steps as ONE value. Both range controls and the sidebar's
+     `.memory-track` div painted four hand-copied linear-gradients of a grey
+     luminosity ramp, which is how they drifted apart; they now read this one
+     declaration. Note the band form (`X 0 25%`): each level owns a quarter of
+     the track instead of blending into the next, so the ramp *is* the scale.
+     It is transparent-then-alpha over --rm-matte, matching what a cell paints,
+     and it stays neutral for the same reason the leaves' hue is not used here:
+     a control that took the open question's colour would answer a question
+     nobody asked. */
+  --rm-steps: linear-gradient(
+    90deg,
+    transparent 0 25%,
+    color-mix(in srgb, var(--rm-neutral) var(--rm-alpha-forgot), transparent) 25% 50%,
+    color-mix(in srgb, var(--rm-neutral) var(--rm-alpha-shaky), transparent) 50% 75%,
+    var(--rm-neutral) 75% 100%
+  );
+
+  /* Fallbacks, every one load-bearing:
+     --rm-hue — a surface carrying `rm-mem-N` but no `rm-diff-X` (the legend's
+       memory keys) still has to paint. With no default, `color-mix()` is
+       invalid at computed-value time and the key silently disappears.
+     --rm-mem-level — the one input the fill is computed from. 100% is what lets a
+       hue-only swatch read at full strength without a memory class. The dimming
+       factor that used to sit beside it (`--rm-ghost-scale`, 1) is deleted with the
+       hidden-cell treatment: in the matrix a hidden question paints an ordinary
+       cell, so there is no second multiplier to fold into the level.
+     --rm-thumb — floor for both range controls; each control's own container
+       restates it (see `.memory-detail-field`, `.memory-indicator-container`).
+     --rm-at / --rm-leaves / --rm-known — deleted with the trunk that read them
+       (they defaulted to 0 so a missing count gave a zero-length tape rather than
+       an invalid declaration). If the renderer still writes any of them inline on
+       a row, an inline custom property with no reader is inert, not broken. */
+  --rm-hue: var(--text);
+  --rm-mem-level: 100%;
+  --rm-thumb: 1rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1280,25 +1589,43 @@ body {
   border-style: solid;
 }
 
+/* Difficulty filter chips and the topbar pills. Every colour here comes from the
+   `--diff-*` family — the plate through the tint derived from it, the edge through a
+   transparent mix of the hue, and the TEXT through `--diff-*-fg` — so these rules carry
+   no colour of their own and never will again. (The per-level plate and edge literals
+   this sheet used to hand-pick in each theme block are gone, folded into the derived
+   plate above and the inline edge mixes here; grep proved nothing outside this sheet
+   read them.)
+   Why the text reads `-fg` and the cell does not: a saturated hue as ~12px text on a
+   14% plate of itself is a different job from a field of colour. Measured on the
+   record's set, hue-as-text is 7.46 / 9.81 / 3.62 in dark and 9.62 / 4.78 / 6.70 in
+   light — one AA failure at rest, and two more that appear only on hover where the
+   plate deepens (dark hard 3.01, light medium 3.75). The foreground mix takes all six
+   to 5.16:1 or better, at rest and on hover; its cost to the L* spread is written on
+   the token. No hue moved to get there, so the chips, the badges, the stripes and the
+   roadmap cells still key to the same three values.
+   The edge stays the plain hue at 38% over transparent, which measures 1.55–2.69:1
+   against its own plate: decorative by the same argument the plate is — the word inside
+   the chip is the fact, the colour is the grouping. */
 .filter-chips-diff .chip[data-diff='E'],
 #diff-filters .pill[data-diff='E'] {
-  background: var(--easy-bg);
-  color: var(--easy);
-  border-color: color-mix(in srgb, var(--easy) 38%, transparent);
+  background: var(--diff-easy-bg);
+  color: var(--diff-easy-fg);
+  border-color: color-mix(in srgb, var(--diff-easy) 38%, transparent);
 }
 
 .filter-chips-diff .chip[data-diff='M'],
 #diff-filters .pill[data-diff='M'] {
-  background: var(--medium-bg);
-  color: var(--medium);
-  border-color: color-mix(in srgb, var(--medium) 38%, transparent);
+  background: var(--diff-medium-bg);
+  color: var(--diff-medium-fg);
+  border-color: color-mix(in srgb, var(--diff-medium) 38%, transparent);
 }
 
 .filter-chips-diff .chip[data-diff='H'],
 #diff-filters .pill[data-diff='H'] {
-  background: var(--hard-bg);
-  color: var(--hard);
-  border-color: color-mix(in srgb, var(--hard) 38%, transparent);
+  background: var(--diff-hard-bg);
+  color: var(--diff-hard-fg);
+  border-color: color-mix(in srgb, var(--diff-hard) 38%, transparent);
 }
 
 .filter-chips-diff .chip[data-diff]:hover,
@@ -1308,17 +1635,17 @@ body {
 
 .filter-chips-diff .chip[data-diff='E']:hover,
 #diff-filters .pill[data-diff='E']:hover {
-  background: color-mix(in srgb, var(--easy-bg) 82%, var(--easy));
+  background: color-mix(in srgb, var(--diff-easy-bg) 82%, var(--diff-easy));
 }
 
 .filter-chips-diff .chip[data-diff='M']:hover,
 #diff-filters .pill[data-diff='M']:hover {
-  background: color-mix(in srgb, var(--medium-bg) 82%, var(--medium));
+  background: color-mix(in srgb, var(--diff-medium-bg) 82%, var(--diff-medium));
 }
 
 .filter-chips-diff .chip[data-diff='H']:hover,
 #diff-filters .pill[data-diff='H']:hover {
-  background: color-mix(in srgb, var(--hard-bg) 82%, var(--hard));
+  background: color-mix(in srgb, var(--diff-hard-bg) 82%, var(--diff-hard));
 }
 
 .filter-chips-diff .chip[data-diff].active,
@@ -1333,29 +1660,14 @@ body {
   border-color: rgba(245, 158, 11, 0.35);
 }
 
-.chip.active-know {
-  background: var(--knew-bg);
-  color: var(--easy);
-  border-color: #1a4a2a;
-}
-
-.chip.active-shaky {
-  background: var(--shaky-bg);
-  color: var(--medium);
-  border-color: #4a3a10;
-}
-
-.chip.active-review {
-  background: var(--forgot-bg);
-  color: var(--hard);
-  border-color: #4a1a1a;
-}
-
-.chip.active-unseen {
-  background: #1a1e28;
-  color: var(--accent-soft);
-  border-color: #2a3a55;
-}
+/* The four memory variants of this chip are deleted, not repainted:
+   `#importance-chips` in components/sidebar.html is the only `.chip[data-status]`
+   in shipped markup and its one value is `data-status="star"`, so no element can
+   ever receive a memory class — `syncMemoryFilterUI` writes them against an empty
+   set. Proven dead by grep before removal (0 emitters in components/ and
+   index.html). The star variant is the live one and stays. Memory now reads
+   through one app-wide vocabulary (`.rm-diff-*` + `.rm-mem-*`) on the tree; the
+   feed gem is deliberately outside it, on its own neutral ink. */
 
 .memory-detail-rating {
   align-items: center;
@@ -1368,13 +1680,21 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  /* Align label row with range thumb centers (thumb width set on .memory-range). */
-  --memory-range-thumb: 1rem;
-  --memory-range-thumb-half: calc(var(--memory-range-thumb) / 2);
+  /* The thumb width BOTH the range's own thumb and its label row read, declared
+     on the element that is the ancestor of the input *and* of `.memory-range-labels`.
+     This is the fix for the old arrangement: the previous thumb-width token was
+     set only inside this box, while the shared `input.memory-range` thumb rule is
+     matched by the sidebar control too — so that control painted a 1.25rem thumb
+     while everything sized itself against 1rem, and its labels could not have
+     lined up. A custom property inherits down, never sideways, so "declare it on
+     the control" would strand the labels: it has to sit on the shared ancestor,
+     once per control (the sidebar's is on `.memory-indicator-container`). */
+  --rm-thumb: 1rem;
 }
 
 .memory-range-labels {
   position: relative;
+  display: block;
   margin: 0;
   min-height: calc(1.2em + 1px);
   font-size: 0.5rem;
@@ -1395,29 +1715,48 @@ body {
   text-align: center;
 }
 
-/* Stops match thumb centers: 0–3 over min..max (precise alignment) */
-.memory-range-labels .memory-range-lbl[data-step='0'] {
-  left: 2.5%;
-  transform: translateX(-50%);
-  text-align: center;
+/* Thumb-aware centres, one formula shared with the sidebar labels below.
+   A range thumb is `--rm-thumb` wide and its centre travels only
+   `100% - --rm-thumb` of the track, so step i of 3 sits at
+   `thumb/2 + i × (100% - thumb) / 3`. The percentages this replaced (2.5 / 35 /
+   65 / 97.5) were an approximation of that, which is why the last gap measured
+   half the size of the first two. `left` here resolves against the label row's
+   own containing block — a row that is a plain 100%-wide block, so this is not
+   a percentage sizing its own track (the AGENTS.md cycle); it is a position
+   inside a box that already has a width. */
+.memory-range-labels .memory-range-lbl[data-step='0'],
+.memory-labels-enhanced .memory-lbl-enhanced[data-step='0'] {
+  left: calc(var(--rm-thumb) / 2);
   max-width: 50%;
 }
 
-.memory-range-labels .memory-range-lbl[data-step='1'] {
-  left: 35%;
-  transform: translateX(-50%);
+.memory-range-labels .memory-range-lbl[data-step='1'],
+.memory-labels-enhanced .memory-lbl-enhanced[data-step='1'] {
+  left: calc(var(--rm-thumb) / 2 + (100% - var(--rm-thumb)) / 3);
 }
 
-.memory-range-labels .memory-range-lbl[data-step='2'] {
-  left: 65%;
-  transform: translateX(-50%);
+.memory-range-labels .memory-range-lbl[data-step='2'],
+.memory-labels-enhanced .memory-lbl-enhanced[data-step='2'] {
+  left: calc(var(--rm-thumb) / 2 + (100% - var(--rm-thumb)) * 2 / 3);
 }
 
-.memory-range-labels .memory-range-lbl[data-step='3'] {
-  left: 97.5%;
-  transform: translateX(-50%);
-  text-align: center;
+.memory-range-labels .memory-range-lbl[data-step='3'],
+.memory-labels-enhanced .memory-lbl-enhanced[data-step='3'] {
+  left: calc(100% - var(--rm-thumb) / 2);
   max-width: 50%;
+}
+
+/* The step the control is on. `value`-attribute selectors cannot reach these
+   labels from either control: the sidebar's labels are a sibling of
+   `.memory-progress-bar`, which is the input's *parent*, so the
+   `.enhanced-memory-range[value="N"] ~ .memory-labels-enhanced …` rules that
+   used to sit here could never match anything (they were dead on arrival even
+   though `syncSidebarMemoryRange` kept writing the attribute "For CSS
+   highlighting"). The renderer toggles `.is-active` on the matching label
+   instead, on both controls, so the word for the current step is lit. */
+.memory-range-labels .memory-range-lbl.is-active,
+.memory-labels-enhanced .memory-lbl-enhanced.is-active {
+  color: var(--text);
 }
 
 #detail-memory-range.memory-range,
@@ -1441,22 +1780,20 @@ input.memory-range:disabled {
 input.memory-range::-webkit-slider-runnable-track {
   height: 0.375rem;
   border-radius: 62.4375rem;
-  background: linear-gradient(
-    90deg,
-    var(--dot-empty) 0%,
-    var(--mem-dark) 33.33%,
-    var(--mem-mid) 66.66%,
-    var(--mem-lit) 100%
-  );
+  /* The stepped scale over the matte — see --rm-steps. Not a fill that grows
+     with the value: the thumb names the step, so there is no leading fill for
+     the thumb to hide behind. */
+  background-image: var(--rm-steps);
+  background-color: var(--rm-matte);
   box-shadow: inset 0 0 0 1px var(--border2);
 }
 
 input.memory-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   box-sizing: border-box;
-  width: var(--memory-range-thumb, 1rem);
-  height: var(--memory-range-thumb, 1rem);
-  margin-top: calc((0.375rem - var(--memory-range-thumb, 1rem)) / 2);
+  width: var(--rm-thumb);
+  height: var(--rm-thumb);
+  margin-top: calc((0.375rem - var(--rm-thumb)) / 2);
   border-radius: 50%;
   background: var(--text);
   border: 2px solid var(--surface);
@@ -1470,20 +1807,15 @@ input.memory-range:focus-visible::-webkit-slider-thumb {
 input.memory-range::-moz-range-track {
   height: 0.375rem;
   border-radius: 62.4375rem;
-  background: linear-gradient(
-    90deg,
-    var(--dot-empty) 0%,
-    var(--mem-dark) 33.33%,
-    var(--mem-mid) 66.66%,
-    var(--mem-lit) 100%
-  );
+  background-image: var(--rm-steps);
+  background-color: var(--rm-matte);
   box-shadow: inset 0 0 0 1px var(--border2);
 }
 
 input.memory-range::-moz-range-thumb {
   box-sizing: border-box;
-  width: var(--memory-range-thumb, 1rem);
-  height: var(--memory-range-thumb, 1rem);
+  width: var(--rm-thumb);
+  height: var(--rm-thumb);
   border-radius: 50%;
   background: var(--text);
   border: 2px solid var(--surface);
@@ -1500,6 +1832,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.5rem 0;
+  /* This control's thumb really is wider than the detail one, and this box is
+     the nearest ancestor of BOTH the input and `.memory-labels-enhanced`, so
+     the label geometry and the painted thumb finally share one number. */
+  --rm-thumb: 1.25rem;
 }
 
 .memory-progress-bar {
@@ -1518,13 +1854,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
   height: 0.375rem;
   border-radius: 62.4375rem;
   transform: translateY(-50%);
-  background: linear-gradient(
-    90deg,
-    var(--dot-empty) 0%,
-    var(--mem-dark) 33.33%,
-    var(--mem-mid) 66.66%,
-    var(--mem-lit) 100%
-  );
+  /* Identical to the detail control's track: same four levels, different job
+     (this one filters the feed, it does not rate a question). */
+  background-image: var(--rm-steps);
+  background-color: var(--rm-matte);
   box-shadow: 
     inset 0 0 0 1px var(--border2),
     0 1px 0 rgba(255, 255, 255, 0.03);
@@ -1552,9 +1885,11 @@ input.memory-range:focus-visible::-moz-range-thumb {
 .enhanced-memory-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   box-sizing: border-box;
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-top: calc((0.375rem - 1.25rem) / 2);
+  /* Sized from the token the labels use, not from a literal that could drift
+     from it (this is the 1.25rem-vs-1rem half of the mis-centred labels). */
+  width: var(--rm-thumb);
+  height: var(--rm-thumb);
+  margin-top: calc((0.375rem - var(--rm-thumb)) / 2);
   border-radius: 50%;
   background: var(--text);
   border: 0.1875rem solid var(--surface);
@@ -1593,8 +1928,8 @@ input.memory-range:focus-visible::-moz-range-thumb {
 
 .enhanced-memory-range::-moz-range-thumb {
   box-sizing: border-box;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--rm-thumb);
+  height: var(--rm-thumb);
   border-radius: 50%;
   background: var(--text);
   border: 0.1875rem solid var(--surface);
@@ -1617,102 +1952,41 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .memory-labels-enhanced {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  /* Absolutely positioned stops, the same mechanism the detail control uses.
+     This row used to be `display: flex; justify-content: space-between` with
+     `flex: 1` children, which centres them at 12.5 / 37.5 / 62.5 / 87.5% of the
+     row — while a range thumb travels only `track − thumb`, so on a 320px track
+     with a 1.25rem thumb the centres are 8 / 112 / 216 / 320. Two different
+     scales labelled as one: the visible symptom was the last gap collapsing
+     (measured 120 / 200 / 280 / 312px, gaps 80 / 80 / 32). The `left` values
+     live in the shared thumb-aware block above `.memory-range-labels`, and the
+     `padding: 0 2px` this row used to carry is gone so its box is exactly the
+     input's box. */
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 1em;
   margin-top: 2px;
-  padding: 0 2px;
 }
 
 .memory-lbl-enhanced {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  text-align: center;
+  white-space: nowrap;
   font-size: 0.5625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--dimmer);
   line-height: 1;
-  text-align: center;
-  flex: 1;
   transition: color 0.2s ease;
 }
 
-
-
-/* Active state highlighting */
-.enhanced-memory-range[value="0"] ~ .memory-labels-enhanced .memory-lbl-enhanced[data-step="0"],
-.enhanced-memory-range[value="1"] ~ .memory-labels-enhanced .memory-lbl-enhanced[data-step="1"],
-.enhanced-memory-range[value="2"] ~ .memory-labels-enhanced .memory-lbl-enhanced[data-step="2"],
-.enhanced-memory-range[value="3"] ~ .memory-labels-enhanced .memory-lbl-enhanced[data-step="3"] {
-  color: var(--text);
-}
-
-.memory-legend-slider {
-  position: relative;
-  width: min(5.5rem, 22vw);
-  height: 0.75rem;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.memory-legend-bar {
-  display: block;
-  width: 100%;
-  height: 0.3125rem;
-  border-radius: 62.4375rem;
-  background: linear-gradient(
-    90deg,
-    var(--dot-empty) 0%,
-    var(--mem-dark) 33.33%,
-    var(--mem-mid) 66.66%,
-    var(--mem-lit) 100%
-  );
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
-}
-
-.memory-legend-ticks {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
-  padding: 0 1px;
-}
-
-.memory-legend-ticks > i {
-  display: block;
-  width: 0.3125rem;
-  height: 0.3125rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-sizing: border-box;
-}
-
-/* Slider step 0 — same fill as range track left stop + edge (card dots use same tokens). */
-.memory-legend-ticks > i:nth-child(1) {
-  background: var(--dot-empty);
-  border: 1px solid color-mix(in srgb, var(--border2) 55%, var(--dimmer));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.memory-legend-ticks > i:nth-child(2) {
-  background: var(--mem-dark);
-  border: 1px solid color-mix(in srgb, var(--mem-dark) 55%, #000);
-}
-
-.memory-legend-ticks > i:nth-child(3) {
-  background: var(--mem-mid);
-  border: 1px solid color-mix(in srgb, var(--mem-mid) 50%, #000);
-}
-
-.memory-legend-ticks > i:nth-child(4) {
-  background: var(--mem-lit);
-  border: 1px solid color-mix(in srgb, var(--mem-lit) 45%, #000);
-}
+/* The dead legend-strip rules that used to follow this (a fourth, unshipped
+   copy of the slider key row) are deleted: 0 emitters in view/, components/ or
+   index.html, grep-verified before removal. */
 
 .sidebar.learning-mode .sb-header {
   box-shadow: inset 0 -1px 0 var(--accent);
@@ -1754,9 +2028,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .tag-clear-all:hover {
-  color: var(--hard);
-  background: var(--hard-bg);
-  border-color: var(--hard-border);
+  /* --danger*, not --hard*: this ✕ clears every selected tag. It is not telling
+     you the question is hard, and sharing the difficulty token made a Hard
+     question and a destructive button the same colour. */
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
 }
 
 .tag-clear-all[hidden] {
@@ -1821,8 +2098,9 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .tag-selected-remove:hover {
-  color: var(--hard);
-  background: var(--hard-bg);
+  /* Destructive, not difficult — see .tag-clear-all:hover. */
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 /* Tag search wrapper */
@@ -2029,7 +2307,30 @@ input.memory-range:focus-visible::-moz-range-thumb {
   padding-right: 1.875rem;
 }
 
-/* Feed card: single memory state marker (replaces five-dot row in footer). */
+/* Feed card: the memory marker, a COLOURLESS dot.
+    This is deliberately NOT the tree's vocabulary. The gem carries no
+   `--diff-*`, no `--easy/--medium/--hard`, no accent and no `--rm-*`: it reads
+   its own neutral ink (`--card-mem-ink`, one value per theme) at four alphas, so
+   a card in the feed never borrows a difficulty colour it has no business
+   showing, and the card and the tree can move apart later without either one
+   dragging the other. The state classes are the ones `view/app.js` already
+   emits from `detailMemorySliderValueForId` — `.unseen`, `.forgot`, `.shaky`,
+   `.knew` — and they are not renamed here; this is styling only.
+   Ladder: unseen is the faintest thing on the card (no fill at all, just the
+   edge), then 25 / 55 / 100%. The edge is constant across all four so the dot
+   has the same apparent size whichever state it is in, and the fill never has to
+   carry "is there even a dot here".
+   What was deleted with this rewrite: the grey `--mem-*` fills, the four
+   difficulty-coloured `rm-mem-*`/`rm-diff-*` reads, and the two
+   `.qcard.selected .qcard-memory.*` overrides underneath — selecting a card used
+   to re-colour its own memory marker, so "how well do I know this" changed when
+   you clicked it. Selection already has a channel (the card's border and
+   background); it must not borrow memory's.
+   Geometry is untouched: same 0.5625rem box, same absolute corner placement, so
+   the card's flow cannot move. No matte layer here (unlike a leaf): the dot sits
+   on the card's own surface, and because it is one neutral ink at monotone
+   alpha, the *rank order* of the four states cannot invert even where a selected
+   card paints its gradient behind it. */
 .qcard-memory {
   position: absolute;
   bottom: 0.4375rem;
@@ -2041,53 +2342,26 @@ input.memory-range:focus-visible::-moz-range-thumb {
   pointer-events: none;
   box-sizing: border-box;
   flex-shrink: 0;
-  background: var(--dot-empty);
-  border: 1px solid color-mix(in srgb, var(--border2) 55%, var(--dimmer));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --card-mem-alpha: 0%;
+  background-color: color-mix(in srgb, var(--card-mem-ink) var(--card-mem-alpha), transparent);
+  border: 1px solid color-mix(in srgb, var(--card-mem-ink) var(--card-mem-edge), transparent);
 }
 
-.qcard-memory.knew {
-  background: var(--mem-lit);
-  border: 1px solid color-mix(in srgb, var(--mem-lit) 45%, #000);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-}
-
-.qcard-memory.shaky {
-  background: var(--mem-mid);
-  border: 1px solid color-mix(in srgb, var(--mem-mid) 50%, #000);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+/* The four states are one custom property apart, never a recolour. */
+.qcard-memory.unseen {
+  --card-mem-alpha: 0%;
 }
 
 .qcard-memory.forgot {
-  background: var(--mem-dark);
-  border: 1px solid color-mix(in srgb, var(--mem-dark) 55%, #000);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --card-mem-alpha: var(--card-mem-alpha-forgot);
 }
 
-.qcard.selected .qcard-memory.knew {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--mem-lit) 40%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.3);
+.qcard-memory.shaky {
+  --card-mem-alpha: var(--card-mem-alpha-shaky);
 }
 
-.qcard.selected .qcard-memory.shaky {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--mem-mid) 45%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.qcard.selected .qcard-memory.forgot {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--mem-dark) 45%, transparent),
-    0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.qcard.selected .qcard-memory.unseen {
-  background: color-mix(in srgb, var(--dot-empty) 72%, var(--accent-bg-strong));
-  border-color: color-mix(in srgb, var(--border2) 35%, var(--accent-soft));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(59, 130, 246, 0.22);
+.qcard-memory.knew {
+  --card-mem-alpha: 100%;
 }
 
 .qcard-stripe {
@@ -2098,16 +2372,17 @@ input.memory-range:focus-visible::-moz-range-thumb {
   margin: -1px 0 -1px -1px;
 }
 
+/* Card stripe: the level hue, read through the indirection layer only. */
 .qcard-stripe.E {
-  background: var(--easy);
+  background: var(--diff-easy);
 }
 
 .qcard-stripe.M {
-  background: var(--medium);
+  background: var(--diff-medium);
 }
 
 .qcard-stripe.H {
-  background: var(--hard);
+  background: var(--diff-hard);
 }
 
 .qcard-body {
@@ -2159,104 +2434,13 @@ input.memory-range:focus-visible::-moz-range-thumb {
   color: var(--accent-soft);
 }
 
-/* Five-dot memory row (see memoryDotsMarkup in app.js). Use span.memory-dots inside <button>. */
-.memory-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.memory-dots.memory-dots--compact {
-  gap: 1.5px;
-}
-
-.memory-dots.memory-dots--compact > span {
-  width: 0.25rem;
-  height: 0.25rem;
-}
-
-.memory-dots.memory-dots--tiny {
-  gap: 1px;
-}
-
-.memory-dots.memory-dots--tiny > span {
-  width: 0.1875rem;
-  height: 0.1875rem;
-}
-
-.memory-dots.memory-dots--chip {
-  gap: 1px;
-}
-
-.memory-dots.memory-dots--chip > span {
-  width: 0.1875rem;
-  height: 0.1875rem;
-}
-
-.memory-dots > span {
-  width: 0.3125rem;
-  height: 0.3125rem;
-  border-radius: 50%;
-  background: var(--dot-empty);
-  flex-shrink: 0;
-  box-sizing: border-box;
-}
-
-.memory-dots.knew > span {
-  background: var(--mem-lit);
-  border: 1px solid color-mix(in srgb, var(--mem-lit) 45%, #000);
-}
-
-.memory-dots.shaky > span:nth-child(-n + 3) {
-  background: var(--mem-mid);
-  border: 1px solid color-mix(in srgb, var(--mem-mid) 50%, #000);
-}
-
-.memory-dots.forgot > span:first-child {
-  background: var(--mem-dark);
-  border: 1px solid color-mix(in srgb, var(--mem-dark) 55%, #000);
-}
-
-/* Unseen = slider value 0: track fill (--dot-empty), not hollow rings (readable on qcard / chips). */
-.memory-dots.unseen > span {
-  background: var(--dot-empty);
-  border: 1px solid color-mix(in srgb, var(--border2) 55%, var(--dimmer));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-/* Smaller dot variants: avoid thick ring — outline via shadow. */
-.memory-dots.memory-dots--chip.unseen > span,
-.memory-dots.memory-dots--tiny.unseen > span,
-.memory-dots.memory-dots--compact.unseen > span {
-  border: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 0 0 1px color-mix(in srgb, var(--border2) 50%, var(--muted));
-}
-
-.qcard.selected .memory-dots.unseen > span {
-  background: color-mix(in srgb, var(--dot-empty) 72%, var(--accent-bg-strong));
-  border-color: color-mix(in srgb, var(--border2) 35%, var(--accent-soft));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(59, 130, 246, 0.22);
-}
-
-.qcard.selected .memory-dots.memory-dots--chip.unseen > span,
-.qcard.selected .memory-dots.memory-dots--tiny.unseen > span,
-.qcard.selected .memory-dots.memory-dots--compact.unseen > span {
-  border: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 0 1px rgba(121, 184, 255, 0.35);
-}
-
-.memory-legend-keys {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
+/* The five-dot memory row (every size variant, every state rule, and the two
+   selected-card overrides) and the legend-keys row are deleted. Grep proof
+   before removal: 0 emitters in components/ and index.html, and the only
+   function that ever produced this markup — `memoryDotsMarkup` in app.js — has
+   no call site there, just a definition and a doc comment naming the class.
+   Those JS lines belong to B's file to tidy; the CSS goes here because the gem
+   above is the live memory marker on a card. */
 
 /* ═══ Detail panel ═══ */
 .detail.main-panel {
@@ -2410,19 +2594,23 @@ input.memory-range:focus-visible::-moz-range-thumb {
   letter-spacing: 0.04em;
 }
 
+/* Detail-header difficulty badge: derived plate + `--diff-*-fg` text, for the same
+   reason the chips read `-fg` — this is a ~12px uppercase label on a 14% plate of its
+   own hue, and the plain hue is 3.62:1 there in dark. The plate and the roadmap cell
+   keep the plain `--diff-*`: this trio is text only. */
 .diff-badge.E {
-  background: var(--easy-bg);
-  color: var(--easy);
+  background: var(--diff-easy-bg);
+  color: var(--diff-easy-fg);
 }
 
 .diff-badge.M {
-  background: var(--medium-bg);
-  color: var(--medium);
+  background: var(--diff-medium-bg);
+  color: var(--diff-medium-fg);
 }
 
 .diff-badge.H {
-  background: var(--hard-bg);
-  color: var(--hard);
+  background: var(--diff-hard-bg);
+  color: var(--diff-hard-fg);
 }
 
 .q-header-star {
@@ -2441,57 +2629,13 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: none;
 }
 
-.rate-btn {
-  flex: 1;
-  max-width: 8.75rem;
-  font-family: inherit;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 0.5rem 0.625rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border2);
-  background: var(--surface2);
-  color: var(--muted);
-  cursor: pointer;
-  transition: border-color 0.12s, transform 0.08s;
-}
-
-.rate-btn:hover {
-  color: var(--text);
-}
-
-.rate-know {
-  border-color: #1a3a28;
-  background: rgba(13, 42, 26, 0.35);
-  color: var(--easy);
-}
-
-.rate-shaky {
-  border-color: #4a3a10;
-  background: rgba(42, 32, 16, 0.45);
-  color: var(--medium);
-}
-
-.rate-review {
-  border-color: #4a1a1a;
-  background: rgba(42, 16, 16, 0.45);
-  color: var(--hard);
-}
-
-.rate-btn.active-know {
-  box-shadow: 0 0 0 2px rgba(78, 201, 148, 0.35);
-  border-color: var(--easy);
-}
-
-.rate-btn.active-shaky {
-  box-shadow: 0 0 0 2px rgba(221, 180, 86, 0.35);
-  border-color: var(--medium);
-}
-
-.rate-btn.active-review {
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.35);
-  border-color: var(--hard);
-}
+/* The three rating buttons and their active states are deleted as dead CSS:
+   `#rating-bar` — still here, still the container of the memory slider — ships
+   no button children in any partial, and grep over view/ and components/ found
+   0 markup emitters. `updateRatingButtons` still queries that class and an
+   id-list fallback; both return empty lists today, so removing the paint changes
+   no behaviour. That JS is B's file: it should stay, annotated as dead markup
+   kept for legacy partials. Rating now happens on the slider. */
 
 #detail-title.detail-title {
   font-size: 1.375rem; /* Increased from 19px for better prominence */
@@ -2565,20 +2709,10 @@ input.memory-range:focus-visible::-moz-range-thumb {
   border-radius: 0.3125rem;
 }
 
-.meta-difficulty-E {
-  background: var(--easy-bg);
-  color: var(--easy);
-}
-
-.meta-difficulty-M {
-  background: var(--medium-bg);
-  color: var(--medium);
-}
-
-.meta-difficulty-H {
-  background: var(--hard-bg);
-  color: var(--hard);
-}
+/* The three per-difficulty variants of `.meta-badge` are deleted: 0 emitters in
+   view/ or components/ (the live detail header badge is `.diff-badge`, and the
+   palette rows use `.qcard-stripe`). `.meta-badge`, `.meta-sec` and `.meta-star`
+   are live and stay. */
 
 .meta-star {
   background: rgba(245, 158, 11, 0.12);
@@ -2655,17 +2789,27 @@ input.memory-range:focus-visible::-moz-range-thumb {
   }
 
   /* A packed run of single-card rows (buildDetailRows' band entry): one grid
-     item spanning the body and hosting its own two columns, filled top-down
-     in column 1 first — `grid-auto-flow: column` with the row count the
-     renderer sets inline to min(cards, 2) stacks the first two cards in
-     column 1 and sends any overflow to column 2 from its row 1, instead of
-     leaving a hole per lone card. This is the packing the renderer declares
-     per row at flatten time — the opposite of the `dense` auto-placement
-     .detail-body refuses above. */
+     item spanning the body and hosting its own two columns, filled in declared
+     order by plain row flow — cards 1 and 2 side by side on row 1, a third
+     card starting row 2 at half width. This is the packing the renderer
+     declares per row at flatten time; it is the opposite of the `dense`
+     auto-placement .detail-body refuses above (row flow never re-pairs across a
+     declared row, it just fills each row before starting the next).
+     `grid-auto-flow: column` used to sit here, paired with the renderer's
+     inline `grid-template-rows: repeat(min(n, 2), max-content)`. That was a
+     mistake for the common run: a 2-card band placed both cards in rows 1–2 of
+     the *first* column and left the entire second column empty (measured on
+     tech-1: two 1066px cards at the same x, y=206 and y=353, in a 2192px body
+     whose two 1065.7px columns were 100% unused on one side). 129 of the 357
+     questions ship a 2-card band, so the empty column was the normal case, not
+     an edge. Row flow gives those bands the same half-width columns with no
+     hole. The band keeps no height, no max-height and no overflow-y, and
+     `.db-band`'s `grid-auto-rows: max-content` is untouched — the row count the
+     renderer writes inline stays meaningful (it pre-sizes rows 1–2 for n ≤ 4
+     and any n ≥ 5 falls through to that implicit `max-content` sizing). */
   .detail-body > .db-band {
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-auto-flow: column;
   }
 }
 
@@ -2996,152 +3140,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: none !important;
 }
 
-/* ═══ Memory filter slider ═══ */
-.memory-slider--filter {
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  background: var(--surface2);
-}
-
-.memory-filter-track-shell {
-  position: relative;
-  margin-bottom: 0.375rem;
-}
-
-.memory-filter-track {
-  height: 0.1875rem;
-  background: var(--border2);
-  border-radius: 2px;
-  position: relative;
-  overflow: hidden;
-}
-
-.memory-filter-track-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.2s ease;
-  width: 0%;
-}
-
-.memory-filter-tickstrip {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.25rem;
-}
-
-.memory-filter-tick {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  font-size: 0.5625rem;
-  color: var(--dim);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 0.1875rem;
-  min-width: 1.25rem;
-}
-
-.memory-filter-tick:hover {
-  background: var(--surface-elevated);
-}
-
-.memory-filter-tick-notch {
-  width: 2px;
-  height: 0.5rem;
-  background: var(--border2);
-  border-radius: 1px;
-}
-
-.memory-filter-n {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-.memory-filter-hits {
-  display: flex;
-  gap: 1px;
-  margin-top: 0.375rem;
-}
-
-.memory-filter-hit {
-  flex: 1;
-  padding: 0.25rem 2px;
-  background: none;
-  border: none;
-  color: var(--dim);
-  font-size: 0.5625rem;
-  font-weight: 500;
-  text-align: center;
-  cursor: pointer;
-  border-radius: 0.1875rem;
-  transition: all 0.15s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.memory-filter-hit:hover {
-  background: var(--surface-elevated);
-  color: var(--text);
-}
-
-.memory-filter-hit.active-unseen {
-  background: var(--surface-elevated);
-  color: var(--text);
-  box-shadow: 0 0 0 1px var(--border2);
-}
-
-.memory-filter-hit.active-review {
-  background: var(--forgot-bg);
-  color: var(--hard);
-  box-shadow: 0 0 0 1px var(--hard);
-}
-
-.memory-filter-hit.active-shaky {
-  background: var(--shaky-bg);
-  color: var(--medium);
-  box-shadow: 0 0 0 1px var(--medium);
-}
-
-.memory-filter-hit.active-know {
-  background: var(--knew-bg);
-  color: var(--easy);
-  box-shadow: 0 0 0 1px var(--easy);
-}
-
-.memory-filter-pos {
-  display: block;
-  font-size: 0.5rem;
-  opacity: 0.6;
-}
-
-.memory-filter-lbl {
-  display: block;
-  margin-top: 1px;
-}
-
-/* Enhanced tick emphasis when status is active */
-.sidebar:has(.memory-filter-hit.active-unseen) .memory-filter-tick[data-status="unseen"] .memory-filter-tick-notch {
-  background: var(--text);
-}
-
-.sidebar:has(.memory-filter-hit.active-review) .memory-filter-tick[data-status="review"] .memory-filter-tick-notch,
-.memory-filter-hit.active-review {
-  background: var(--hard);
-}
-
-.sidebar:has(.memory-filter-hit.active-shaky) .memory-filter-tick[data-status="shaky"] .memory-filter-tick-notch,
-.memory-filter-hit.active-shaky {
-  background: var(--medium);
-}
-
-.sidebar:has(.memory-filter-hit.active-know) .memory-filter-tick[data-status="know"] .memory-filter-tick-notch,
-.memory-filter-hit.active-know {
-  background: var(--easy);
-}
+/* ═══ The dead "Memory filter slider" block is deleted ═══════════════════
+   All twenty-odd rules of it — the filter shell, its track and fill, the tick
+   strip with its notches and counts, the hit row with its four status variants,
+   the position and label spans, and the four `.sidebar:has(...)` emphasis rules
+   that keyed off those variants. Grep over view/app.js, view/theme-init.js,
+   every file in components/ and index.html found NO emitter for any of those
+   class names (0 markup hits), so the whole affordance was styled and never
+   drawn.
+   One live-JS caveat, which is why this stays behaviour-neutral:
+   `syncMemoryFilterUI` still queries the hit row twice (once to clear classes,
+   once to find the active hit). Both queries match nothing in shipped markup, so
+   they are no-ops — the JS belongs to B's file and stays, the paint goes.
+   The real, live filter control is `#sidebar-memory-range` + `.memory-track` +
+   `.memory-labels-enhanced`, restyled above. */
 
 /* ═══ Command palette ═══ */
 .cmd-overlay {
@@ -3308,17 +3320,11 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: block;
 }
 
-.cmd-result-item.qcard .qcard-stripe.E {
-  background: var(--easy);
-}
-
-.cmd-result-item.qcard .qcard-stripe.M {
-  background: var(--medium);
-}
-
-.cmd-result-item.qcard .qcard-stripe.H {
-  background: var(--hard);
-}
+/* The palette's three per-level colour overrides used to sit here, byte-for-byte
+   duplicates of the `.qcard-stripe.E|.M|.H` rules above. They are deleted: the
+   base rules paint the same hue through `--diff-*`, so the copies could only
+   drift. The geometry override above stays — it is the one thing here that is
+   not a duplicate (the palette needs the stripe forced to `display: block`). */
 
 /* ── Rich-row contract (emitted by the palette renderer, not the feed) ──
    Everything here is scoped under .cmd-results so these class names can
@@ -3508,7 +3514,9 @@ input.memory-range:focus-visible::-moz-range-thumb {
 }
 
 .mermaid-error {
-  color: var(--hard);
+  /* A failed render is a warning, not a Hard question: --danger. This is the
+     third and last non-difficulty reader of --hard in the sheet. */
+  color: var(--danger);
   font-size: 0.6875rem;
   white-space: pre-wrap;
 }
@@ -3658,8 +3666,11 @@ input.memory-range:focus-visible::-moz-range-thumb {
    The pane is a sibling `.detail-inner` of the question view (see
    #detail-roadmap in components/detail-panel.html), so it inherits the pane's
    flex slot, the scroll and the named `detail` container. Lengths are rem —
-   1–2px exceptions are marked. The rail's own numbers are measured in JS
-   (buildRoadmapRail), which is why nothing here sizes its internals. */
+   1–2px exceptions are marked. The cell square and the gutter come from
+   `--rm-cell` / `--rm-gap` in the geometry block above, so nothing in here needs a
+   number measured from the DOM. Any row length that has to scale with a question
+   count follows the same law the deleted trunk left behind: absolute unit × count,
+   never a share of the pane it also sizes. */
 
 /* This pane is the one scroller, which is what lets `.roadmap-head` be pinned
    with `position: sticky` instead of adding a second scroll box below it.
@@ -3667,10 +3678,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
    natural heights while the content scrolls. The height/max-height/overflow-y
    ban is on the answer cards, not on the pane: nothing inside takes a definite
    height except the fixed squares, so no implicit row can collapse — the trap
-   AGENTS.md records for `.notion-block`. */
+   AGENTS.md records for `.notion-block`.
+   `overflow-x` is `auto`, not `hidden`, and that is the whole overflow contract:
+   the widest matrix row is 846.9px of cells plus 3px of column-gap plus the 150px
+   label column = 999.9px, or 1049.4px counting the pane's own 1.375rem padding,
+   against a 700px pane, and a
+   `hidden` here CLIPPED the difference away — with the tree's tape it looked
+   intentional, in the matrix it would silently delete the tail of a section, which
+   is the same class of bug as a clipped answer. `auto` on this axis makes the pane
+   the single horizontal scroller too, so cells stay at `--rm-cell` — 22px — at every
+   width instead of being squished or wrapped; at the ladder floor the widest row is
+   700.0px and does not scroll at all. Note the consequence for the head, next rule. */
 #detail-roadmap {
   display: block;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 0 1.375rem 1.25rem;
 }
@@ -3682,8 +3703,12 @@ input.memory-range:focus-visible::-moz-range-thumb {
   display: none;
 }
 
+/* Both axes can scroll now, so the webkit bar needs a height as well as a width —
+   with only `width` declared, a horizontal scrollbar gets the platform default and
+   eats a row's worth of pane. */
 #detail-roadmap::-webkit-scrollbar {
   width: 0.375rem;
+  height: 0.375rem;
 }
 
 #detail-roadmap::-webkit-scrollbar-thumb {
@@ -3695,10 +3720,20 @@ input.memory-range:focus-visible::-moz-range-thumb {
 /* Sticky at the top of that one scroller. The pane has no top padding, so the
    head carries it: with padding on the scroller, a `top: 0` head would stick
    below the padding band and the content would show through above it. The
-   negative sides let its background and rule bleed to the pane's edges. */
+   negative sides let its background and rule bleed to the pane's edges.
+   It is pinned on BOTH axes now, because the pane scrolls sideways too: with only
+   `top`, panning a wide row right would slide the header's background and its
+   bottom rule out of view and leave the band above the rows unpainted. The pin
+   offset is the same 1.375rem the rule's own negative margin uses, which is what
+   keeps the bleed intact — sticky clamps the box at that offset rather than at the
+   padding edge, so the head still covers the full scrollport width at every scroll
+   position. UNVERIFIED IN A BROWSER, and it is the one line here I would look at
+   first: if the left edge shows a seam or the rule stops short at scrollLeft 0, the
+   fix is to drop the negative margin/padding pair rather than to fight this offset. */
 .roadmap-head {
   position: sticky;
   top: 0;
+  inset-inline-start: -1.375rem;
   z-index: 3; /* above a cell's ring, which paints at z-index 2 */
   margin: 0 -1.375rem;
   padding: 1rem 1.375rem 0.625rem;
@@ -3781,210 +3816,566 @@ input.memory-range:focus-visible::-moz-range-thumb {
   background: var(--border2);
 }
 
-/* Legend keys. The colour swatches reuse the cells' `.rm-mem-*` fills and the
-   shape keys the cells' `.rm-shape-*` radii, so the legend can never drift from
-   what the map actually draws. */
-.roadmap-swatch,
-.roadmap-shape {
+/* Legend keys. Every key is a `.roadmap-swatch` square carrying the cells' own
+   classes — `.rm-mem-N` for the memory row, `.rm-diff-X` for the difficulty row — so
+   the legend cannot drift from what the map draws: it *is* the same paint.
+   This row is load-bearing, not decorative. Difficulty is now hue alone (the
+   E-circle / M-rounded / H-shape dialect is deleted), so there is no redundant
+   second channel: a deuteranopic reader separating Easy from Medium is reading
+   these words. Keep it styled, keep it visible, and keep any new channel named
+   here. The old shape keys die with `[D-9]` — they had no colour left to say.
+   Two known drifts, both for the user to settle from the mock rather than here: the
+   playground renders its legend keys at FULL cell size while these stay 0.5rem, which
+   the record's star turns from cosmetic into a real problem (the arithmetic and the
+   one-line fix are on `.roadmap-swatch.rm-key-star`); and the third mark group, the
+   ghost key, is deleted below because the matrix draws hidden cells like any other. */
+.roadmap-swatch {
   display: inline-block;
+  flex-shrink: 0;
   width: 0.5rem;
   height: 0.5rem;
   border: 1px solid transparent;
+  border-radius: 0.125rem; /* the same radius a cell has */
   box-sizing: border-box;
 }
 
-.roadmap-swatch {
-  border-radius: 50%;
+/* The importance key shows what a starred cell now shows: a 2px edge, same rule as
+   `.rm-cell.rm-star`, no clip. It is HOLLOW (`--rm-mem-level: 0%`) on purpose, which is
+   the counter-intuitive part of this rule, so the reason is here rather than in a
+   commit message: the edge and the field are the same hue, so at 100% the two merge
+   into one solid square and the bold edge — the thing being explained — disappears.
+   A known-and-starred cell has exactly that problem in the map too (see
+   `.rm-cell.rm-star`), and the key must not demonstrate it. 0% also happens to be the
+   state where the cue is strongest, and the markup supplies no `.rm-mem-N` on this key,
+   so both the level and the border colour are set here: the colour falls back to
+   `--rm-hue` = `--text`, a neutral, because the key explains importance and must not
+   borrow a difficulty's colour to do it.
+   Proportional caveat, since the map and the key are not the same size: 2px is 9.1% of
+   a 22px cell's side and 22.6% of this key's 0.5rem side, so the key shouts the thing
+   the cell states quietly. If that reads wrong in the browser, the one-line fix is to
+   size the keys from the cell (`width/height: var(--rm-cell)`, which is what the
+   playground does) rather than to thin this border. */
+.roadmap-swatch.rm-key-star {
+  --rm-mem-level: 0%;
+  border-width: 2px;
+  border-color: var(--rm-hue);
 }
 
-.roadmap-shape {
-  background: var(--dim);
+/* `.roadmap-swatch.rm-key-ghost` (hollow + dashed, the key for the hidden-cell
+   treatment) is deleted with that treatment. It still has one emitter — `rm-key-ghost`
+   in view/app.js — so the legend row needs the class removed there, or the key will
+   render as a bare 1px square that explains nothing. */
+
+/* ── Cells: the shared vocabulary ────────────────────────────────────────────
+   The branching tree that stood here — trunk, branch, twig, `.rm-thick-1..4`,
+   the twig label rows, the trunk marks, the trunk-gap legend key and the three
+   `@container roadmap-tree` unit step-downs — is DELETED: the roadmap is now a
+   section × question matrix. `view/app.js` still emits those class names until
+   the matrix renderer lands, so between this sheet and that rewrite the tree
+   renders unstyled — an ordered, known, transient mismatch, not an oversight.
+   Only the cell vocabulary below survives, because the matrix shares it. Two
+   lessons from that geometry are kept on purpose, since the matrix must obey them
+   too:
+   1. Never measure a container in order to place a mark. The SVG rail that came
+      before the trunk read `host.clientWidth` and split it by leaf share, so one
+      roadmap drew five different rail widths depending on the pane, and it needed
+      a `requestAnimationFrame` retry to wait for a width it could not know. Every
+      length in this sheet is an absolute unit times a count, never a fraction of
+      a box it also sizes.
+   2. A container can never be styled by its own query. A step-down that changes a
+      value has to target a descendant of the container, not the container. */
+
+/* ── The matrix ──────────────────────────────────────────────────────────────
+   Rows are sections (27), columns are questions, grouped into four topic blocks.
+   Two structural rules carry the whole design, and both are the contract's:
+   • `.rm-row` is a two-column grid with a FIXED label track. Never a percentage: a
+     percentage track resolves against the grid it is sizing, which is the cycle
+     AGENTS.md records twice.
+   • `.rm-cells` is a ragged flex run, one per row, so a 4-question section stays
+     short instead of padding out to the widest row. Columns therefore do NOT align
+     down the matrix — that is the chosen price of a ragged edge, and it is what
+     lets every row be its own length.
+   `#roadmap-matrix` itself deliberately gets NO rule of its own: it is a plain
+   block, and giving it a grid or flex context would let a shared column decide
+   where a cell lands, which is what the ragged run exists to avoid. The tree's leaf
+   grid (`.roadmap-cells`) is deleted as a CONTRACT item and re-declared below only as
+   a bridge for the renderer that is still shipping it — an auto-fill grid cannot
+   express a fixed label gutter, and the final contract never emits that class. */
+
+/* LEGACY BRIDGE, not part of the matrix contract: the tree's leaf grid. The
+   renderer still in view/app.js emits `.roadmap-cells` (1 hit), and without its grid
+   those cells are `display: block` in a plain div — 34 of them stacked one per line,
+   a wall of ~750px per section instead of a short unstyled row. It is a fixed-track
+   auto-fill grid, so it lays out correctly at the record's 22px square too. Delete
+   this rule in the same commit that drops the `.roadmap-cell` half of the shared
+   rules above; it is the last thing the cancelled tree still needs. */
+.roadmap-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--rm-cell));
+  gap: var(--rm-gap);
 }
 
-/* ── Rail: one inline SVG bar ───────────────────────────────────── */
-/* Height in rem so the bar tracks the size ladder; buildRoadmapRail measures this
-   box and draws in px of its own, one user unit to one CSS px. */
-.roadmap-rail {
-  height: 2.5rem;
-  margin: 0.75rem 0 1rem;
+/* One block per topic: a header line, then its section rows. */
+.rm-block {
+  margin: 0 0 0.75rem;
 }
 
-.roadmap-rail-svg {
-  display: block;
-  overflow: visible;
-}
-
-/* stroke-width is in SVG user units, which are CSS px inside this viewBox (the
-   viewBox is the measured box) — the same hairline exception as the borders. */
-.roadmap-rail .rr-track {
-  fill: var(--surface3);
-  stroke: var(--border2);
-  stroke-width: 1;
-}
-
-.roadmap-rail .rr-fill {
-  fill: var(--easy);
-}
-
-/* you-are-here: a ring, in the same token the selected card uses — never the
-   state colour, because the fill already says how much of the band is known. */
-.roadmap-rail .rr-here {
-  fill: none;
-  stroke: var(--selected-border);
-  stroke-width: 2;
-}
-
-.roadmap-rail .rr-label {
-  fill: var(--dim);
-  font-family: var(--font-sans);
-  font-weight: 600;
-}
-
-.roadmap-rail-seg {
-  cursor: pointer;
-}
-
-.roadmap-rail-seg:hover .rr-track {
-  fill: var(--accent-bg-strong);
-  stroke: var(--accent-border-soft);
-}
-
-/* ── Bands of heatmap cells ─────────────────────────────────────── */
-.roadmap-band {
-  border: 1px solid var(--border);
-  border-radius: 0.625rem;
-  background: var(--surface2);
-  padding: 0.625rem 0.75rem 0.75rem;
-  margin-bottom: 0.625rem;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-/* Set by hovering the matching rail segment. */
-.roadmap-band.band-hover {
-  border-color: var(--hover-border);
-  background: var(--surface3);
-}
-
-.roadmap-band.band-flash {
-  animation: roadmap-band-flash 0.9s ease;
-}
-
-@keyframes roadmap-band-flash {
-  from {
-    border-color: var(--selected-border);
-    box-shadow: 0 0 0 0.1875rem var(--ring);
-  }
-  to {
-    border-color: var(--border);
-    box-shadow: 0 0 0 0.1875rem transparent;
-  }
-}
-
-.roadmap-band-hd {
+.rm-block-hd {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.75rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.3125rem;
+  font-size: 0.8125rem; /* 13px at the reference, the mock's number */
+}
+
+.rm-block-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   color: var(--text);
 }
 
-.roadmap-band-tally {
-  font-weight: 500;
+.rm-block-count {
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
-.roadmap-band-diffs {
-  margin-left: auto;
-  font-size: 0.625rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--dim);
-}
-
-/* Fixed 0.875rem tracks in 0.25rem gaps, wrapped by the row's own width: no
-   clamp(), and so no percentage in a grid-item minimum to break the cycle. */
-.roadmap-cells {
+/* A row: label column, then the ragged run. `align-items: center` is what keeps the
+   cells centred against a two-line label (`.rm-row-sub`) or one carrying the V2 bar,
+   with no measured height anywhere. */
+.rm-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 0.875rem);
-  gap: 0.25rem;
+  grid-template-columns: var(--rm-label) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--rm-row-gap);
+  margin-bottom: var(--rm-row-gap);
 }
 
+.rm-block .rm-row:last-child {
+  margin-bottom: 0;
+}
+
+.rm-row-lab {
+  min-width: 0;
+  padding-inline-start: 0.375rem;
+}
+
+.rm-row-name {
+  font-size: 0.75rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rm-row-sub {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* V2 only: the 3px known-progress rail under a section name, NEUTRAL ink and never
+   a hue — no hue may mean "known" (see the `--diff-easy` note in the dark block),
+   and since the palette moved that rule has teeth: an accent-tinted rail beside a
+   run of easy cells would say the same colour twice for two different facts. The
+   `<i>`'s length arrives inline from the renderer (`width:NN.N%`), so this rule only
+   floors it at 0 — an empty rail, never a falsely full one. A percentage inside the
+   label column is not the sizing cycle: the box it resolves against is the fixed
+   150px label, which the bar does not size.
+   UNMARKED BY TODAY'S RENDERER, and that is the plan's boundary rather than dead
+   code: `view/app.js` has 0 emitters of `rm-row-bar`, `rm-focus` or `rm-lane-hd`, so
+   all three groups below (V2, V3, V4) are inert until their frame's markup lands. They
+   are styled now because the V1 record covers the cells and the pane only, and a frame
+   should not have to re-derive a colour law the sheet already settled. Deleting them
+   would be the mistake in the other direction, so: leave them, and expect the browser
+   to show nothing from them. */
+.rm-row-bar {
+  block-size: 0.1875rem;
+  margin-top: 0.25rem;
+  border-radius: 0.125rem;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.rm-row-bar > i {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  background: var(--muted);
+}
+
+/* The ragged run. `min-width: 0` stops this grid item's automatic minimum size from
+   dragging the label track wider; the cells escape the track instead and the pane
+   scrolls to reach them. `flex-wrap: nowrap` is written out rather than left to the
+   default because wrapping is the OTHER way to avoid squishing — the contract chose
+   scrolling, so nobody should reach 3px-shrunk cells by accident, and nobody should
+   "fix" the overflow by adding wrap without deciding the trade again. */
+.rm-cells {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--rm-gap);
+  min-width: 0;
+}
+
+/* V3 only: the focus strip above the grid, a bordered band of summary text whose
+   `<b>`s are the numbers worth weight. It is the matrix's own first child and styles
+   nothing another frame draws. */
+.rm-focus {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.875rem;
+  margin: 0 0 0.625rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.rm-focus b {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* V4 only: a lane header inside a regrouped block. Same voice as `.rm-block-hd`, one
+   step quieter, so all four frames can be shown at once with no frame borrowing a
+   rule another frame removes. */
+.rm-lane-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.875rem 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.rm-lane-hd:first-child {
+  margin-top: 0;
+}
+
+/* Narrow pane: give the whole width to the cells by moving the label above them,
+   instead of shrinking either. This is the ONLY thing that steps down — the cell
+   square never changes, per the contract. And because a container can never be
+   styled by its own query, the query targets `.rm-row`, a descendant of the `detail`
+   container (`#detail-roadmap`), not the matrix root. The threshold is the question
+   view's own 2-column break (35rem) minus one step, so the pane never treats
+   "narrow" two different ways in the same column. */
+@container detail (max-width: 34rem) {
+  .rm-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.125rem;
+  }
+
+  .rm-row-lab {
+    padding-inline-start: 0;
+  }
+}
+
+/* ── Jump flash ────────────────────────────────────────────────────────────────
+   The renderer's `roadmapFlashRow` (view/app.js) puts `.rm-row-flash` on whatever it
+   just scrolled to and clears it on `animationend` with a 1200ms `setTimeout` as the
+   net. Two facts from that code change what this rule has to be:
+   • The class can land on a BLOCK, not only a row — a jump with no section resolves to
+     `roadmapBlockElement()`, whose label is `.rm-block-name`. Hence the row selector is
+     qualified with `.rm-row`: a bare `.rm-row-flash .rm-row-name` would make every
+     section label in a jumped-to topic block flash at once, which reads as a repaint
+     rather than as a pointer. The block case gets its own, header-scoped selector.
+   • 1200ms is the budget, so 0.5s sits well inside it and the net never truncates the
+     fade. If that timer is ever shortened, this duration goes with it.
+   The animation is on the LABEL and never on a cell: a fill or opacity change on a
+   cell would fake a memory level for half a second, which is the one thing the matte
+   law exists to prevent. Colour is the honest channel here, and `--dim` → `--text` is
+   a large step in BOTH themes (dark #808080 → #f0f0f0, light #9ca3af → #1f2937) with
+   no hue at either end, so a flash can never be misread as difficulty. It also decays
+   INTO the resting colour rather than away from it, matching the house pattern
+   (`.sb-list`'s `sb-list-filter-in` fades 0.65 → 1 on arrival; the tree's
+   `.roadmap-band.band-flash` ran 0.9s on a hue and a ring, which this channel may
+   not). No weight change: bold would relayout the ellipsis mid-flash.
+   NO FILL MODE, and that is the anti-stick guarantee: the shorthand leaves
+   `animation-fill-mode: none`, and the `to` keyframe restates the colour the base
+   rule already gives the label — so the animation's end state and the element's
+   resting state are the same value. A class removed mid-flight snaps back to what it
+   was already heading for; a class that outlives its animation (the 1200ms net) is
+   inert. Nothing here can leave a row stuck.
+   Reduced motion is covered twice, as `.sb-list` does it: the sheet-wide clamp near
+   the top of this file pins every animation to 0.01ms, and this block opts out
+   outright — which means `animationend` never fires and only the 1200ms net clears the
+   class. That is fine, and it is why this treatment must not carry information a user
+   needs: for those users the arrival cue is the instant scroll itself. */
+.rm-row.rm-row-flash .rm-row-name,
+.rm-block.rm-row-flash > .rm-block-hd .rm-block-name {
+  animation: rm-row-flash 0.5s ease-out;
+}
+
+@keyframes rm-row-flash {
+  from {
+    color: var(--dim);
+  }
+
+  to {
+    color: var(--text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rm-row.rm-row-flash .rm-row-name,
+  .rm-block.rm-row-flash > .rm-block-hd .rm-block-name {
+    animation: none;
+  }
+}
+
+/* The cell: one fixed square, UNCLIPPED, carrying only the channels that have to
+   survive a clipped fill.
+   `.rm-cell` is the matrix name; `.roadmap-cell` is the tree name. Both stay in the
+   same rules because the two renderers are landing in parallel and a cell must paint
+   identically whichever class its markup carries — when the matrix rewrite is done,
+   deleting the `.roadmap-cell` half of each pair is the whole cleanup, one selector
+   per rule and no value changes.
+   `flex: none` is the anti-squish guarantee the entire overflow plan rests on: the
+   default `flex-shrink: 1` would let a 34-cell row pull every cell under
+   `--rm-cell`. Uniform squares: shape no longer speaks difficulty, so one radius for
+   all three hues (2px at the design reference). */
+.rm-cell,
 .roadmap-cell {
   position: relative;
   display: block;
-  height: 0.875rem;
+  flex: none;
+  inline-size: var(--rm-cell);
+  block-size: var(--rm-cell);
+  border-radius: 0.125rem;
   border: 1px solid transparent;
   box-sizing: border-box;
   cursor: pointer;
 }
 
-/* Shape = difficulty. */
-.rm-shape-E {
-  border-radius: 50%;
+/* The paint recipe, shared by the surfaces that speak this vocabulary — a matrix
+   cell, a tree cell, and a legend key. The feed gem deliberately does NOT: it is a
+   colourless neutral dot on its own tokens (see `.qcard-memory`).
+   Declared on the surfaces themselves rather than inherited, because
+   custom-property substitution uses the declaring element's own values: a
+   `--rm-fill` written on `:root` would be computed once, on <html>, and every
+   cell would inherit the same colour.
+   Layer 1 is the OPAQUE matte (background-color), layer 2 the alpha fill
+   (background-image), so the composite of a 25% fill is always 25% hue + 75%
+   matte no matter what is painted behind it. That is the whole point: no state
+   can fake confidence. Consequently NO state rule below or anywhere else may
+   touch --rm-matte, --rm-level, --rm-fill, background-color, background-image or
+   opacity on a cell. The multiplier that used to fold hidden cells into this line
+   is gone with that treatment: the memory level IS the fill level.
+   A CELL PAINTS ITS FILL ON A ::before LAYER rather than on itself, for two reasons,
+   and the honest one is the second. First: `inset: 0` gives the fill the padding box,
+   which is what keeps it inside a 1px edge AND inside a starred cell's 2px edge with no
+   `background-clip` argument anywhere. Second: the silhouette channel still exists here
+   (`--rm-silhouette`, read by the `clip-path` below), and a clip may only ever be put on
+   this layer, never on the anchor — `clip-path` cuts *everything* an element paints,
+   descendants, pseudo-elements and box-shadow alike, so a clip on the cell would take
+   the memory edge, the `.rm-cur` locator ring and the focus outline with it. Today that
+   channel carries `none` and the star is a border weight, so nothing is clipped; if the
+   record ever returns to a shape, the place to point it is already load-bearing. A
+   legend key paints on itself: it has no ring and no outline to preserve. */
+.rm-cell,
+.roadmap-cell,
+.roadmap-swatch {
+  --rm-level: var(--rm-mem-level);
+  --rm-fill: color-mix(in srgb, var(--rm-hue) var(--rm-level), transparent);
 }
 
-.rm-shape-M {
-  border-radius: 0.1875rem;
+/* The fill layer. `inset: 0` is a definite box inside the cell's fixed square — the
+   padding box, so 20px within a 22px border box, and 18px inside a starred cell's 2px
+   border. Keeping the fill on a layer rather than on the anchor is what makes that box
+   mean "inside the border" at either weight without a `background-clip` argument, and
+   it is the same box the mock's child `.fill` span sizes. This is not the sizing cycle
+   the sheet warns about, and the layer inherits `--rm-fill`, `--rm-matte` and
+   `--rm-silhouette` from the cell it paints. */
+.rm-cell::before,
+.roadmap-cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* The cell's own radius, or the matte would poke square corners out past the
+     rounded frame — the one visual property that moved when the fill did. */
+  border-radius: inherit;
+  background-color: var(--rm-matte);
+  background-image: linear-gradient(var(--rm-fill), var(--rm-fill));
+  clip-path: var(--rm-silhouette);
 }
 
-.rm-shape-H {
-  border-radius: 0;
+/* The legend key paints the same two layers on itself: no clip means no marks to
+   protect, so it needs no pseudo-element. */
+.roadmap-swatch {
+  background-color: var(--rm-matte);
+  background-image: linear-gradient(var(--rm-fill), var(--rm-fill));
+  background-clip: border-box;
 }
 
-/* Colour = memory state, on the same tokens the chips and the rating buttons
-   already use: 0 unseen, 1 forgot, 2 shaky, 3 knew. */
+/* Difficulty = hue, and nothing else. Read through the indirection layer, so a
+   cell can never disagree with the chip, stripe or badge that names its level —
+   though the TEXT of those three reads `--diff-*-fg` instead, because a field of
+   colour and a label are different jobs (see the shared block). */
+.rm-diff-E { --rm-hue: var(--diff-easy); }
+.rm-diff-M { --rm-hue: var(--diff-medium); }
+.rm-diff-H { --rm-hue: var(--diff-hard); }
+
+/* Memory = alpha over that hue, on the matte. Four steps of ONE channel (alpha),
+   always with an outline in the level's hue, which is what makes the levels
+   comparable: the old dialect painted these four with three *different hues*
+   (forgot→hard, shaky→medium, knew→easy), which is how a Hard cell in the feed and a
+   shaky leaf on a rail were the same colour and meant different things. The outline is
+   present at every level, including hollow, so a cell never changes size or shape as
+   memory changes.
+   THE OUTLINE IS 1px HERE AND 2px ON A STARRED CELL (`.rm-cell.rm-star`), which puts
+   two facts on one channel: weight is now the importance mark as well as the level's
+   colour, and a starred-but-unseen cell is a 2px hollow edge beside its neighbour's
+   1px — 81 cells are in exactly that state. That is the record's trade, made
+   knowingly. Do not "fix" it later by moving the star back onto a `clip-path`: the
+   fill's square is the level's only field of colour, and cutting into it was rejected
+   precisely because it cost the level area.
+   `.rm-mem-0` is the weakest edge in the matrix, and here are its numbers — the hue at
+   full strength against the `--rm-matte` band it sits on: dark 9.03 (E) / 12.37 (M) /
+   3.80:1 (H), light 12.17 / 5.56 / 8.06:1. Unseen HARD on the dark matte is the same
+   3.80:1 the record lists for that hue, below the 4.5:1 a text element would want and
+   above the 3:1 a graphic needs, so it passes as the least conspicuous state in the
+   pane. Raising it would mean raising dark `--diff-hard` above L* 49, which moves the
+   set the record fixed; the fix, if the browser says hollow-hard is invisible, belongs
+   on `--rm-matte` or on the edge width, not on the hue. */
 .rm-mem-0 {
-  background: var(--dot-empty);
-  border-color: var(--border2);
+  --rm-mem-level: 0%; /* hollow */
+  border-color: var(--rm-hue);
 }
 
 .rm-mem-1 {
-  background: var(--hard);
-  border-color: color-mix(in srgb, var(--hard) 65%, #000);
+  --rm-mem-level: var(--rm-alpha-forgot);
+  border-color: var(--rm-hue);
 }
 
 .rm-mem-2 {
-  background: var(--medium);
-  border-color: color-mix(in srgb, var(--medium) 65%, #000);
+  --rm-mem-level: var(--rm-alpha-shaky);
+  border-color: var(--rm-hue);
 }
 
 .rm-mem-3 {
-  background: var(--easy);
-  border-color: color-mix(in srgb, var(--easy) 65%, #000);
+  --rm-mem-level: 100%;
+  border-color: var(--rm-hue);
 }
 
-/* Ghost = locally hidden. Declared after the `.rm-mem-*` fills on purpose: same
-   specificity, so this is what wins, and the state stays readable as the
-   border's colour. */
-.roadmap-cell-ghost {
-  background: transparent;
-  border-style: dashed;
+/* Hidden cells get no treatment of their own in the matrix: the decision is that a
+   hidden question paints an ordinary cell. So three rules that existed for the tree
+   are deleted here rather than left half-wired, and their tokens with them
+   (`--rm-ghost-scale`, `--rm-cell-ghost-inset`). The deleted set, for the markup
+   cleanup that has to land in the same commit:
+     `.roadmap-cell-ghost { --rm-ghost-scale: 0.55; border-style: dashed }`
+     `.roadmap-cell-ghost::before { inset: var(--rm-cell-ghost-inset) }`
+     `.roadmap-cell-ghost:hover { border-style: solid; border-color: … }`
+   My objection, written rather than implemented, because it is an information loss
+   and not a style preference: hidden questions live in `interview-hidden`, still
+   count in every total in this pane, and are clickable (clicking one unhides it). A
+   matrix where a hidden question is indistinguishable from a visible one therefore
+   cannot be read — a 34-cell row gives no sign that 12 of them are excluded from the
+   feed, and a click silently opts a question back in. The channel that used to say it
+   (dashed border) is the one channel that does not touch the matte, so restoring it
+   would cost nothing structural. If instead hidden questions are filtered OUT of the
+   matrix by the renderer, this note resolves itself and nothing needs restoring.
+   One live emitter does need attention either way: the legend still draws the ghost
+   key (`rm-key-ghost`, 1 hit in view/app.js) and its rule is deleted below, so that
+   key renders as an empty square until the legend row goes with it. */
+
+/* Starred = a BOLD BORDER (final record: "square with a bold 2px border"). The
+   silhouette is gone, so this rule sets `border-width` and nothing else — never the
+   `border` shorthand, which would reset the style to `none` and the colour to
+   `currentColor` and take the memory outline down with it. The colour stays whatever
+   `.rm-mem-*` chose, so a starred cell is its level's hue at 2px, and `box-sizing:
+   border-box` on the anchor keeps the square at `--rm-cell`: what moves is the fill,
+   from a 20px box to an 18px one. The cost, stated rather than hidden: 19.0% less
+   coloured field (324px² against 400px²) and 1.90× the hue in the edge itself (84px² →
+   160px²) — less field, more line, and never a different colour, which is why it reads
+   as weight and not as a fifth level. 2px is 9.1% of each side at 22px, which is heavy
+   but not too heavy: the level channel is a COLOUR difference at the same coordinates
+   as before (the fill's hue and alpha are untouched), so shrinking the box does not
+   bring two steps of the ladder closer together; the 45%-of-area bite the chamfer took
+   was smaller, and this is the trade the record chose over it. Two whole pixels, not
+   1.5: the file's hairline convention is integer px, and a half-pixel edge snaps to a
+   device-pixel boundary in one theme and not the other.
+   `.rm-star` is the matrix name; `is-starred` and `rm-leaf--star` are the tree
+   dialect's two names, kept so a cell is bold whichever renderer is in the markup. Read
+   `.rm-mem-0` above for what a 2px edge does to a hollow cell (81 of them), which is
+   the part of this decision nobody should rediscover as a bug. */
+.rm-cell.rm-star,
+.roadmap-cell.is-starred,
+.roadmap-cell.rm-leaf--star {
+  border-width: 2px;
 }
 
-.roadmap-cell-ghost:hover {
-  background: var(--accent-bg);
-  border-color: var(--accent-border-soft);
-}
-
-/* The open question's cell. A ring, never a fill: `--selected-bg-start` is only
-   defined in the light block, and an undefined custom property inside a
-   `background` shorthand invalidates the whole declaration — so the ring
-   tokens are the ones that survive both themes. `--selected-shadow` is left
-   out: at 0.875rem a glow is lost, and it would need to sit above a
-   neighbour's fill. */
+/* The locator: which cell is the open question. Painted OUTSIDE the box, as the
+   contract sets it — a matte band, then an ink band, never a fill, because a fill
+   would be a fourth reading of the memory channel. NEUTRAL (`--rm-neutral`, i.e.
+   `--text`) rather than the accent blue on purpose, and this palette makes that reason
+   stronger, not weaker: dark `--diff-easy` #aeb3fe is 6.5° of Lab hue from `--accent`
+   #3b82f6 (the value it replaced was 15.4° away) and differs from it only in lightness,
+   so a blue ring really would read as "this is easy" on the one cell where it also has
+   to say "you are here". The two facts must never share a colour.
+   `.roadmap-cell.is-current` is the tree name for the same fact, so both dialects
+   share this rule — which also settles whether the old ring survived: the contract has
+   a locator, so it did, under the new name.
+   The matte band is load-bearing, not padding, and the arithmetic says why: `--text`
+   (#f0f0f0) against the lightest hue in the new set — dark `--diff-medium` #1af690,
+   L* 86.1 — is only 1.26:1 and 8.7 L*, so a locator that touched a full-strength medium
+   cell would nearly vanish. It never touches one: the chain is hue edge → 1px matte →
+   1px ink (2px of hue edge on a starred cell, which pushes the ring outward rather than
+   closing the gap), and those two steps measure 12.37:1 and 15.58:1 in dark, 5.56:1 and
+   13.19:1 in light. Both spreads stay px, like the global outline they have to be
+   measured against, so the focus gap below remains a gap at every zoom. */
+.rm-cell.rm-cur,
 .roadmap-cell.is-current {
-  box-shadow: 0 0 0 0.0625rem var(--bg), 0 0 0 0.1875rem var(--selected-border);
+  box-shadow: 0 0 0 1px var(--rm-matte), 0 0 0 2px var(--rm-neutral);
 }
 
-/* The sheet's global `*:focus-visible` ring needs a stacking context to sit
-   above the cells drawn after it. */
+/* The two leaf position marks that used to follow (the here-tick and the next-gap
+   dot, both drawn on ::after in the gutter) are DELETED: the matrix has no position
+   mark, and grep confirms 0 emitters of either class in view/ or components/.
+   `--rm-gap` survives because it is still the cell gutter. */
+
+/* Focus and the locator must not merge, and at this size they would: the sheet's
+   global ring is `outline: 2px solid var(--accent)` at `outline-offset: 2px`, whose
+   inner edge lands exactly where `.rm-cur`'s outer edge ends (1px matte + 1px ink), so
+   on the open question the two touch and read as one 3px two-tone band instead of two
+   separate facts. A quarter rem of offset buys a real gap and costs nothing: the
+   ring stays 2px of solid accent, it just sits further out. The offset is rem so it
+   scales with the ladder while the ring it clears is a fixed 2px — 4.5px at `--z` 1
+   (a 2.5px gap over the 2px locator) and 3.15px at the ladder floor `--z` 0.7, where
+   the gap is a whole 1.15px instead of the 0.1px a gutter-width offset would leave
+   now that the gutter is 2.9988px; at `--z` 2.5 the offset is 11.25px. The global rule
+   carries `!important` on both properties, so this has to match that weight, and it
+   re-declares ONLY the offset, never the ring.
+   `z-index` is here because the focus ring, unlike the locator, reaches past the
+   gutter: at `--z` 1 its outer edge is 6.5px out (4.5 offset + the 2px ring) against a
+   2.9988px gutter, so it overlaps the following cell's box by ~3.5px and must draw over
+   it rather than under it. At the ladder floor it spans 3.15–5.15px over a 2.10px
+   gutter. A starred cell's 2px edge does not change either number: the ring and the
+   outline both start from the border box, not from the fill. */
+.rm-cell:focus-visible,
 .roadmap-cell:focus-visible {
   z-index: 2;
+  outline-offset: 0.25rem !important;
 }
+
+/* The three `@container roadmap-tree` unit step-downs that used to sit here are
+   deleted with the trunk geometry they served: their root no longer declares the
+   `roadmap-tree` container, so they could not match, and the unit they scaled
+   (`--rm-unit`) only ever existed to place trunk marks. If the matrix needs
+   density steps, they belong to its own container, declared once, and they may
+   only ever change an absolute unit — never a percentage of the box they size. */
 
 .roadmap-empty {
   padding: 1.25rem 0.875rem;

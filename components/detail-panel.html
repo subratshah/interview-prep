@@ -6,7 +6,7 @@
         <h3 class="empty-title">Select a question</h3>
         <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill">⌘E</kbd> to search everything.</p>
         <div class="kbd-hint">
-          <div class="kbd-hint-item"><kbd>J</kbd> / <kbd>K</kbd> Navigate</div>
+          <div class="kbd-hint-item"><kbd>↑</kbd> / <kbd>↓</kbd> Navigate</div>
           <div class="kbd-hint-item"><kbd>Space</kbd> Reveal</div>
           <div class="kbd-hint-item"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Rate</div>
         </div>
@@ -98,7 +98,7 @@
             <h2 class="roadmap-title" id="roadmap-title">🗺️ Roadmap</h2>
             <span class="roadmap-aggregate" id="roadmap-aggregate"></span>
             <button type="button" class="roadmap-jump" id="roadmap-jump" onclick="roadmapJumpToCurrent()"
-              title="Scroll to the band holding the open question">Jump to current</button>
+              title="Scroll to the section holding the open question">Jump to current</button>
           </div>
           <div class="roadmap-legend" aria-hidden="true">
             <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-0"></span>Unseen</span>
@@ -106,12 +106,18 @@
             <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-2"></span>Shaky</span>
             <span class="roadmap-legend-item"><span class="roadmap-swatch rm-mem-3"></span>Knew</span>
             <span class="roadmap-legend-sep" aria-hidden="true"></span>
-            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-E"></span>Easy</span>
-            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-M"></span>Medium</span>
-            <span class="roadmap-legend-item"><span class="roadmap-shape rm-shape-H"></span>Hard</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-diff-E rm-mem-3"></span>Easy</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-diff-M rm-mem-3"></span>Medium</span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-diff-H rm-mem-3"></span>Hard</span>
+            <span class="roadmap-legend-sep" aria-hidden="true"></span>
+            <span class="roadmap-legend-item"><span class="roadmap-swatch rm-key-star"></span>Important</span>
           </div>
         </div>
-        <div class="roadmap-rail" id="roadmap-rail"></div>
-        <div class="roadmap-bands" id="roadmap-bands"></div>
+        <!-- The matrix host. `roadmapMatrixHost()` prefers this node and appends
+             one only if it is missing, so this static is the real thing, not a
+             placeholder. Rows and cells are built by view/app.js. Hidden questions
+             carry no separate key: the matrix draws them like any other cell, and
+             the only tell is the cell's aria-label plus the click that restores it. -->
+        <div class="roadmap-matrix" id="roadmap-matrix"></div>
       </div>
     </main>
