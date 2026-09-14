@@ -9,6 +9,10 @@ corpus at a glance in one pane.
 No framework, no bundler, no database server to install — plain HTML, CSS and `<script>` tags,
 with an optional zero-dependency Node API for persistence.
 
+**Live:** <https://subratshah.github.io/interview-prep/> — served straight from this repo by GitHub
+Pages. That copy has no progress API, so it remembers each browser separately; see
+[How progress is stored](#how-progress-is-stored).
+
 | Topic | File | Questions |
 | --- | --- | --- |
 | Android | `data/android.js` | 154 |
@@ -106,6 +110,13 @@ Keys that stay browser-only: `interview-theme`, `interview-ui-zoom`, `interview-
 and seen, in both stores — and deliberately leaves theme, size, roadmap mode and the hidden list
 alone.
 
+On the hosted copy the API is simply absent: `GET /api/progress` 404s and the mirror writes come
+back `405`, both handled as the fallback they are. The app stays fully usable — ratings survive a
+reload — but progress is then **per browser and per device**, and it is gone if the site's storage
+is cleared. Pages also keys localStorage by *origin* rather than path, so every `*.github.io` site
+shares one namespace; the `interview-` prefix is what keeps this app's keys apart, and the
+unprefixed `sidebar-width` is the one exception.
+
 ## Layout
 
 ```
@@ -171,6 +182,10 @@ labelled blocks.
   is no longer a channel, only colour is. A handful of rules (`.rm-row-bar`, `.rm-focus`,
   `.rm-lane-hd`) survive from alternative designs that were never adopted; they are inert because
   nothing emits that markup, and are kept deliberately as the starting point for those frames.
+- **The hosted copy logs a console error on every progress write.** With no API answering, the
+  mirror still fires, and Pages rejects it with `405` — swallowed by the app, not by the devtools.
+  A local run through `server/` is silent. A one-line guard (skip the mirror once the first probe
+  has failed) would quiet it.
 
 ## Agent tooling
 
