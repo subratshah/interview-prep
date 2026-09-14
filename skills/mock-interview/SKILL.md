@@ -63,6 +63,7 @@ Use this skill to run an interviewer-led mock interview or focused interview-pre
 - Keep server and client behavior aligned around the same progress contract.
 - Keep sensitive data out of logs and question content.
 - Do not claim progress persistence or AI generation unless the relevant path is implemented and verified.
+- Do not copy existing questions; if creating new question files, refer to existing ones in `data/*.js` for format and schema consistency.
 
 ## References
 
