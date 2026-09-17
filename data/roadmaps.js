@@ -53,6 +53,7 @@ const RoadmapDB = (() => {
       'Architecture',
       'Frontend',
       'Staff / Platform',
+      'Software Engineering Principles',
     ],
   };
 

@@ -2588,11 +2588,7 @@ function navigateList(direction) {
 
 function onTopicChange(value) {
   state.activeTab = value;
-  // Tag selections are topic-scoped facets — they don't carry across topics
-  if (state.tagFilters.length) {
-    state.tagFilters = [];
-    if (window.renderTagFilterUI) window.renderTagFilterUI();
-  }
+  
   state.activeFeedSection = null;
   clearFeedSectionPin();
   state.selectedId = null;
