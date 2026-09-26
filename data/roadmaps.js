@@ -28,6 +28,7 @@ const RoadmapDB = (() => {
       'Architecture',
       'Performance & Security',
       'Engineering',
+      'Patterns & Principles',
     ],
     behavioral: [
       'Ownership',

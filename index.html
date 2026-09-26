@@ -222,6 +222,7 @@
             <span class="q-header-star" id="qv-star"></span>
             <span class="diff-badge" id="qv-diff">Easy</span>
             <span class="meta-badge meta-sec" id="qv-section" hidden></span>
+            <div class="q-header-tags" id="qv-tags" hidden></div>
             <div class="rating-bar memory-detail-rating hidden" id="rating-bar">
               <div class="memory-detail-field">
                 <label class="sr-only" for="detail-memory-range">How well you remembered this answer</label>
@@ -246,15 +247,9 @@
 
         <div class="detail-body" id="detail-body"></div>
 
-        <div class="bottom-bar" id="bottom-bar">
-          <div class="bb-col bb-tags-wrap">
-            <div class="bb-label">Tags</div>
-            <div class="bb-tags" id="bb-tags"></div>
-          </div>
-          <div class="bb-col bb-related-wrap">
-            <div class="bb-label">Related</div>
-            <div class="bb-related" id="bb-related"></div>
-          </div>
+        <div class="detail-related pinned" id="detail-related" hidden>
+          <div class="related-label">Related Questions</div>
+          <div class="related-list" id="related-list"></div>
         </div>
 
         <div class="flashcard legacy-flashcard hidden" id="flashcard" aria-hidden="true">

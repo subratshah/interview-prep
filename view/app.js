@@ -1098,8 +1098,7 @@ const SD_SECTIONS = [
   { key: 'architecture',icon: '🏗️',  label: 'High-Level Architecture',      defaultOpen: true },
   { key: 'dataModel',   icon: '🗄️',  label: 'Data Model',                   defaultOpen: false },
   { key: 'api',         icon: '🔌',  label: 'API Design',                   defaultOpen: false },
-  { key: 'tradeoffs',   icon: '⚖️',  label: 'Key Trade-offs',               defaultOpen: true },
-  { key: 'approach',    icon: '📋',  label: 'Interview Approach',           defaultOpen: false },
+  { key: 'tradeoffs',   icon: '⚖️',  label: 'Key Trade-offs',               defaultOpen: false },
   { key: 'followUp',    icon: '🧵',  label: 'Follow-ups',                   defaultOpen: false },
   { key: 'pitfalls',    icon: '🚩',  label: 'Common Pitfalls',              defaultOpen: false },
 ];
@@ -1115,7 +1114,6 @@ const BEHAVIORAL_SECTIONS = [
 const TECH_SECTIONS = [
   { key: 'answer', icon: '💡', label: 'Expected Answer', defaultOpen: true, fallback: 'expectedAnswer' },
   { key: 'keyPoints',      icon: '🔑', label: 'Key Points',      defaultOpen: false },
-  { key: 'complexity',     icon: '⏱️', label: 'Complexity',      defaultOpen: false },
   { key: 'followUp',       icon: '🧵', label: 'Follow-ups',      defaultOpen: false },
   { key: 'redFlags',       icon: '🚩', label: 'Red Flags',       defaultOpen: false },
 ];
@@ -1144,16 +1142,16 @@ const DETAIL_LAYOUT = {
     { cols: ['dataModel', 'api'] },
     { full: 'tradeoffs' },
     { cols: ['followUp', 'pitfalls'] },
-    { full: 'approach' },
+    
   ],
   android: [
-    { pack: 'answer' },
-    { cols: ['keyPoints', 'complexity'] },
+     { full: 'answer' },
+     { full: 'keyPoints' },
     { cols: ['followUp', 'redFlags'] },
   ],
   'data-structures': [
     { full: 'answer' },
-    { cols: ['keyPoints', 'complexity'] },
+    { full: 'keyPoints' },
     { cols: ['followUp', 'redFlags'] },
   ],
   behavioral: [
@@ -1162,7 +1160,29 @@ const DETAIL_LAYOUT = {
   ],
 };
 
-// Section metadata per topic: labels/icons plus the safety pass over keys a
+/**
+ * Remove redundant titles from markdown content that duplicate section headers.
+ * For example: "**Questions to ask the interviewer:**" when the UI already shows
+ * a "Clarifying Questions" section header.
+ */
+function cleanRedundantTitles(markdown) {
+  if (!markdown) return markdown;
+
+  // Remove "**Questions to ask the interviewer:**" and variations
+  // Case insensitive, allows for flexible spacing and punctuation
+  const questionsToAskPattern = /\*\*\s*[Qq]uestions\s+to\s+ask\s+the\s+interviewer\s*[:\-]?\s*\*\*/g;
+  markdown = markdown.replace(questionsToAskPattern, '');
+
+  // Remove "**Key design decisions:**" and variations
+  const keyDesignDecisionsPattern = /\*\*\s*[Kk]ey\s+[Dd]esign\s+[Dd]ecisions\s*[:\-]?\s*\*\*/g;
+  markdown = markdown.replace(keyDesignDecisionsPattern, '');
+
+  // Remove extra newlines that might result from the removal
+  // Replace multiple consecutive newlines with double newlines (max one blank line)
+  markdown = markdown.replace(/\n{3,}/g, '\n\n');
+
+  return markdown.trim();
+}
 // layout forgot. Types without an entry read TECH_SECTIONS/tech layout, which
 // matches the old renderer's else-branch.
 const DETAIL_SECTIONS_BY_TYPE = {
@@ -1237,6 +1257,7 @@ function collectDetailValues(q) {
  */
 function createDetailCard(q, values, key, width, rowStart) {
   const raw = values[key];
+  const cleanedRaw = cleanRedundantTitles(raw);
   const sec = detailSectionMeta(q.type, key);
   const isCollapsed = !state.learningMode;
 
@@ -1257,8 +1278,8 @@ function createDetailCard(q, values, key, width, rowStart) {
   body.className = 'notion-block-body' + (isCollapsed ? ' collapsed' : '');
   body.hidden = isCollapsed;
   body.innerHTML = typeof marked !== 'undefined'
-    ? marked.parse(String(raw))
-    : `<p>${escapeHtml(String(raw))}</p>`;
+    ? marked.parse(String(cleanedRaw))
+    : `<p>${escapeHtml(String(cleanedRaw))}</p>`;
 
   head.addEventListener('click', () => {
     const collapsed = !block.classList.contains('collapsed');
@@ -1612,9 +1633,28 @@ function renderMainPanel() {
   const titleEl = document.getElementById('detail-title');
   if (titleEl) titleEl.textContent = q.title;
 
+  // Render tags in the header
+  const qvTags = document.getElementById('qv-tags');
+  if (qvTags) {
+    qvTags.innerHTML = '';
+    (q.tags || []).forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip qv-tag' + (state.tagFilters.includes(tag) ? ' active' : '');
+      chip.textContent = tag;
+      chip.addEventListener('click', () => toggleTagFilter(tag));
+      qvTags.appendChild(chip);
+    });
+    qvTags.hidden = (q.tags || []).length === 0;
+  }
+
   const detailBody = document.getElementById('detail-body');
   if (detailBody) {
     detailBody.innerHTML = '';
+
+    // Cards container (grid for two-column layout)
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'detail-cards';
+    detailBody.appendChild(cardsContainer);
 
     // Layout is declared data (DETAIL_LAYOUT); values come straight from the
     // question, except behavioral content, which still parses `answer`.
@@ -1643,46 +1683,47 @@ function renderMainPanel() {
           band.appendChild(card.block);
           bodies.push(card.body);
         });
-        detailBody.appendChild(band);
+        cardsContainer.appendChild(band);
         bodies.forEach(b => runMermaidInContainer(b));
         return;
       }
       const card = createDetailCard(q, values, row.key, row.width, row.rowStart);
-      detailBody.appendChild(card.block);
+      cardsContainer.appendChild(card.block);
       runMermaidInContainer(card.body);
     });
-  }
 
-  const tagsOut = document.getElementById('bb-tags');
-  if (tagsOut) {
-    tagsOut.innerHTML = '';
-    (q.tags || []).forEach(tag => {
-      const chip = document.createElement('span');
-      chip.className = 'tag-chip bb-tag' + (state.tagFilters.includes(tag) ? ' active' : '');
-      chip.textContent = tag;
-      chip.addEventListener('click', () => toggleTagFilter(tag));
-      tagsOut.appendChild(chip);
-    });
-    if ((q.tags || []).length === 0) {
-      tagsOut.innerHTML = '<span class="no-related">None</span>';
-    }
-  }
+    // Render Related questions as a card-styled section at bottom (sibling of cardsContainer)
+// Skip for system design questions as requested
+    const relatedQuestions = (q.related || []).map(relId => getQuestionById(relId)).filter(Boolean);
+    if (relatedQuestions.length > 0 && q.type !== 'system-design') {
+      const relatedSection = document.createElement('div');
+      relatedSection.className = 'detail-related';
+      relatedSection.innerHTML = `
+        <button type="button" class="notion-block-header" aria-expanded="true">
+          <span class="notion-chevron"></span>
+          <span class="notion-icon">🔗</span>
+          <span class="notion-label">Related Questions</span>
+        </button>
+        <div class="notion-block-body">
+          <div id="detail-related-list"></div>
+        </div>
+      `;
+      detailBody.appendChild(relatedSection);
 
-  const relatedOut = document.getElementById('bb-related');
-  if (relatedOut) {
-    relatedOut.innerHTML = '';
-    (q.related || []).forEach(relId => {
-      const rel = getQuestionById(relId);
-      if (!rel) return;
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'bb-related-item';
-      row.innerHTML = `<span class="bb-related-title">${escapeHtml(`#${rel.num} — ${rel.title}`)}</span>`;
-      row.addEventListener('click', () => selectQuestion(relId));
-      relatedOut.appendChild(row);
-    });
-    if ((q.related || []).length === 0) {
-      relatedOut.innerHTML = '<span class="no-related">None</span>';
+      const relatedList = relatedSection.querySelector('#detail-related-list');
+      relatedQuestions.forEach(rel => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'related-item';
+        row.innerHTML = `<span class="related-title">${escapeHtml(`#${rel.num} — ${rel.title}`)}</span>`;
+        row.addEventListener('click', () => selectQuestion(rel.id));
+        relatedList.appendChild(row);
+      });
+      
+      // Hide the chevron since it's not collapsible
+      const header = relatedSection.querySelector('.notion-block-header');
+      const chevron = header.querySelector('.notion-chevron');
+      if (chevron) chevron.style.display = 'none';
     }
   }
 
@@ -1707,17 +1748,8 @@ function renderMainPanel() {
   syncDetailSectionChip(q);
 
   const quizCover = document.getElementById('quiz-reveal-cover');
-  const bottomBarEl = document.getElementById('bottom-bar');
-  // Hide the strip entirely when both columns would be empty, instead of
-  // leaving a tall blank band under the answer cards.
-  if (bottomBarEl) {
-    const hasTags = (q.tags || []).length > 0;
-    const hasRelated = (q.related || []).some(id => Boolean(getQuestionById(id)));
-    bottomBarEl.hidden = !hasTags && !hasRelated;
-  }
   const quizCovered = Boolean(q && !state.learningMode && !state.cardRevealed);
   if (detailBody) detailBody.classList.toggle('quiz-covered', quizCovered);
-  if (bottomBarEl) bottomBarEl.classList.toggle('quiz-covered', quizCovered);
   if (quizCover) quizCover.classList.toggle('hidden', !quizCovered);
 
   
