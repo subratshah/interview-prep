@@ -8,12 +8,12 @@ QuestionDB.register('data-structures', [
     section: 'Arrays & Strings',
     title: 'What is the time complexity of common array operations?',
     tags: [ 'arrays', 'complexity', 'basics' ],
-    related: [ 'ds-2', 'ds-3', 'tech-7' ],
+    related: [ 'ds-2', 'ds-3' ],
     keyPoints: '- Insert/Delete at index: O(n) due to shifting',
     complexity: '- Access: O(1) — contiguous memory, offset = base + index × size\n- Search: O(n) linear scan\n- Insert/Delete at end: O(1) amortized',
     followUp: '**Follow-up:** Why is random access O(1)?\n> Contiguous memory — compute address directly from index.',
     redFlags: '- Thinks search is O(1)\n- Doesn\'t know why access is constant time',
-    answer: '- Index access is `O(1)`: the slot is base plus index × element size in contiguous storage.\n- Lookup by value means a linear scan, `O(n)`; appending or dropping the tail is `O(1) amortized`.\n- Insert/delete at an index costs `O(n)` — the elements behind it must shift.'
+    answer: '- Index access is `O(1)`: the slot is base plus index × element size in contiguous storage.\n- Lookup by value means a linear scan, `O(n)`; appending or dropping the tail is `O(1) amortized`.\n- Prefer appending or popping the tail over inserting at an index — a mid-array insert forces every later element to shift.'
   },
   {
     id: 'ds-2',
@@ -25,11 +25,11 @@ QuestionDB.register('data-structures', [
     title: 'Two Sum — find indices of two numbers that add to a target.',
     tags: [ 'arrays', 'hash-map', 'two-pointers' ],
     related: [ 'ds-1', 'ds-7' ],
-    keyPoints: '- Naive O(n²): nested loops\n- Optimal O(n): HashMap storing value → index. For each num, check if (target - num) is in map; return pair if found, else store num → index',
-    complexity: '- Naive O(n²): nested loops\n- Optimal O(n): HashMap storing value → index. For each num, check if (target - num) is in map; return pair if found, else store num → index',
+    keyPoints: '- Naive: nested loops checking every pair.\n- Optimal: HashMap storing value → index. For each num, check if (target - num) is in map; return pair if found, else store num → index',
+    complexity: '- Time: O(n²) naive nested loops; O(n) optimal single pass\n- Space: O(1) naive; O(n) for the HashMap',
     followUp: '**Follow-up:** How do you handle duplicates?\n> Map stores last seen index; check before storing to avoid self-match.',
     redFlags: '- Only knows brute force\n- Doesn\'t think of HashMap',
-    answer: '- One pass over a `value → index` map: test for `target - num` first, store the value otherwise. `O(n)`.\n- Brute force checks every pair with nested loops, which is `O(n²)`.\n- The answer is the pair of indices, not the two numbers.'
+    answer: '- One pass over a `value → index` map: test for `target - num` first, store the value otherwise.\n- Nested-loop brute force is the fallback only when a hashmap is off the table — otherwise go straight to the map.\n- The answer is the pair of indices, not the two numbers.'
   },
   {
     id: 'ds-3',
@@ -45,7 +45,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Maintain a window [left, right]. Expand right to include elements, shrink left when condition violated. O(n) instead of O(n²).',
     followUp: '**Follow-up:** When is sliding window applicable?\n> Problems asking for optimal subarray/substring satisfying a condition.',
     redFlags: '- Uses nested loops for every subarray problem',
-    answer: '- Hold a window `[left, right]`: grow `right`, then pull `left` inward once the constraint breaks.\n- Cuts contiguous scans from `O(n²)` to `O(n)`.\n- Longest substring without repeats: jump `left` past the earlier occurrence, remember the best span.'
+    answer: '- Hold a window `[left, right]`: grow `right`, then pull `left` inward once the constraint breaks.\n- Reach for it whenever the instinct is to re-scan every subarray from scratch.\n- Longest substring without repeats: jump `left` past the earlier occurrence, remember the best span.'
   },
   {
     id: 'ds-4',
@@ -57,11 +57,11 @@ QuestionDB.register('data-structures', [
     title: 'How do you detect a cycle in a linked list?',
     tags: [ 'linked-list', 'two-pointers' ],
     related: [ 'ds-5', 'ds-6' ],
-    keyPoints: '- Floyd\'s cycle detection (slow/fast pointer): slow moves 1 step, fast moves 2. If they meet, cycle exists. O(n) time, O(1) space.\n- Alternative: HashSet — O(n) space.',
-    complexity: '- Floyd\'s cycle detection (slow/fast pointer): slow moves 1 step, fast moves 2. If they meet, cycle exists. O(n) time, O(1) space.\n- Alternative: HashSet — O(n) space.',
+    keyPoints: '- Floyd\'s cycle detection (slow/fast pointer): slow moves 1 step, fast moves 2. If they meet, cycle exists.\n- Alternative: HashSet of visited nodes.',
+    complexity: '- Time: O(n) — Floyd\'s and the HashSet approach both\n- Space: O(1) Floyd\'s (two pointers); O(n) HashSet alternative',
     followUp: '**Follow-up:** How do you find the start of the cycle?\n> After detection, reset slow to head. Move both 1 step — they meet at cycle start.',
     redFlags: '- Only knows HashSet approach\n- Doesn\'t know Floyd\'s algorithm',
-    answer: '- Floyd\'s pairing: `slow` takes 1 step, `fast` takes 2 — meeting means a loop exists.\n- Cost: `O(n)` time, `O(1)` space — no bookkeeping of visited nodes.\n- A `HashSet` of seen nodes works too, at `O(n)` space.'
+    answer: '- Floyd\'s pairing: `slow` takes 1 step, `fast` takes 2 — meeting means a loop exists.\n- Prefer it over a HashSet when memory is tight — no bookkeeping of visited nodes required.'
   },
   {
     id: 'ds-5',
@@ -77,7 +77,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n) — each node visited once (iterative or recursive)\n- Space: O(1) iterative (three pointers); O(n) recursive call stack',
     followUp: '**Follow-up:** Space complexity of recursive approach?\n> O(n) call stack.',
     redFlags: '- Can\'t reverse without extra space\n- Fumbles pointer manipulation under pressure',
-    answer: '- Iterative relinking of `prev`/`curr`/`next`: `O(n)` time, `O(1)` space.\n- Recursive: stop at null or a lone node, then set `head.next.next = head` and `head.next = null`.\n- Each node is touched once either way; recursion pays an `O(n)` stack the loop form avoids.'
+    answer: '- Iterative relinking of `prev`/`curr`/`next` is the default — prefer it over recursion when stack depth matters.\n- Recursive: stop at null or a lone node, then set `head.next.next = head` and `head.next = null`.\n- Each node is touched once either way; recursion pays a stack cost the loop form avoids.'
   },
   {
     id: 'ds-6',
@@ -93,7 +93,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n log K) — n total nodes across K lists; each node enters and leaves the heap once\n- Space: O(K) for the min-heap',
     followUp: '**Follow-up:** Why is this better than sequential merging?\n> Sequential pair merging is O(nK). Heap keeps the comparison cost to O(log K) per element.',
     redFlags: '- Proposes O(nK) naive solution\n- Doesn\'t think of heap for multi-way merge',
-    answer: '- Priority queue of the current head from each list: pop the minimum, append it, push that node\'s successor.\n- `O(n log K)` time over `n` total nodes, `O(K)` heap space.\n- The log term is on `K`, since every node enters and leaves a `K`-sized heap once.'
+    answer: '- Priority queue of the current head from each list: pop the minimum, append it, push that node\'s successor.\n- Prefer this over pairwise sequential merges — the heap keeps the per-element cost logarithmic in `K`, not `K` itself.'
   },
   {
     id: 'ds-7',
@@ -109,7 +109,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(V + E) for both BFS and DFS\n- Space: BFS O(w) queue (max width); DFS O(h) stack/recursion (max depth)',
     followUp: '**Follow-up:** Space complexity of BFS vs DFS on a tree?\n> BFS: O(w) max width. DFS: O(h) height. Balanced tree favors DFS; wide shallow tree favors BFS.',
     redFlags: '- Can implement only one\n- Doesn\'t know when to choose each',
-    answer: '- BFS drives a queue outward per level — best for unweighted shortest paths and level-order output.\n- DFS uses a stack or recursion — cycle checks, topological order, reachability, pre/in/post-order.\n- Both run `O(V + E)`; space differs: `O(w)` queue width versus `O(h)` recursion depth.'
+    answer: '- BFS drives a queue outward per level — best for unweighted shortest paths and level-order output.\n- DFS uses a stack or recursion — cycle checks, topological order, reachability, pre/in/post-order.\n- Pick DFS for a deep, narrow graph and BFS for a wide, shallow one — the space profile decides, not raw speed.'
   },
   {
     id: 'ds-8',
@@ -125,7 +125,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n) — every node visited once\n- Space: O(h) recursion for min/max bounds; O(n) worst case for a skewed tree',
     followUp: '**Follow-up:** Why doesn\'t comparing only children work?\n> A right-subtree node must be greater than ALL ancestors, not just its parent.',
     redFlags: '- Uses the naive children-only comparison\n- Misses subtree-bound violations: with [10,5,15] give 5 a right child 12 — children-only checks pass (12 > 5) but 12 < 10 violates the root\'s bound',
-    answer: '- Thread a `min`/`max` window down the tree: going left lowers max, going right raises min.\n- Trap: comparing a node with only its two children misses limits imposed further up.\n- `O(n)` time, `O(h)` stack — which degrades to `O(n)` when the tree is skewed.'
+    answer: '- Thread a `min`/`max` window down the tree: going left lowers max, going right raises min.\n- Trap: comparing a node with only its two children misses limits imposed further up.\n- Flag unprompted that a skewed tree turns the recursion stack linear — that is the complexity story interviewers probe for.'
   },
   {
     id: 'ds-9',
@@ -141,7 +141,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n) — full traversal in the worst case\n- Space: O(h) recursion stack; the BST variant descends once, O(h)',
     followUp: '**Follow-up:** How does this differ for a BST?\n> Use BST property: if both p,q < root go left; if both > root go right; else root is LCA. O(h) instead of O(n).',
     redFlags: '- Can\'t handle case where one node is ancestor of the other',
-    answer: '- Base case: null `root`, or `root` matching `p` or `q` — return it, and otherwise search both sides.\n- Both halves non-null means this node is the answer; a single non-null half passes that side up.\n- `O(n)` time, `O(h)` stack; on a BST you walk one branch in `O(h)`.'
+    answer: '- Base case: null `root`, or `root` matching `p` or `q` — return it, and otherwise search both sides.\n- Both halves non-null means this node is the answer; a single non-null half passes that side up.\n- On a BST, skip the full traversal — the ordering property alone picks which single branch to descend.'
   },
   {
     id: 'ds-10',
@@ -169,11 +169,11 @@ QuestionDB.register('data-structures', [
     title: 'What is the difference between HashMap, LinkedHashMap, and TreeMap?',
     tags: [ 'hash-map', 'trees', 'data-structures' ],
     related: [ 'ds-10', 'ds-12' ],
-    keyPoints: '- HashMap: O(1) average, no guaranteed order\n- LinkedHashMap: O(1), maintains insertion order\n- TreeMap: O(log n), maintains sorted key order (Red-Black Tree)',
-    complexity: '- HashMap: O(1) average, no guaranteed order\n- LinkedHashMap: O(1), maintains insertion order\n- TreeMap: O(log n), maintains sorted key order (Red-Black Tree)',
+    keyPoints: '- HashMap: no guaranteed iteration order.\n- LinkedHashMap: maintains insertion order.\n- TreeMap: maintains sorted key order via a Red-Black Tree.',
+    complexity: '- Time: HashMap O(1) average; LinkedHashMap O(1) average; TreeMap O(log n)\n- Space: O(n) for all three; TreeMap adds Red-Black Tree node overhead',
     followUp: '**Follow-up:** When would you use TreeMap?\n> Range queries (subMap, headMap, tailMap), finding nearest keys (floorKey, ceilingKey).',
     redFlags: '- Doesn\'t know TreeMap is sorted\n- Sorts a HashMap after the fact instead of using TreeMap',
-    answer: '- `HashMap`: `O(1)` average lookups, iteration order unspecified.\n- `LinkedHashMap`: same `O(1)`, but iteration follows the order keys were inserted.\n- `TreeMap`: `O(log n)` per op, keys held sorted by a red-black tree.'
+    answer: '- Use `HashMap` when order doesn\'t matter and raw speed does.\n- Use `LinkedHashMap` to preserve insertion order at the same cost.\n- Use `TreeMap` only when sorted iteration or range queries are needed — ordering is what you pay the log-n tax for.'
   },
   {
     id: 'ds-12',
@@ -189,7 +189,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Classic: Fibonacci — naive O(2^n), DP O(n).',
     followUp: '**Follow-up:** Memoization vs tabulation?\n> Memoization: natural recursion, computes only needed subproblems. Tabulation: avoids recursion stack, easier to optimize space.',
     redFlags: '- Can\'t explain overlapping subproblems\n- Only knows Fibonacci as an example',
-    answer: '- Split into overlapping subproblems and cache each result: memoize top-down, tabulate bottom-up.\n- Two signals justify it: optimal substructure plus subproblems that repeat.\n- Fibonacci drops from naive `O(2^n)` to `O(n)` once results are stored.'
+    answer: '- Split into overlapping subproblems and cache each result: memoize top-down, tabulate bottom-up.\n- Two signals justify it: optimal substructure plus subproblems that repeat.\n- Reach for DP only when both signals hold — optimal substructure alone just wants plain recursion or greedy.'
   },
   {
     id: 'ds-13',
@@ -205,7 +205,7 @@ QuestionDB.register('data-structures', [
     complexity: '- O(mn) time and space. Space reducible to O(min(m,n)).',
     followUp: '**Follow-up:** How is LCS related to Edit Distance?\n> Both use 2D DP with similar recurrences. Edit Distance adds insertion/deletion/substitution costs.',
     redFlags: '- Tries brute force recursion without memoization\n- Can\'t write the recurrence',
-    answer: '- `dp[i][j]` holds the LCS length across the first `i` characters of one string and `j` of the other.\n- Match: `dp[i-1][j-1] + 1`; no match: `max(dp[i-1][j], dp[i][j-1])`.\n- `O(mn)` in both time and space; the space figure can drop to `O(min(m,n))`.'
+    answer: '- `dp[i][j]` holds the LCS length across the first `i` characters of one string and `j` of the other.\n- Match: `dp[i-1][j-1] + 1`; no match: `max(dp[i-1][j], dp[i][j-1])`.\n- Roll the table down to two rows when only the length is asked for — reconstructing the sequence itself is what forces keeping the full grid.'
   },
   {
     id: 'ds-14',
@@ -221,7 +221,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Fill bottom-up. O(nW) time and space.',
     followUp: '**Follow-up:** How do you reconstruct which items were taken?\n> Trace back: if dp[i][w] != dp[i-1][w], item i was included.',
     redFlags: '- Uses greedy (wrong for 0/1 variant)\n- Doesn\'t know the recurrence',
-    answer: '- `dp[i][w]` = best value reachable from the first `i` items inside capacity `w`.\n- Branch per item: skip via `dp[i-1][w]`, or add `dp[i-1][w-weight[i]] + value[i]` when the item fits.\n- Built bottom-up: `O(nW)` time and space.'
+    answer: '- `dp[i][w]` = best value reachable from the first `i` items inside capacity `w`.\n- Branch per item: skip via `dp[i-1][w]`, or add `dp[i-1][w-weight[i]] + value[i]` when the item fits.\n- Collapse to a 1D array iterated right-to-left over weight when only the value is needed — the space optimization interviewers expect.'
   },
   {
     id: 'ds-15',
@@ -265,11 +265,11 @@ QuestionDB.register('data-structures', [
     title: 'Valid Parentheses — solve using a stack.',
     tags: [ 'stacks', 'strings' ],
     related: [ 'ds-18', 'ds-16' ],
-    keyPoints: '- Push opening brackets. On closing bracket, check stack top matches. Mismatch or empty stack → invalid. After scan, valid only if stack empty. O(n) time and space.',
-    complexity: '- Push opening brackets. On closing bracket, check stack top matches. Mismatch or empty stack → invalid. After scan, valid only if stack empty. O(n) time and space.',
+    keyPoints: '- Push opening brackets. On closing bracket, check stack top matches. Mismatch or empty stack → invalid. After scan, valid only if stack empty.',
+    complexity: '- Time: O(n) — one pass over the string\n- Space: O(n) worst case — all opening brackets pushed',
     followUp: '**Follow-up:** How would you find the longest valid parentheses substring?\n> DP or stack storing indices. O(n).',
     redFlags: '- Uses counter (breaks on interleaved types like `([)]`)\n- Doesn\'t handle empty stack case',
-    answer: '- Push each opener; a closer has to match the stack top or the string is rejected.\n- Reject a closer arriving at an empty stack, and accept only if nothing is left at the end.\n- `O(n)` time and space.'
+    answer: '- Push each opener; a closer has to match the stack top or the string is rejected.\n- Reject a closer arriving at an empty stack, and accept only if nothing is left at the end.'
   },
   {
     id: 'ds-18',
@@ -285,7 +285,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(1) push, pop, and getMin\n- Space: O(n) worst case for the parallel min stack (strictly decreasing input)',
     followUp: '**Follow-up:** What if you also need getMax?\n> Add a parallel max stack with same logic.',
     redFlags: '- Uses sorting or linear scan for getMin\n- Pops from min stack unconditionally',
-    answer: '- Pair the main stack with a min stack: push there when the value ≤ that top, or when it is empty.\n- Pop the min stack only when the removed value equals its top.\n- `push`, `pop`, `getMin` all `O(1)`; extra space is `O(n)` on strictly decreasing input.'
+    answer: '- Pair the main stack with a min stack: push there when the value ≤ that top, or when it is empty.\n- Pop the min stack only when the removed value equals its top.\n- Two stacks beat re-scanning for the min on every call — the min stack trades a little extra memory for a live running minimum.'
   },
   {
     id: 'ds-19',
@@ -301,7 +301,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(m×n). Space: O(min(m,n)) BFS queue in worst case.',
     followUp: '**Follow-up:** How would you count islands if the grid wraps around (toroidal)?\n> Treat left/right and top/bottom edges as connected — use modular arithmetic for neighbor indices.',
     redFlags: '- Modifies input without acknowledging it (okay to ask)\n- Doesn\'t handle 4-directional vs 8-directional distinction',
-    answer: '- Walk the grid; each fresh `\'1\'` bumps the tally and triggers a flood fill of its connected land.\n- BFS enqueues 4-way neighbours and marks on enqueue; DFS recurses 4 ways, blanking cells to `\'0\'`.\n- `O(m×n)` time, with the BFS queue worst case `O(min(m,n))`.'
+    answer: '- Walk the grid; each fresh `\'1\'` bumps the tally and triggers a flood fill of its connected land.\n- BFS enqueues 4-way neighbours and marks on enqueue; DFS recurses 4 ways, blanking cells to `\'0\'`.\n- Prefer DFS when recursion depth is a non-issue — it skips the BFS queue\'s extra bookkeeping entirely.'
   },
   {
     id: 'ds-20',
@@ -317,7 +317,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(V + E).',
     followUp: '**Follow-up:** How does DFS-based topological sort work?\n> Post-order DFS: push node to stack after visiting all descendants. Reverse the stack.\n\n**Follow-up:** When would you use topological sort in Android?\n> Dependency resolution (build systems, module init order), task scheduling with prerequisites.',
     redFlags: '- Can\'t detect cycles with Kahn\'s (result shorter than node count)\n- Confuses topological sort with BFS level order',
-    answer: '- Build the adjacency list and in-degree map, then queue every node whose in-degree is 0.\n- Dequeue into the result and decrement neighbours, queueing any that reach 0.\n- Fewer results than nodes means a cycle, so no ordering exists. `O(V + E)`.'
+    answer: '- Build the adjacency list and in-degree map, then queue every node whose in-degree is 0.\n- Dequeue into the result and decrement neighbours, queueing any that reach 0.\n- Fewer results than nodes means a cycle, so no ordering exists — that check is the whole point of Kahn\'s over a plain DFS order.'
   },
   {
     id: 'ds-21',
@@ -349,7 +349,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Insert: O(m) where m = word length. Search: O(m). Space: O(total chars).',
     followUp: '**Follow-up:** How would you implement autocomplete with a Trie?\n> startsWith to find the prefix node, then DFS from that node collecting all isEnd paths.',
     redFlags: '- Stores full words in each node (not prefix sharing)\n- Doesn\'t know how to traverse for autocomplete',
-    answer: '- Each node keeps a `children` map and an `isEnd` flag; `insert` creates one node per character.\n- `search` demands `isEnd` at the final character, while `startsWith` only needs the path to exist.\n- `O(m)` for word length `m`, and `O(total chars)` storage.'
+    answer: '- Each node keeps a `children` map and an `isEnd` flag; `insert` creates one node per character.\n- `search` demands `isEnd` at the final character, while `startsWith` only needs the path to exist.\n- Shared prefixes are the whole win — a trie beats a hashset of words whenever prefix queries matter, not just exact lookups.'
   },
   {
     id: 'ds-23',
@@ -365,7 +365,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(1) get and put — HashMap lookup plus O(1) doubly-linked-list relink\n- Space: O(capacity) for the map and linked list',
     followUp: '**Follow-up:** How do you make it thread-safe?\n> Wrap with synchronized block or use Guava\'s CacheBuilder / Caffeine.',
     redFlags: '- Uses an array + linear scan for eviction O(n)\n- Doesn\'t know LinkedHashMap supports access order',
-    answer: '- `LinkedHashMap` with `accessOrder=true` re-inserts on touch, so the oldest key is first to evict.\n- Hand-rolled: `HashMap` key → node plus a doubly linked list, head holding LRU and tail MRU.\n- `get` and `put` are `O(1)` (lookup plus relink); `O(capacity)` space.'
+    answer: '- `LinkedHashMap` with `accessOrder=true` re-inserts on touch, so the oldest key is first to evict.\n- Hand-rolled: `HashMap` key → node plus a doubly linked list, head holding LRU and tail MRU.\n- Default to `LinkedHashMap` unless asked to hand-roll it — the interview value is in explaining the pointer relinking, not in typing it out unprompted.'
   },
   {
     id: 'ds-24',
@@ -397,7 +397,7 @@ QuestionDB.register('data-structures', [
     complexity: '- O(amount × coins) time, O(amount) space.',
     followUp: '**Follow-up:** Why doesn\'t greedy work for Coin Change?\n> Greedy always picks the largest coin. Fails for coins=[1,3,4], amount=6: greedy picks 4+1+1=3 coins, optimal is 3+3=2.',
     redFlags: '- Proposes greedy without knowing it fails\n- Doesn\'t handle the -1 (impossible) case',
-    answer: '- `dp[i]` = fewest coins to reach amount `i`; `dp[0]` is 0, all others start at MAX.\n- `O(amount × coins)` time, `O(amount)` space — each amount re-tests every coin.\n- Return -1 for an unreachable target, and do not propose greedy first.'
+    answer: '- `dp[i]` = fewest coins to reach amount `i`; `dp[0]` is 0, all others start at MAX.\n- Each amount re-tests every coin — that nested cost is the price of an exact optimum over greedy.\n- Return -1 for an unreachable target, and do not propose greedy first.'
   },
   {
     id: 'ds-26',
@@ -425,11 +425,11 @@ QuestionDB.register('data-structures', [
     title: 'Find the k-th largest element in an array.',
     tags: [ 'heap', 'sorting', 'arrays' ],
     related: [ 'ds-15', 'ds-6' ],
-    keyPoints: '- Approach 1: Min-heap of size k. Add all elements; pop smallest when heap exceeds k. Root is k-th largest. O(n log k).\n- Approach 2: QuickSelect — partition like QuickSort, recurse only on the side containing target index. Average O(n), worst O(n²).\n\n```kotlin\nfun findKthLargest(nums: IntArray, k: Int): Int {\n    val heap = PriorityQueue<Int>() // min-heap\n    for (n in nums) {\n        heap.offer(n)\n        if (heap.size > k) heap.poll()\n    }\n    return heap.peek()\n}\n```',
+    keyPoints: '- Approach 1: Min-heap of size k. Add all elements; pop smallest when heap exceeds k. Root is k-th largest.\n- Approach 2: QuickSelect — partition like QuickSort, recurse only on the side containing target index.\n\n```kotlin\nfun findKthLargest(nums: IntArray, k: Int): Int {\n    val heap = PriorityQueue<Int>() // min-heap\n    for (n in nums) {\n        heap.offer(n)\n        if (heap.size > k) heap.poll()\n    }\n    return heap.peek()\n}\n```',
     complexity: '- Time: O(n log k) min-heap of size k; O(n) average QuickSelect (O(n²) worst); O(n log n) full sort\n- Space: O(k) for the heap; QuickSelect O(1) extra with in-place partitioning',
-    followUp: '**Follow-up:** When would you prefer QuickSelect over heap?\n> QuickSelect is O(n) average with O(1) extra space — better for large n and large k.',
-    redFlags: '- Sorts the entire array O(n log n)\n- Confuses k-th largest with k-th smallest',
-    answer: '- Min-heap capped at `k`: offer every element, dropping the smallest on overflow; the root is the answer.\n- That heap costs `O(n log k)` time and `O(k)` space.\n- QuickSelect re-partitions but recurses on one side: `O(n)` average, `O(n²)` worst, `O(1)` extra in place.'
+    followUp: '**Follow-up:** When would you prefer QuickSelect over heap?\n> QuickSelect needs less extra space and is typically faster in practice — better for large n and large k (see complexity for the worst-case caveat).',
+    redFlags: '- Sorts the entire array unnecessarily\n- Confuses k-th largest with k-th smallest',
+    answer: '- Min-heap capped at `k` is the safe default: offer every element, drop the smallest on overflow, the root is the answer.\n- QuickSelect trades worst-case guarantees for less extra space — pick it when average-case behavior is acceptable and memory is tight.'
   },
   {
     id: 'ds-28',
@@ -445,7 +445,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n log n) with the tails array + binary search; O(n²) naive DP\n- Space: O(n) for the tails array (or dp)',
     followUp: '**Follow-up:** Does the tails array represent an actual valid LIS?\n> No — its values may not form a valid subsequence. Only the length is correct. Track a parent array during DP to reconstruct the actual sequence.',
     redFlags: '- Only knows O(n²) solution\n- Claims tails array is the actual LIS',
-    answer: '- Naive form is `dp[i]` = LIS ending at `i`, which runs `O(n²)`.\n- Better: `tails[i]` stores the smallest end value among runs of length `i+1`.\n- Binary-search the first tail ≥ `num` and overwrite it, append if none — `O(n log n)` time, `O(n)` space.'
+    answer: '- Naive form is `dp[i]` = LIS ending at `i`, which retests every earlier index.\n- Better: `tails[i]` stores the smallest end value among runs of length `i+1`.\n- Binary-search the first tail ≥ `num` and overwrite it, append if none — the binary search is what drops the quadratic retest.'
   },
   {
     id: 'ds-29',
@@ -460,8 +460,8 @@ QuestionDB.register('data-structures', [
     complexity: 'Time: O(n), Space: O(1) (two-pointer)',
     followUp: '**Follow-up:** Why is moving the smaller side safe?\n> min(leftMax, rightMax) is bounded by the smaller max — that side\'s water is already determined regardless of what lies beyond',
     redFlags: '- Only knows brute force O(n^2)\n- Can\'t state the two-pointer invariant',
-    keyPoints: '- Asked verbatim in Walmart SDE-III rounds. Two-pointer O(n) time O(1) space: left/right pointers, track leftMax/rightMax; water at each step = min(leftMax, rightMax) - height[i]; advance the side with the smaller max\n- Alternatives: prefix-max arrays O(n)/O(n), or monotonic stack filling horizontally layer by layer',
-    answer: '- Two pointers with running `leftMax` and `rightMax`; a cell holds `min(leftMax, rightMax) - height[i]`.\n- Advance whichever side has the smaller running max, since that side fixes the bound.\n- Two-pointer form: `O(n)` time, `O(1)` space. Prefix-max arrays or a per-layer stack also solve it.'
+    keyPoints: '- Asked verbatim in Walmart SDE-III rounds. Two-pointer: left/right pointers, track leftMax/rightMax; water at each step = min(leftMax, rightMax) - height[i]; advance the side with the smaller max\n- Alternatives: prefix-max arrays, or monotonic stack filling horizontally layer by layer',
+    answer: '- Two pointers with running `leftMax` and `rightMax`; a cell holds `min(leftMax, rightMax) - height[i]`.\n- Advance whichever side has the smaller running max, since that side fixes the bound.\n- Two-pointer is the space-tightest form; prefix-max arrays or a per-layer stack also solve it if a second pass is acceptable.'
   },
   {
     id: 'ds-30',
@@ -477,7 +477,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** How does this generalize?\n> Same select/skip pattern as Knapsack and max non-adjacent subsequence — state the recurrence before coding',
     redFlags: '- Alternates houses instead of using the recurrence (fails on [2,1,1,2]: alternating gives 2+1 or 1+2 = 3, optimal is houses 1+4 = 4)\n- Can\'t handle the circular variant',
     keyPoints: '- Recurrence: dp[i] = max(dp[i-1], dp[i-2] + nums[i]) — skip house i, or rob it plus best up to i-2\n- Space-optimize to two variables. Follow-up variant: houses in a circle (LC 213) — run twice, excluding first or last house',
-    answer: '- `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`: leave house `i` alone, or take it on top of `i-2`.\n- Two running values replace the table: `O(n)` time, `O(1)` space.\n- Circular version (LC 213): solve twice, once skipping the first house and once the last.'
+    answer: '- `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`: leave house `i` alone, or take it on top of `i-2`.\n- Two running values replace the table — the standard shrink for any 1-D DP recurrence.\n- Circular version (LC 213): solve twice, once skipping the first house and once the last.'
   },
   {
     id: 'ds-31',
@@ -509,7 +509,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Complexity and why?\n> O(n) time — each character enters and leaves the window at most once; O(k) space',
     redFlags: '- Recomputes distinct count by scanning the map each step\n- Off-by-one on window length',
     keyPoints: '- Sliding window with a hashmap char → count. Expand right; while distinct > k, shrink left, decrementing counts and removing zero-count keys\n- Track max window length (and start index if the substring itself is wanted)',
-    answer: '- Window over a `char → count` map: extend `right`, then pull `left` while distinct keys exceed `k`.\n- Drop keys that reach count 0, otherwise the distinct tally inflates.\n- Record the longest window. `O(n)` time, `O(k)` space.'
+    answer: '- Window over a `char → count` map: extend `right`, then pull `left` while distinct keys exceed `k`.\n- Drop keys that reach count 0, otherwise the distinct tally inflates.\n- Track the max window length as you go rather than recomputing it at the end.'
   },
   {
     id: 'ds-33',
@@ -525,7 +525,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Where else does this pattern appear?\n> Maximal rectangle in a binary matrix (LC 85) — build a per-row histogram and run this routine',
     redFlags: '- Wrong width formula (off-by-one on boundaries)\n- Stuck at O(n^2) brute force',
     keyPoints: '- Monotonic increasing stack of indices. On a shorter bar, pop taller bars: area = height[popped] × (current index - stack-top-after-pop - 1)\n- Flush remaining bars at the end with width = n - (stack top after pop) - 1',
-    answer: '- Keep indices in a stack of increasing heights; a shorter bar pops the taller ones above it.\n- Each pop scores that bar\'s height × width, where width = current index minus the new top minus 1.\n- Drain leftovers at the end the same way. `O(n)` time, `O(n)` space.'
+    answer: '- Keep indices in a stack of increasing heights; a shorter bar pops the taller ones above it.\n- Each pop scores that bar\'s height × width, where width = current index minus the new top minus 1.\n- Draining leftovers at the end the same way is what catches the tallest bars — don\'t stop at the last real index.'
   },
   {
     id: 'ds-34',
@@ -557,7 +557,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** How would you extend to k colors?\n> Count-then-overwrite for small fixed k, or generalized three-way partitioning',
     redFlags: '- Forgets to re-examine the element swapped in from high\n- Two-pass counting sort when one pass was asked',
     keyPoints: '- Three pointers: low, mid, high. nums[mid]==0 → swap with low, low++, mid++; ==1 → mid++; ==2 → swap with high, high-- and do NOT advance mid (the swapped-in value is unexamined)\n- Single pass, constant space',
-    answer: '- Pointers `low`, `mid`, `high`: a 0 swaps down past `low`, a 2 swaps up past `high`, a 1 only moves `mid`.\n- Trap: after swapping a 2, leave `mid` put — the incoming value has not been seen yet.\n- One sweep, `O(n)` time, `O(1)` space.'
+    answer: '- Pointers `low`, `mid`, `high`: a 0 swaps down past `low`, a 2 swaps up past `high`, a 1 only moves `mid`.\n- Trap: after swapping a 2, leave `mid` put — the incoming value has not been seen yet.\n- One sweep beats a two-pass count-then-overwrite when only a single traversal is allowed.'
   },
   {
     id: 'ds-36',
@@ -573,7 +573,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** How do you return the indices?\n> Restart start at i when current restarts at nums[i]; update end whenever best improves',
     redFlags: '- Fails on all-negative arrays\n- Confuses max-sum with longest positive subarray',
     keyPoints: '- current = max(nums[i], current + nums[i]); best = max(best, current). Optionally track start/end indices\n- Variants worth mentioning: max product subarray (track max AND min — negation flips them) and circular variant (total - min subarray)',
-    answer: '- `current = max(nums[i], current + nums[i])`, and `best` tracks the largest `current` seen.\n- Start and end positions can be recorded alongside. `O(n)` time, `O(1)` space.\n- Named variants: max product carries both extremes; the circular case uses `total - min subarray`.'
+    answer: '- `current = max(nums[i], current + nums[i])`, and `best` tracks the largest `current` seen.\n- Start and end positions can be recorded alongside without changing the pass count.\n- Named variants: max product carries both extremes; the circular case uses `total - min subarray`.'
   },
   {
     id: 'ds-37',
@@ -589,7 +589,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Left view?\n> Same ideas mirrored: left-first DFS or first node of each BFS level',
     redFlags: '- Confuses right view with the rightmost path\n- DFS version forgets depth tracking',
     keyPoints: '- BFS level by level: take the last node of each level. Or DFS visiting right child first, keeping a depth → value map — the first visit per depth wins',
-    answer: '- BFS by level, keeping the final node encountered at each depth.\n- Or DFS that tries the right child first, with a depth → value map where the first writer wins.\n- `O(n)` time, `O(width)` space.'
+    answer: '- BFS by level, keeping the final node encountered at each depth.\n- Or DFS that tries the right child first, with a depth → value map where the first writer wins.\n- Pick BFS when the tree is shallow and wide, DFS when it\'s deep and narrow — same trade-off as any BFS/DFS choice.'
   },
   {
     id: 'ds-38',
@@ -605,7 +605,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Iterative version?\n> Stack-based DFS or queue BFS; swap each node\'s children list when visited',
     redFlags: '- Treats it like a binary left/right swap\n- Breaks on empty children lists',
     keyPoints: '- Post-order: recursively mirror every child subtree first, then reverse the children list (or reverse first — both work if consistent)\n- Clarify in-place vs returning a new tree; n-ary nodes hold children[], not left/right',
-    answer: '- Post-order: mirror every child subtree, then reverse the `children` collection; reversing first also works.\n- Nodes expose a `children[]` array rather than left/right — settle in-place versus a returned copy.\n- `O(n)` time, `O(height)` recursion space.'
+    answer: '- Post-order: mirror every child subtree, then reverse the `children` collection; reversing first also works.\n- Nodes expose a `children[]` array rather than left/right — settle in-place versus a returned copy.\n- State the in-place-vs-copy decision out loud before coding; it changes whether the caller\'s tree is still valid afterward.'
   },
   {
     id: 'ds-39',
@@ -621,7 +621,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** What if a train arrives exactly when another departs?\n> Clarify tie-breaking — the usual convention needs an extra platform on equality',
     redFlags: '- Sorts (arrival, departure) pairs and single-passes (breaks on interleaving)\n- Off-by-one on the equality tie',
     keyPoints: '- Sort arrivals and departures separately; two pointers — if arrival <= departure, a train needs a platform (count++, advance arrival); else free one (count--, advance departure); track the max\n- Equivalent sweep line: +1 at arrivals, -1 at departures, prefix max',
-    answer: '- Sort arrivals and departures as separate arrays, then walk both with two pointers.\n- `arrival <= departure` consumes a platform (count++); otherwise one frees (count--) — keep the peak.\n- Same as a sweep line: +1 on arrivals, -1 on departures, max prefix. `O(n log n)` time, `O(1)` space.'
+    answer: '- Sort arrivals and departures as separate arrays, then walk both with two pointers.\n- `arrival <= departure` consumes a platform (count++); otherwise one frees (count--) — keep the peak.\n- Same idea as a sweep line: +1 on arrivals, -1 on departures, running max is the answer either way.'
   },
   {
     id: 'ds-40',
@@ -637,7 +637,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Why k+1?\n> The correct next output element is at most k positions ahead, so a window of k+1 suffices',
     redFlags: '- Full heapsort (misses the point of the constraint)\n- Heap of size k instead of k+1',
     keyPoints: '- Min-heap of size k+1: insert the first k+1 elements, then repeatedly pop-min to the output and push the next array element — the heap always contains the true next element because it lies within k positions',
-    answer: '- Seed a min-heap with the first `k+1` items, then pop-min to output while pushing each next element.\n- Sound because each element lands within `k` of its final slot, so the heap holds the true successor.\n- `O(n log k)` time, `O(k)` space.'
+    answer: '- Seed a min-heap with the first `k+1` items, then pop-min to output while pushing each next element.\n- Sound because each element lands within `k` of its final slot, so the heap holds the true successor.\n- A heap sized `k+1`, not `k`, is what makes this correct — undersizing it drops the actual next element.'
   },
   {
     id: 'ds-41',
@@ -669,7 +669,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** \'Custom mapping\' variant — an array maps digits to arbitrary letter sets?\n> Same algorithm; source letters from the provided mapping instead of the fixed keypad',
     redFlags: '- Deeply nested loops instead of recursion\n- mishandles digits with no letters (0/1)',
     keyPoints: '- Backtracking: map each digit to its letters, recurse index by index building a buffer, emit at full length; or iterative expansion of partial results',
-    answer: '- Table digit → letters, then recurse one position at a time into a buffer, emitting once it is full length.\n- Iterative route: expand the accumulated partial strings digit by digit.\n- `O(4^n · n)` time, `O(n)` recursion depth.'
+    answer: '- Table digit → letters, then recurse one position at a time into a buffer, emitting once it is full length.\n- Iterative route: expand the accumulated partial strings digit by digit — trades recursion depth for holding every partial result at once.\n- Skip digits with no letters (0/1) rather than mapping them to an empty branch.'
   },
   {
     id: 'ds-43',
@@ -685,7 +685,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Numbers stored as huge strings?\n> Same schoolbook addition on reversed strings',
     redFlags: '- Drops the final carry\n- Mutates inputs when told not to',
     keyPoints: '- Least-significant-digit-first: walk both lists with carry (LC 2). Most-significant-first: reverse both (or use stacks), add, reverse the result (LC 445)\n- Edge cases: unequal lengths, final carry creating a new head',
-    answer: '- LSD-first: walk both lists together carrying overflow (LC 2). `O(max(m, n))` time.\n- MSD-first: flip both lists, or stage them on stacks, add, then flip the sum back (LC 445).\n- Traps: unequal lengths, plus a final carry that grows an extra leading node. `O(1)` space beyond output.'
+    answer: '- LSD-first: walk both lists together carrying overflow (LC 2) — the natural direction when digits are already stored least-significant-first.\n- MSD-first: flip both lists, or stage them on stacks, add, then flip the sum back (LC 445).\n- Traps: unequal lengths, plus a final carry that grows an extra leading node.'
   },
   {
     id: 'ds-44',
@@ -701,7 +701,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Why do consecutive Gray codes differ in exactly one bit?\n> i and i+1 differ in a trailing-ones suffix plus one carry bit; XOR with i>>1 cancels all but that single bit',
     redFlags: '- Generates then rotates the array (O(2^n) extra) when per-element XOR exists\n- Off-by-one on sequence length',
     keyPoints: '- Gray codes: g(i) = i XOR (i >> 1) for i in [0, 2^n). Then XOR every element with `start` — adjacency (one-bit differences) is preserved, giving the rotated circular sequence directly',
-    answer: '- Emit Gray codes via `g(i) = i XOR (i >> 1)` across `[0, 2^n)`.\n- Then XOR each entry with `start`: single-bit adjacency survives, yielding the rotated cycle.\n- `O(2^n)` time, `O(1)` space excluding the output list.'
+    answer: '- Emit Gray codes via `g(i) = i XOR (i >> 1)` across `[0, 2^n)`.\n- Then XOR each entry with `start`: single-bit adjacency survives, yielding the rotated cycle.\n- Prefer the per-element XOR over generating then rotating the array — it skips a second full pass.'
   },
   {
     id: 'ds-45',
@@ -733,7 +733,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Extend to N threads?\n> Counter modulo N with notifyAll, or a condition per turn; discuss throughput vs simplicity',
     redFlags: '- Busy-waiting instead of wait/notify\n- Deadlock from notify without condition re-check',
     keyPoints: '- Shared counter + monitor: each thread loops — synchronized block, wait() when it is not your turn (counter % 2), print, counter++, notifyAll()\n- Or two binary semaphores ping-ponging; check re-check condition with while, never if',
-    answer: '- One shared counter under a monitor: print only when `counter % 2` is your parity, increment, `notifyAll()`.\n- `wait()` whenever the parity is not yours, re-tested inside a `while` loop rather than an `if`.\n- Or pass a token with two binary semaphores. `O(n)` time, `O(1)` space.'
+    answer: '- One shared counter under a monitor: print only when `counter % 2` is your parity, increment, `notifyAll()`.\n- `wait()` whenever the parity is not yours, re-tested inside a `while` loop rather than an `if` — guards against spurious wakeups.\n- Or pass a token with two binary semaphores instead of a monitor.'
   },
   {
     id: 'ds-47',
@@ -767,7 +767,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Why while() and never if() around await()?\n> Spurious wakeups plus lost-wakeup races: another consumer may take the item between signal and your resume, so re-check the condition.',
     redFlags: '- Guards wait()/await with `if` instead of a `while` loop\n- Uses a single condition (notifyAll) so producers wake producers\n- Unbounded queue — "solved" by dropping the bound',
     keyPoints: '- Shared fixed array/deque + lock + TWO conditions: notFull for producers, notEmpty for consumers\n- put: lock, `while (size == cap) notFull.await()`, insert, notEmpty.signal(); take mirrors it. Always signal AFTER mutating state, unlock in finally\n```java\nclass BoundedBuffer<T> {\n    private final Queue<T> q = new ArrayDeque<>();\n    private final int cap; private final Lock lock = new ReentrantLock();\n    private final Condition notFull = lock.newCondition(), notEmpty = lock.newCondition();\n    BoundedBuffer(int cap) { this.cap = cap; }\n    public void put(T x) throws InterruptedException {\n        lock.lock();\n        try {\n            while (q.size() == cap) notFull.await();\n            q.add(x); notEmpty.signal();\n        } finally { lock.unlock(); }\n    }\n    public T take() throws InterruptedException {\n        lock.lock();\n        try {\n            while (q.isEmpty()) notEmpty.await();\n            T x = q.remove(); notFull.signal(); return x;\n        } finally { lock.unlock(); }\n    }\n}\n```\n- Simpler correct form: `BlockingQueue` (LinkedBlockingQueue/ArrayBlockingQueue) — same protocol built in; interviewers want to see you know the hand-rolled version\n- Shutdown: poison pill, or interrupt awaiting consumers; back-pressure = producer naturally blocks when the buffer fills',
-    answer: '- Bounded buffer with a lock plus two conditions: producers `while (full) notFull.await()`, consumers `while (empty) notEmpty.await()`, signal the opposite condition after mutating.\n- The bound gives back-pressure; `ArrayBlockingQueue` is exactly this protocol in the JDK.\n- `O(1)` per put/take, `O(capacity)` space; shutdown via poison pill or interrupt.'
+    answer: '- Bounded buffer with a lock plus two conditions: producers `while (full) notFull.await()`, consumers `while (empty) notEmpty.await()`, signal the opposite condition after mutating.\n- The bound gives back-pressure; `ArrayBlockingQueue` is exactly this protocol in the JDK — reach for it before hand-rolling.\n- Shutdown via poison pill or interrupting awaiting consumers, not by killing the thread.'
   },
   {
     id: 'ds-49',
@@ -882,7 +882,7 @@ QuestionDB.register('data-structures', [
     complexity: 'Time: O(n) — each element enters and leaves the window once\nSpace: O(1) — one running sum',
     redFlags: '- Recomputes the whole window sum per position (O(n·k))\n- Off-by-one: subtracts a[i−k+1] instead of the element actually leaving\n- No guard for k > n',
     keyPoints: '- Seed sum over the first k, then slide: add a[i], drop a[i − k] — constant work per step replaces the O(k) re-scan\n```kotlin\nfun maxSumOfSizeK(a: IntArray, k: Int): Int {\n    require(k in 1..a.size)\n    var sum = 0L\n    for (i in 0 until k) sum += a[i]\n    var best = sum\n    for (i in k until a.size) {\n        sum += a[i] - a[i - k]\n        if (sum > best) best = sum\n    }\n    return best.toInt()\n}\n```\n- Fixed window = this template; variable window (longest valid run) needs expand-right/shrink-left with an invariant\n- Everything "best k-length substring/subarray/average" reuses it: swap the sum for a count map, max, or hash',
-    answer: '- Compute the first window once, then per step: `sum += a[i] − a[i−k]` and keep the running best.\n- Constant work per slide beats re-summing: `O(n)` vs `O(n·k)`, `O(1)` space.\n- Fixed-size is the template; the expand/shrink variable-window form is `ds-3` and `ds-32`.'
+    answer: '- Compute the first window once, then per step: `sum += a[i] − a[i−k]` and keep the running best.\n- Constant work per slide beats re-summing the whole window at every position.\n- Fixed-size is the template; the expand/shrink variable-window form is `ds-3` and `ds-32`.'
   },
   {
     id: 'ds-56',
@@ -899,7 +899,7 @@ QuestionDB.register('data-structures', [
     followUp: '**Follow-up:** Find the rotation pivot / smallest element?\n> Same shape: if nums[mid] > nums[hi] the min is right of mid, else at-or-left; O(log n).',
     redFlags: '- Branches without first proving which half is sorted\n- Uses nums[lo] < nums[mid] (strict) and loses the single-element sorted half\n- Hits duplicates (LC 81) and silently breaks instead of falling back to lo++/hi--',
     keyPoints: '- A rotated sorted array = two sorted runs; at every mid, ONE of [lo..mid] / [mid..hi] is fully sorted: `nums[lo] <= nums[mid]` proves the left\n- If the target lies inside the sorted half\'s range, binary-search there; otherwise it can only be in the other half\n```kotlin\nfun search(nums: IntArray, target: Int): Int {\n    var lo = 0; var hi = nums.size - 1\n    while (lo <= hi) {\n        val mid = lo + (hi - lo) / 2\n        if (nums[mid] == target) return mid\n        if (nums[lo] <= nums[mid]) {                    // left half sorted\n            if (nums[lo] <= target && target < nums[mid]) hi = mid - 1 else lo = mid + 1\n        } else {                                        // right half sorted\n            if (nums[mid] < target && target <= nums[hi]) lo = mid + 1 else hi = mid - 1\n        }\n    }\n    return -1\n}\n```\n- Duplicates (LC 81): `nums[lo] == nums[mid]` proves nothing — shrink `lo++` and continue, worst case `O(n)`\n- Alternatives to name: find the pivot first then plain binary search (two-pass, same O(log n)); or binary-search the implicit index `(pivot + i) % n`',
-    answer: '- At each mid exactly one half is sorted (`nums[lo] <= nums[mid]` for the left); range-check the target against that half and go there, else go the other way.\n- Standard `<=` on the sorted-side test — a strict `<` drops the single-element half and mis-branches.\n- `O(log n)` time, `O(1)` space; with duplicates the test degrades to `O(n)` via `lo++` fallback (LC 81).'
+    answer: '- At each mid exactly one half is sorted (`nums[lo] <= nums[mid]` for the left); range-check the target against that half and go there, else go the other way.\n- Standard `<=` on the sorted-side test — a strict `<` drops the single-element half and mis-branches.\n- Duplicates (LC 81) break the one-sorted-half guarantee — fall back to `lo++` when `nums[lo] == nums[mid]` proves nothing.'
   },
   {
     id: 'ds-57',
@@ -932,7 +932,7 @@ QuestionDB.register('data-structures', [
     complexity: '- Time: O(n) — every node is relinked once, plus one counting pass per group (still linear)\n- Space: O(1) iterative; O(n/k) call stack for the recursive form',
     redFlags: '- Reverses per node and never reconnects the group boundaries (the list splits apart)\n- Mutates a trailing group shorter than k when the spec says leave it alone\n- Loses the group\'s ORIGINAL head, which is the node that must point at the rest\n- Writes the recursive version without being able to give the O(1)-space loop form',
     keyPoints: '- Per group: walk k nodes first to PROVE the group is complete; if fewer than k remain, return the head untouched\n- Then run the plain three-pointer reversal exactly k times and splice: previous group\'s tail → new head of the segment, segment\'s old head (now its tail) → result of the rest\n```kotlin\nfun reverseKGroup(head: Node?, k: Int): Node? {\n    var count = 0; var cur = head\n    while (cur != null && count < k) { cur = cur.next; count++ }\n    if (count < k) return head                        // partial group keeps its order\n    var prev: Node? = null; var node = head\n    repeat(k) { val nx = node!!.next; node.next = prev; prev = node; node = nx }\n    head!!.next = reverseKGroup(node, k)              // head is now the segment tail\n    return prev\n}\n```\n- The line `head.next = reverseKGroup(node, k)` is the whole trick: after reversal the ORIGINAL head is the TAIL, and `node` is where the next group starts\n- In-place variant: `dummy` head + `groupPrev`; reverse k nodes, then `groupPrev.next = newHead` and advance `groupPrev` to the old head — same O(n), no stack\n- k > length is the boundary case interviewers probe (LC 25 says do not reverse it; LC 147 variants say reverse everything)\n- Do not confuse it with reversing between positions m and n (LC 92): one pass, head-insert after the m−1 node, no counting step',
-    answer: '- Count k ahead; a short group is returned as-is. Otherwise reverse exactly those k nodes and relink `prevTail → newHead` and `oldHead → rest`.\n- The original head becomes the segment tail, which is what makes the one-line recursive splice correct.\n- `O(n)` time; `O(n/k)` stack recursive, `O(1)` with a dummy-head loop.'
+    answer: '- Count k ahead; a short group is returned as-is. Otherwise reverse exactly those k nodes and relink `prevTail → newHead` and `oldHead → rest`.\n- The original head becomes the segment tail, which is what makes the one-line recursive splice correct.\n- Prefer the dummy-head iterative loop over recursion when stack depth on long lists is a concern.'
   },
   {
     id: 'ds-59',

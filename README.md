@@ -1,6 +1,6 @@
 # Interview Prep
 
-A single-page app for senior mobile/SWE interview preparation: **408 curated questions** across
+A single-page app for senior mobile/SWE interview preparation: **curated questions** across
 four topics. Each carries a worked answer plus the follow-ups and red flags an interviewer will push
 on; behavioural items also carry a listening guide and a STAR framing hint. Progress (what you know,
 what you forgot, what you've opened) is tracked locally, and a **roadmap matrix** shows the whole
@@ -13,15 +13,15 @@ with an optional zero-dependency Node API for persistence.
 Pages. That copy has no progress API, so it remembers each browser separately; see
 [How progress is stored](#how-progress-is-stored).
 
-| Topic | File | Questions |
-| --- | --- | --- |
-| Android | `data/android.js` | 154 |
-| Behavioural | `data/behavioral.js` | 74 |
-| Data Structures | `data/data-structures.js` | 68 |
-| System Design | `data/system-design.js` | 112 |
+| Topic | File |
+| --- | --- |
+| Android | `data/android.js` |
+| Behavioural | `data/behavioral.js` |
+| Data Structures | `data/data-structures.js` |
+| System Design | `data/system-design.js` |
 
-Those counts are what `HEAD` registers; the authoritative number is whatever the `data/*.js` files
-contain, and the app shows it live in the roadmap's per-block counts.
+Question counts are not written down here because they change with every edit; the app shows them
+live in the roadmap's per-block counts.
 
 ## Run it
 

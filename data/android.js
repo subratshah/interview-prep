@@ -17,8 +17,7 @@ QuestionDB.register('android',
 - \`var\` lets you point at a different object at any time`,
     followUp: `**Follow-up:** Can a \`val\` property change its value?
 > Yes — if it's a \`var\` property inside a \`val\` object, or a delegated property`,
-    redFlags: `- Says \`val\` means the object is immutable (conflates reference vs. content)
-- Doesn't know about delegated properties at all`,
+    redFlags: `- Says \`val\` means the object is immutable (conflates reference vs. content)`,
   },
   {
     id: 'tech-2',
@@ -33,13 +32,12 @@ QuestionDB.register('android',
     keyPoints: `- \`data class\` auto-generates: \`equals()\`, \`hashCode()\`, \`toString()\`, \`copy()\`, \`componentN()\`
 - Use for DTOs, API response models, UI state objects
 - Avoid for classes with identity semantics (e.g., a \`View\`, a \`ViewModel\`)`,
-    answer: `- \`data class\` synthesizes \`equals\`/\`hashCode\`/\`toString\`/\`copy\`/\`componentN\`
-- Fit for value-like holders: DTOs, API models, UI state
-- Wrong fit when identity matters, e.g. \`View\` or \`ViewModel\``,
+    answer: `- Value-semantics test: if two instances with equal fields should be interchangeable, make it a \`data class\`
+- Default for DTOs and UI state; keep anything with identity or owned resources a regular class
+- Don't reach for \`data class\` just to get a free \`toString()\``,
     followUp: `**Follow-up:** What's the problem with using a \`data class\` for a \`ViewModel\`?
 > \`equals()\` compares field values — two VMs with same state would be "equal" even though they're different instances. Also, \`copy()\` on a VM that holds coroutine scopes is dangerous.`,
-    redFlags: `- Doesn't know what \`copy()\` does
-- Says "always use data class for everything"`,
+    redFlags: `- Says "always use data class for everything"`,
   },
   {
     id: 'tech-3',
@@ -77,17 +75,17 @@ user?.let { sendEmail(it.email) }
     section: 'Kotlin',
     title: 'Explain sealed classes. How are they different from enums?',
     tags: [ 'kotlin', 'classes', 'state' ],
-    related: [ 'tech-2', 'tech-11' ],
+    related: [ 'tech-2', 'tech-138' ],
     keyPoints: `- \`sealed class\` = closed type hierarchy, subclasses defined in same package/file
 - Each subclass can hold **different data**; enum instances all have the same shape
 - Used for: UI state (\`Loading\`, \`Success(data)\`, \`Error(message)\`), Result types, navigation events`,
-    answer: `- \`sealed class\` closes the hierarchy — subclasses live in the same package/file
-- Each subclass carries its own data; enum constants share one shape
-- Typical fit: \`Loading\`/\`Success(data)\`/\`Error(message)\` UI state, Result types`,
+    answer: `- Pick a sealed type when variants carry different data; an enum when they are just labelled constants
+- Model UI state and results as sealed types so every \`when\` must handle each case
+- Adding a subtype then becomes a compile error at each unhandled \`when\` — that is the payoff`,
     followUp: `**Follow-up:** Why does \`when\` on a sealed class not need an \`else\` branch?
 > Compiler knows all subclasses at compile time → exhaustive check`,
     redFlags: `- Confuses sealed class with abstract class
-- Doesn't know about exhaustive \`when\``,
+- Adds an \`else\` branch to a \`when\` over a sealed type, silently opting out of the exhaustiveness check`,
   },
   {
     id: 'tech-5',
@@ -102,13 +100,13 @@ user?.let { sendEmail(it.email) }
     keyPoints: `- \`?.\` = safe call, returns null if receiver is null
 - \`!!\` = non-null assertion, throws \`NullPointerException\` if null
 - \`?:\` = Elvis operator, provides a default value when null`,
-    answer: `- \`?.\` safe call: the whole expression yields null when the receiver is null
-- \`!!\` asserts non-null — throws \`NullPointerException\` if that is wrong
-- \`?:\` Elvis supplies a fallback on the null branch`,
+    answer: `- Handle absence with \`?.\` and \`?:\` by default
+- Treat \`!!\` as a crash chosen in advance — only with a guarantee the type system can't see
+- Resolve nullability at the boundaries (parsing, platform calls) so the core works with non-null types`,
     followUp: `**Follow-up:** When is \`!!\` acceptable?
 > Only when you have a guarantee outside the type system (e.g., a field always set by framework before use, test code). Even then, prefer a clear error message.`,
     redFlags: `- Uses \`!!\` liberally without acknowledging the risk
-- Doesn't know what \`?:\` is called or does`,
+- Lets platform types (\`String!\` from Java) flow through the codebase unchecked`,
   },
   {
     id: 'tech-6',
@@ -119,45 +117,18 @@ user?.let { sendEmail(it.email) }
     section: 'Android Core',
     title: 'Walk me through the Activity lifecycle. What happens on screen rotation?',
     tags: [ 'lifecycle', 'activity' ],
-    related: [ 'tech-7', 'tech-10' ],
+    related: [ 'tech-75', 'tech-10' ],
     keyPoints: `- \`onCreate → onStart → onResume\` (visible, interactive)
 - \`onPause → onStop → onDestroy\` (going away)
 - On rotation: \`onPause → onStop → onDestroy → onCreate → onStart → onResume\`
 - \`ViewModel\` survives rotation; \`onSaveInstanceState\` for lightweight UI state`,
-    answer: `- In: \`onCreate → onStart → onResume\`; leaving: \`onPause → onStop → onDestroy\`
-- Rotation tears down via \`onDestroy\`, then runs the chain again from \`onCreate\`
-- \`ViewModel\` rides through rotation; \`onSaveInstanceState\` covers light UI state`,
+    answer: `- Rotation is a full destroy-and-recreate, so anything held only by the Activity instance is lost
+- Set up in \`onCreate\`, start/stop visible work in \`onStart\`/\`onStop\`, never rely on \`onDestroy\` for must-run cleanup
+- Keep screen state outside the Activity so recreation is cheap`,
     followUp: `**Follow-up:** When does \`onDestroy\` NOT get called?
-> System process kill (OOM, force stop) — OS kills process directly
-
-**Follow-up:** Difference between \`onSaveInstanceState\` and \`ViewModel\` for state?
-> \`onSaveInstanceState\`: small, serializable data, survives process death. \`ViewModel\`: survives config changes only, can hold large objects`,
-    redFlags: `- Doesn't know ViewModel survives rotation
-- Thinks \`onDestroy\` is always called`,
-  },
-  {
-    id: 'tech-7',
-    type: 'technical',
-    num: 7,
-    difficulty: 'M',
-    star: true,
-    section: 'Android Core',
-    title: 'What is MVVM? What belongs in each layer?',
-    tags: [ 'architecture', 'mvvm', 'viewmodel' ],
-    related: [ 'ds-1', 'tech-46', 'tech-6' ],
-    keyPoints: `- **Model:** data, business logic, repository
-- **ViewModel:** UI state, exposes \`StateFlow\`/\`LiveData\`, calls repository, no Android framework imports ideally
-- **View:** observes state, renders UI, sends events to VM`,
-    answer: `- Model: data plus business logic, typically repositories
-- ViewModel: holds UI state, exposes \`StateFlow\`/\`LiveData\`, ideally no framework imports
-- View: renders state it observes, forwards events up to the VM`,
-    followUp: `**Follow-up:** What should NOT be in a ViewModel?
-> Context references (memory leak), View references, any direct UI manipulation
-
-**Follow-up:** How is MVVM different from MVP?
-> MVP has a Presenter with a reference to the View interface. MVVM uses observable state — View observes, no direct reference.`,
-    redFlags: `- Puts network calls directly in Activity/Fragment
-- Passes \`Context\` into \`ViewModel\` constructor (should use \`AndroidViewModel\` if needed)`,
+> System process kill (OOM, force stop) — OS kills process directly`,
+    redFlags: `- Thinks \`onDestroy\` is always called
+- Saves critical data in \`onDestroy\` instead of \`onStop\``,
   },
   {
     id: 'tech-8',
@@ -172,13 +143,13 @@ user?.let { sendEmail(it.email) }
     keyPoints: `- \`RecyclerView\` keeps a pool of \`ViewHolder\`s; when a view scrolls off screen it's recycled
 - \`ViewHolder\` caches \`findViewById\` calls — avoids repeated inflation and lookup
 - \`DiffUtil\` / \`ListAdapter\` calculates minimal changes to avoid full rebind`,
-    answer: `- Offscreen \`ViewHolder\`s return to a pool and are rebound, not rebuilt
-- The holder caches view lookups, killing repeated \`findViewById\` and re-inflation
-- \`DiffUtil\`/\`ListAdapter\` computes minimal item changes to avoid a full rebind`,
+    answer: `- Keep \`onBindViewHolder\` cheap — it runs on every scroll-in, while inflation happens only when the pool is empty
+- Submit lists through \`ListAdapter\`/\`DiffUtil\` rather than full refreshes
+- Reset every view property you set in bind, because recycled holders carry the previous item's state`,
     followUp: `**Follow-up:** What's the difference between \`notifyDataSetChanged()\` and \`DiffUtil\`?
 > \`notifyDataSetChanged\` redraws everything (no animations, poor performance). \`DiffUtil\` computes the diff and animates only changed rows.`,
-    redFlags: `- Doesn't know what \`ViewHolder\` solves
-- Has never heard of \`DiffUtil\``,
+    redFlags: `- Decodes images or formats heavy text inside \`onBindViewHolder\`
+- Stores per-item state in the ViewHolder and sees it reappear on recycled rows`,
   },
   {
     id: 'tech-9',
@@ -193,13 +164,12 @@ user?.let { sendEmail(it.email) }
     keyPoints: `- ANR = Application Not Responding — triggered when main thread is blocked >5s (or BroadcastReceiver >10s)
 - Caused by: network/DB on main thread, long synchronous computation, deadlock
 - Investigation: pull ANR trace from \`data/anr/traces.txt\`, use Android Vitals in Play Console, StrictMode in debug`,
-    answer: `- ANR fires when the main thread stalls past 5s; a receiver gets 10s
-- Usual suspects: network or DB on main thread, heavy sync math, deadlock
-- Dig: \`data/anr/traces.txt\`, Play Console Vitals, StrictMode in debug`,
+    answer: `- Treat any blocking call on the main thread as a future ANR, however fast it is on your device
+- Start from Play Vitals ANR clusters and the main-thread stack in the trace, not from guesses
+- Keep StrictMode on in debug so disk/network-on-main fails loudly before release`,
     followUp: `**Follow-up:** How do you prevent ANRs proactively?
 > StrictMode, move IO to coroutines with \`Dispatchers.IO\`, profile with Systrace/Perfetto`,
-    redFlags: `- Can't explain what causes an ANR
-- Has never used StrictMode`,
+    redFlags: `- Assumes ANRs only come from network calls and misses lock contention or deadlocks on the main thread`,
   },
   {
     id: 'tech-10',
@@ -224,28 +194,7 @@ Detection:
     answer: `- Statics or singletons holding an \`Activity\`, or lambdas capturing one
 - Listeners never unregistered; \`Handler\` delayed messages still referencing it
 - Hunt with LeakCanary or Memory Profiler; keep long-lived context weakly`,
-    redFlags: `- Can't name a single leak cause
-- Doesn't know LeakCanary exists`,
-  },
-  {
-    id: 'tech-11',
-    type: 'technical',
-    num: 11,
-    difficulty: 'M',
-    star: true,
-    section: 'Jetpack',
-    title: 'What triggers recomposition? How do you minimize unnecessary recompositions?',
-    tags: [ 'compose', 'state', 'performance' ],
-    related: [ 'tech-12', 'tech-13' ],
-    keyPoints: `- Recomposition triggered when \`State\` read inside composable changes
-- Minimize by: hoisting state, using \`remember\`, \`derivedStateOf\` for computed values, making lambdas stable, \`key()\` for list items`,
-    answer: `- Recomposition happens when a \`State\` read inside that scope changes value
-- Trim it by hoisting state, caching with \`remember\`, and \`derivedStateOf\` for computed reads
-- Keep lambdas stable and add \`key()\` to list items so siblings can skip`,
-    followUp: `**Follow-up:** What is \`derivedStateOf\` and when would you use it?
-> Derives state from other state, only recomposes when the derived value actually changes (not every time source state changes)`,
-    redFlags: `- Thinks Compose re-draws everything like \`invalidate()\`
-- Doesn't know \`remember\``,
+    redFlags: `- Can't name a single leak cause`,
   },
   {
     id: 'tech-12',
@@ -256,15 +205,15 @@ Detection:
     section: 'Jetpack',
     title: '`remember` vs `rememberSaveable` — when does each apply?',
     tags: [ 'compose', 'state' ],
-    related: [ 'tech-11', 'tech-6' ],
+    related: [ 'tech-138', 'tech-6' ],
     keyPoints: `- \`remember\`: survives recomposition, lost on config change or process death
 - \`rememberSaveable\`: persists across config changes via \`Bundle\` (like \`onSaveInstanceState\`)
 - Use \`rememberSaveable\` for UI state that should survive rotation (text input, scroll position)`,
-    answer: `- \`remember\` survives recomposition only; rotation or process death discards it
-- \`rememberSaveable\` rides the \`Bundle\`, much like \`onSaveInstanceState\`, so it outlives config changes
-- Use the saveable form for typed text, scroll position, and similar UI state`,
+    answer: `- Use \`remember\` for derived or cheap-to-rebuild state; \`rememberSaveable\` for what the user typed or chose
+- Whatever \`rememberSaveable\` holds must fit in a Bundle — keep it small and saveable
+- Big or shared screen state belongs in a ViewModel, not in either`,
     redFlags: `- Uses \`rememberSaveable\` everywhere "just in case"
-- Doesn't know either survives recomposition`,
+- Puts a large list into \`rememberSaveable\` and hits \`TransactionTooLargeException\``,
   },
   {
     id: 'tech-13',
@@ -275,7 +224,7 @@ Detection:
     section: 'Jetpack',
     title: 'Explain `LaunchedEffect`, `SideEffect`, `DisposableEffect`.',
     tags: [ 'compose', 'effects', 'coroutines' ],
-    related: [ 'tech-11', 'tech-14' ],
+    related: [ 'tech-138', 'tech-14' ],
     keyPoints: `| Effect | Trigger | Cleanup | Use case |
 |---|---|---|---|
 | \`LaunchedEffect(key)\` | key changes | coroutine cancelled | Async work tied to state (fetch on ID change) |
@@ -284,8 +233,7 @@ Detection:
     answer: `- \`LaunchedEffect(key)\` restarts on key change and cancels its coroutine — async work driven by state
 - \`SideEffect\` runs after every recomposition with no cleanup; use it to push Compose state outward
 - \`DisposableEffect(key)\` exposes \`onDispose\`, the place to unregister listeners`,
-    redFlags: `- Puts network calls directly in composable body (outside any effect)
-- Doesn't know about cleanup / \`onDispose\``,
+    redFlags: `- Puts network calls directly in composable body (outside any effect)`,
   },
   {
     id: 'tech-14',
@@ -321,13 +269,12 @@ Detection:
     keyPoints: `- \`Main\`: UI updates, observing state
 - \`IO\`: network, database, file I/O (optimized for blocking, large thread pool)
 - \`Default\`: CPU-intensive work (sorting, JSON parsing, computation) — thread pool = CPU count`,
-    answer: `- \`Dispatchers.Main\` — UI writes and observing state only
-- \`Dispatchers.IO\` — blocking network, database, and file work on a large pool
-- \`Dispatchers.Default\` — CPU-heavy sorting, parsing, math; pool sized to CPU count`,
+    answer: `- Ask one question: blocking I/O, CPU work, or UI? — the answer picks the dispatcher
+- Switch with \`withContext\` inside the suspend function so every caller can stay on Main safely
+- Never block Main, and don't park long CPU loops on IO's large pool`,
     followUp: `**Follow-up:** What's \`Dispatchers.Unconfined\`?
 > Runs in caller's thread until first suspension, then resumes in whatever thread. Mostly for testing.`,
-    redFlags: `- Uses \`Dispatchers.IO\` for everything including computation
-- Doesn't know \`Main\` is needed for UI`,
+    redFlags: `- Uses \`Dispatchers.IO\` for everything including computation`,
   },
   {
     id: 'tech-16',
@@ -342,9 +289,9 @@ Detection:
     keyPoints: `- \`launch\`: fire-and-forget, returns \`Job\`
 - \`async\`: returns \`Deferred<T>\`, call \`.await()\` to get result
 - Use \`async\` when you need the return value or want to run things in parallel and join results`,
-    answer: `- \`launch\` is fire-and-forget and yields a \`Job\`, with no result value
-- \`async\` yields \`Deferred<T>\`; you pull the value out with \`.await()\`
-- Choose \`async\` when a result is needed or to run work in parallel and join it`,
+    answer: `- Need a result, or several things in parallel → \`async\`; otherwise → \`launch\`
+- Start all the \`async\`s before the first \`await\`, or you have written sequential code
+- Remember \`async\` holds its exception until \`await\` — someone must await it`,
     followUp: `**Follow-up:** How do you run two network calls in parallel and wait for both?
 \`\`\`kotlin
 val a = async { fetchUserProfile() }
@@ -353,7 +300,7 @@ val profile = a.await()
 val feed = b.await()
 \`\`\``,
     redFlags: `- Uses \`async\` + \`await\` immediately (equivalent to sequential, defeats the purpose)
-- Doesn't know \`Job\` vs \`Deferred\``,
+- Starts an \`async\` whose result is never awaited, so its failure is silently lost`,
   },
   {
     id: 'tech-17',
@@ -374,8 +321,7 @@ val feed = b.await()
 - An unhandled child exception takes down the parent and siblings, so nothing leaks past its owner`,
     followUp: `**Follow-up:** What is a \`SupervisorScope\` and when would you use it?
 > Child failures don't propagate to parent or siblings. Use when you want siblings to be independent (e.g., parallel independent tasks where one failing shouldn't cancel others).`,
-    redFlags: `- Doesn't know what structured concurrency is
-- Uses \`GlobalScope\` (leaks coroutines)`,
+    redFlags: `- Uses \`GlobalScope\` (leaks coroutines)`,
   },
   {
     id: 'tech-18',
@@ -391,13 +337,13 @@ val feed = b.await()
 - At runtime, \`Proxy\` creates implementation, delegates to \`OkHttp\` for actual HTTP
 - Converters (Gson, Moshi, Kotlinx Serialization) handle JSON ↔ model mapping
 - Can return \`Call<T>\`, \`Flow<T>\`, \`suspend T\` depending on adapter`,
-    answer: `- Interface methods carry \`@GET\`/\`@POST\`; a \`Proxy\` builds the impl, \`OkHttp\` performs the HTTP
-- \`Gson\`/\`Moshi\`/kotlinx converters turn JSON into model objects
-- Declaring \`Call<T>\`, \`Flow<T>\` or \`suspend T\` depends on the call adapter`,
+    answer: `- Think of Retrofit as a typed façade: you describe the API, it generates the calls
+- All transport concerns (auth, retries, logging, caching) belong in the OkHttp client underneath
+- Prefer \`suspend\` functions returning models or \`Response<T>\` in coroutine code over \`Call<T>\` callbacks`,
     followUp: `**Follow-up:** What's the role of \`OkHttp\` interceptors?
 > Intercept requests/responses — add auth headers, log, retry, modify`,
     redFlags: `- Thinks Retrofit does the HTTP call itself
-- Has never added an interceptor`,
+- Builds a new \`Retrofit\`/\`OkHttpClient\` per request, losing the shared connection pool and cache`,
   },
   {
     id: 'tech-19',
@@ -412,13 +358,13 @@ val feed = b.await()
     keyPoints: `- \`SharedPreferences\`: simple key-value, small amount of data, but synchronous and not type-safe
 - \`DataStore\` (Proto or Preferences): async, coroutines-based, type-safe, replaces SharedPreferences
 - \`Room\`: relational data, queries, migrations, large datasets`,
-    answer: `- \`SharedPreferences\`: key-value only, small data, blocking writes, no type safety
-- \`DataStore\` (Preferences or Proto) is coroutine + \`Flow\` based, typed, and supersedes \`SharedPreferences\`
-- \`Room\` is the pick for relational rows, real queries, migrations, big datasets`,
+    answer: `- Relational data or anything you query → Room
+- Small settings and flags → DataStore (Preferences for loose keys, Proto for a typed schema)
+- Keep \`SharedPreferences\` only for legacy code you haven't migrated yet`,
     followUp: `**Follow-up:** What's the problem with \`SharedPreferences\` on the main thread?
 > \`commit()\` is synchronous and blocks. \`apply()\` is async but has no error handling. \`DataStore\` is fully async.`,
-    redFlags: `- Doesn't know DataStore exists
-- Uses SharedPreferences for large datasets`,
+    redFlags: `- Uses SharedPreferences for large datasets
+- Reads SharedPreferences on the main thread during startup and blames "slow Application.onCreate"`,
   },
   {
     id: 'tech-20',
@@ -436,8 +382,7 @@ val feed = b.await()
     answer: `- Guard the refresh with \`Mutex\`/\`synchronized\` so concurrent 401s produce one token fetch
 - OkHttp's \`Authenticator\` is the hook: it re-runs the rejected call once a fresh token exists
 - Park the other in-flight calls during the refresh, replay them all after it succeeds`,
-    redFlags: `- Doesn't know race conditions are a concern
-- Proposes refreshing token inside every request independently`,
+    redFlags: `- Proposes refreshing token inside every request independently`,
   },
   {
     id: 'tech-22',
@@ -455,8 +400,7 @@ val feed = b.await()
 - Hand-rolled alternative: cursor or offset keys, fetch the next chunk as the list nears its end`,
     followUp: `**Follow-up:** What's the difference between offset and cursor-based pagination?
 > Offset can miss/duplicate items if data changes between pages. Cursor (stable ID) is consistent.`,
-    redFlags: `- Has never heard of Paging 3
-- Proposes loading all data and paginating locally`,
+    redFlags: `- Proposes loading all data and paginating locally`,
   },
   {
     id: 'tech-23',
@@ -467,7 +411,7 @@ val feed = b.await()
     section: 'Engineering',
     title: 'How do you unit test a ViewModel?',
     tags: [ 'testing', 'coroutines', 'viewmodel' ],
-    related: [ 'tech-24', 'tech-7' ],
+    related: [ 'tech-24', 'tech-75' ],
     keyPoints: `- Use \`TestCoroutineDispatcher\` / \`StandardTestDispatcher\` with \`runTest\`
 - Inject fake/mock repository
 - Assert on \`StateFlow\` values using \`Turbine\` or \`toList()\`
@@ -486,8 +430,7 @@ fun \`shows error state when fetch fails\`() = runTest {
     answer: `- \`runTest\` with \`StandardTestDispatcher\` drives coroutines; \`TestCoroutineScheduler\` controls time
 - Inject a fake repository so the ViewModel never touches the real data layer
 - Assert \`StateFlow\` emissions with Turbine (\`awaitItem\`) or \`toList()\` — Loading first, then Error`,
-    redFlags: `- Tests ViewModel without injecting dependencies (can't mock)
-- Has never written a VM test`,
+    redFlags: `- Tests ViewModel without injecting dependencies (can't mock)`,
   },
   {
     id: 'tech-24',
@@ -502,11 +445,11 @@ fun \`shows error state when fetch fails\`() = runTest {
     keyPoints: `- MockK: Kotlin-native, supports \`object\`, \`companion object\`, \`extension functions\`, coroutines. Better for Kotlin projects.
 - Mockito: Java-first, but has \`mockito-kotlin\` wrapper
 - Preference: MockK for Kotlin codebases`,
-    answer: `- MockK is Kotlin-native — stubs \`object\`, \`companion object\`, extension functions, coroutines
-- Mockito is Java-first; Kotlin code needs the \`mockito-kotlin\` wrapper around it
-- On a Kotlin codebase, the stated preference is MockK`,
-    redFlags: `- Has never used either
-- Uses Mockito with Java-style mock setup in Kotlin`,
+    answer: `- On a Kotlin codebase, default to MockK — it covers the Kotlin constructs you'll actually need to stub
+- Stay on Mockito (with \`mockito-kotlin\`) in mixed Java/Kotlin code where the team already knows it
+- Either way, keep mocking to boundaries; the library matters less than what you mock`,
+    redFlags: `- Uses Mockito with Java-style mock setup in Kotlin
+- Reaches for \`mockkStatic\`/\`mockkObject\` to test code that should simply take the dependency as a parameter`,
   },
   {
     id: 'tech-25',
@@ -520,14 +463,15 @@ fun \`shows error state when fetch fails\`() = runTest {
     related: [ 'tech-26', 'tech-27' ],
     keyPoints: `- DI = providing dependencies to a class rather than having it create them
 - Benefits: testability (swap real for fake), decoupling, single source of truth for object creation
-- Android options: Koin (service locator), Hilt (compile-time DI via Dagger)`,
-    answer: `- DI means a class receives its dependencies instead of constructing them itself
-- Payoff: swap in fakes for tests, decouple wiring, centralise who creates objects
-- On Android: Koin is a service locator, Hilt does compile-time DI built on Dagger`,
-    followUp: `**Follow-up:** What's the difference between a service locator and true DI?
-> Service locator: class pulls its dependencies from a global registry (\`get()\`). True DI: dependencies are pushed in (constructor injection). Koin is technically a service locator.`,
+- Forms: constructor injection (preferred — dependencies are explicit and the object is never half-built), field/setter injection (only when something else constructs the object), method injection (a dependency needed for one call)
+- It is a pattern, not a library: passing collaborators into constructors by hand ("manual DI" from a composition root such as the \`Application\`) is already DI — frameworks only automate the wiring (Hilt vs Koin: tech-65, service locator risks: tech-51)`,
+    answer: `- Default to constructor parameters for every collaborator a class uses
+- Decide object creation in one place (the composition root) instead of inside the classes that use them
+- Pick a framework only once hand-wiring gets painful — the pattern comes first`,
+    followUp: `**Follow-up:** Constructor injection is preferred — so why do Activities and Fragments use field injection?
+> The framework instantiates them through a no-arg constructor (and recreates them after rotation or process death), so you cannot pass arguments in. Hilt's \`@AndroidEntryPoint\` therefore injects \`@Inject lateinit var\` fields in \`onCreate\`/\`onAttach\`. Everything you construct yourself should still use constructor injection.`,
     redFlags: `- Thinks DI = using a framework (not the pattern itself)
-- Can't explain why testability improves with DI`,
+- Uses field injection with \`lateinit var\` in classes they construct themselves`,
   },
   {
     id: 'tech-26',
@@ -542,16 +486,16 @@ fun \`shows error state when fetch fails\`() = runTest {
     keyPoints: `- \`single\`: one instance for the entire app lifetime (singleton)
 - \`factory\`: new instance every time it's requested
 - \`scoped\`: one instance per scope lifetime (e.g., per screen, per user session)`,
-    answer: `- \`single\` — one instance living as long as the app
-- \`factory\` — a brand-new instance on every request
-- \`scoped\` — one instance per declared scope, such as a screen or a user session`,
+    answer: `- Default to \`factory\`; promote to \`single\` only for genuinely app-wide, stateless or expensive objects
+- Use \`scoped\` when state must be shared inside a bounded lifetime (a flow, a session) and then dropped
+- Never let a longer-lived definition capture a shorter-lived one`,
     followUp: `**Follow-up:** When would you use \`factory\` over \`single\`?
 > When each caller needs its own isolated state — e.g., a ViewModel, a presenter that holds screen-specific state
 
 **Follow-up:** What happens if you inject a \`factory\` dependency into a \`single\`?
 > The \`single\` captures the first factory instance and holds it — effectively becomes a singleton. Classic scoping bug.`,
-    redFlags: `- Thinks \`single\` and \`factory\` behave the same
-- Has never thought about what happens when scopes mismatch`,
+    redFlags: `- Makes everything \`single\` and then leaks per-screen state across screens
+- Opens Koin scopes and never closes them`,
   },
   {
     id: 'tech-27',
@@ -571,8 +515,7 @@ fun \`shows error state when fetch fails\`() = runTest {
 - Cross-module access goes through interfaces in contract modules, never direct implementation deps`,
     followUp: `**Follow-up:** How do you avoid circular module dependencies?
 > Contract/interface modules that neither module owns. Feature A and B both depend on the contract, not each other.`,
-    redFlags: `- Puts all DI in one giant module file
-- Doesn't know how \`startKoin\` works`,
+    redFlags: `- Puts all DI in one giant module file`,
   },
   {
     id: 'tech-28',
@@ -587,13 +530,13 @@ fun \`shows error state when fetch fails\`() = runTest {
     keyPoints: `- Navigation component provides a graph-based approach to screen transitions
 - Handles backstack management, deep links, transition animations, safe args
 - Single \`NavController\` per nav graph; avoids manual \`FragmentTransaction\` management`,
-    answer: `- The Navigation component replaces hand-written \`FragmentTransaction\` code with a screen graph
-- It manages the backstack, deep links, transitions, and safe args
-- A single \`NavController\` drives each nav graph`,
+    answer: `- Use Navigation whenever a screen flow is more than a couple of destinations — a declared graph beats hand-written transactions
+- Pass ids through typed arguments, never whole objects
+- Let the graph own deep links and the back stack instead of re-implementing them`,
     followUp: `**Follow-up:** How do you pass data between destinations safely?
 > Safe Args plugin generates typed argument classes, avoiding stringly-typed bundles and runtime crashes`,
     redFlags: `- Still manually doing \`supportFragmentManager.beginTransaction()\`
-- Doesn't know Safe Args exists`,
+- Passes large objects as navigation arguments instead of an id to reload`,
   },
   {
     id: 'tech-29',
@@ -608,13 +551,13 @@ fun \`shows error state when fetch fails\`() = runTest {
     keyPoints: `- Declare \`<deepLink>\` in nav graph or \`<intent-filter>\` in manifest
 - Navigation component handles matching URL → destination automatically
 - Handle in \`Activity.onCreate\` and \`onNewIntent\` for single-task activities`,
-    answer: `- Declare a \`<deepLink>\` in the nav graph, or an \`<intent-filter>\` in the manifest
-- The Navigation component matches the incoming URL to its destination for you
-- With \`singleTask\` hosting, process the link in both \`onCreate\` and \`onNewIntent\``,
+    answer: `- Declare links on the destination (nav graph) so the back stack is synthesized for you
+- Handle both entry points: a cold start through \`onCreate\` and a running \`singleTask\` host through \`onNewIntent\`
+- Treat every link as untrusted input — validate parameters before navigating`,
     followUp: `**Follow-up:** What's the difference between explicit and implicit deep links?
 > Explicit: programmatic navigation via \`NavController\`. Implicit: triggered by external URL (web, push notification) via intent matching.`,
-    redFlags: `- Has never implemented a deep link
-- Doesn't know about \`onNewIntent\``,
+    redFlags: `- Parses the URL by hand in the Activity instead of declaring it on the destination
+- Trusts deep-link parameters (ids, redirect URLs) without validation`,
   },
   {
     id: 'tech-30',
@@ -630,13 +573,13 @@ fun \`shows error state when fetch fails\`() = runTest {
 - \`Service\` (Foreground): user-visible long-running work (music playback, location tracking)
 - \`JobScheduler\`: system-level job scheduling (API 21+); WorkManager wraps it internally
 - Coroutines/threads: for work that only needs to run while app is alive`,
-    answer: `- \`WorkManager\` — deferrable but guaranteed, surviving restart and reboot: sync, uploads, cleanup
-- Foreground \`Service\` — long work the user can perceive, such as music or location tracking
-- \`JobScheduler\` — system scheduling from API 21+, which WorkManager wraps; plain coroutines die with the app`,
+    answer: `- Must finish even if the app dies → WorkManager
+- User is watching it happen right now → foreground Service
+- Only matters while the screen is alive → a coroutine in the right scope; call JobScheduler directly almost never`,
     followUp: `**Follow-up:** What guarantees does WorkManager provide that a plain coroutine doesn't?
 > WorkManager persists work to a database — survives process death, reboots, and OOM kills. Coroutines die with the process.`,
     redFlags: `- Uses WorkManager for everything including real-time work
-- Doesn't know WorkManager survives process death`,
+- Starts a background Service for periodic sync on Android 8+ and hits background-execution limits`,
   },
   {
     id: 'tech-31',
@@ -647,7 +590,7 @@ fun \`shows error state when fetch fails\`() = runTest {
     section: 'Jetpack',
     title: 'How do you chain work in WorkManager?',
     tags: [ 'background', 'workmanager' ],
-    related: [ 'tech-30', 'tech-137' ],
+    related: [ 'tech-30' ],
     keyPoints: `\`\`\`kotlin
 WorkManager.getInstance(context)
     .beginWith(uploadWorker)
@@ -660,8 +603,7 @@ WorkManager.getInstance(context)
     answer: `- Sequence steps with \`beginWith(worker).then(next)\`, then \`enqueue()\`
 - \`beginWith(listOf(...))\` fans several workers out in parallel and joins them before the next step
 - A worker returns output \`Data\`, which becomes the input of the worker after it`,
-    redFlags: `- Has only used one-off \`enqueue\`, never chained
-- Doesn't know workers can pass data to each other`,
+    redFlags: `- Has only used one-off \`enqueue\`, never chained`,
   },
   {
     id: 'tech-32',
@@ -677,13 +619,13 @@ WorkManager.getInstance(context)
 - **Bound service**: clients bind to it, lifecycle tied to bound clients (\`bindService\`)
 - **Foreground service**: shows a persistent notification, higher process priority (music, navigation)
 - **IntentService** (deprecated): was a started service that handles work on a background thread — replaced by WorkManager + coroutines`,
-    answer: `- Started (\`startService\`) runs until stopped; bound (\`bindService\`) lives with its clients
-- Foreground: persistent notification, higher priority — music or navigation
-- \`IntentService\` deprecated; WorkManager + coroutines took its role`,
+    answer: `- Choose by who controls the lifetime: the service itself (started), its clients (bound), or the user-visible notification (foreground)
+- Reach for a foreground service only for work the user knowingly keeps running
+- New background jobs go to WorkManager, never a new \`IntentService\``,
     followUp: `**Follow-up:** When would you use a foreground service vs WorkManager?
 > Foreground for ongoing user-visible work where the user expects it to keep running (music, navigation). WorkManager for fire-and-forget guaranteed work.`,
-    redFlags: `- Doesn't know the difference between started and bound
-- Has never created a foreground service`,
+    redFlags: `- Runs long work in a plain started service and is surprised when Android 8+ kills it in the background
+- Starts a foreground service without declaring its \`foregroundServiceType\` on Android 14+`,
   },
   {
     id: 'tech-33',
@@ -698,13 +640,13 @@ WorkManager.getInstance(context)
     keyPoints: `- \`BroadcastReceiver\`: responds to system-wide or app-level broadcast events (network change, boot completed, battery low)
 - **Manifest registration**: receives broadcasts even when app is not running (limited by Android 8+ background restrictions)
 - **Dynamic registration**: register in code (\`registerReceiver\`), only active while registered, must unregister to avoid leaks`,
-    answer: `- Listens for system or app broadcasts: connectivity, boot, battery
-- Manifest-registered: fires even when the app is dead; Android 8+ background limits bite
-- \`registerReceiver\` in code: active only while registered — must unregister`,
+    answer: `- Prefer runtime registration tied to a lifecycle; reserve manifest receivers for the few system broadcasts still allowed
+- Pair every \`registerReceiver\` with an unregister in the mirror callback
+- For "run something when X happens in the background", reach for WorkManager constraints instead`,
     followUp: `**Follow-up:** What did Android 8 change about broadcast receivers?
 > Manifest-registered receivers for implicit broadcasts are mostly blocked. Apps must use dynamic registration or JobScheduler/WorkManager.`,
     redFlags: `- Doesn't unregister dynamically registered receivers
-- Doesn't know Android 8 restrictions`,
+- Registers a manifest receiver for \`CONNECTIVITY_ACTION\` on Android 8+ and wonders why it never fires`,
   },
   {
     id: 'tech-34',
@@ -715,7 +657,7 @@ WorkManager.getInstance(context)
     section: 'Performance & Security',
     title: 'What is overdraw and how do you fix it?',
     tags: [ 'performance', 'rendering', 'ui' ],
-    related: [ 'tech-35', 'tech-36' ],
+    related: [ 'tech-35', 'tech-114' ],
     keyPoints: `- Overdraw = pixel drawn more than once per frame (background stacked under background)
 - Detected with "Debug GPU Overdraw" in developer options (red = 4x overdraw)
 - Fix by: removing unnecessary backgrounds, using \`clipRect\` in custom views, flattening view hierarchy`,
@@ -724,8 +666,8 @@ WorkManager.getInstance(context)
 - Fixes: drop redundant backgrounds, \`clipRect\` inside custom drawing, flatten the view tree`,
     followUp: `**Follow-up:** How does Compose help with overdraw vs View system?
 > Compose's layout system naturally avoids overdraw because it composites correctly; also no XML backgrounds stacked unintentionally.`,
-    redFlags: `- Has never heard of overdraw
-- Doesn't know developer options has visual debugging`,
+    redFlags: `- Leaves the theme's window background in place under a full-screen opaque layout background
+- Guesses at overdraw instead of checking the Debug GPU Overdraw overlay`,
   },
   {
     id: 'tech-35',
@@ -740,34 +682,13 @@ WorkManager.getInstance(context)
     keyPoints: `- Jank = dropped frames, UI stutters when frame takes >16ms (60fps budget)
 - Detection: Android Studio Profiler (CPU trace), Perfetto, \`FrameMetrics\` API
 - Common causes: main-thread IO, expensive \`onDraw\`, deep view hierarchy, layout inflation on scroll`,
-    answer: `- Jank is a dropped frame — rendering ran past the 16ms budget behind 60fps
-- Spot it via Android Studio Profiler CPU trace, Perfetto, or the \`FrameMetrics\` API
-- Usual causes: IO on main, costly \`onDraw\`, deep view trees, inflating layouts while scrolling`,
+    answer: `- Name the frame budget for the actual refresh rate, then find which frames miss it — measure before fixing
+- Fix main-thread work first; it is the most common cause and the cheapest to remove
+- Track jank in production too, since lab devices hide real-world stutter`,
     followUp: `**Follow-up:** What tools do you use in production to catch jank?
 > Firebase Performance, custom \`FrameMetricsAggregator\` reporting, Android Vitals (Play Console)`,
-    redFlags: `- Doesn't know the 16ms frame budget
-- Has never profiled an app`,
-  },
-  {
-    id: 'tech-36',
-    type: 'technical',
-    num: 36,
-    difficulty: 'M',
-    star: false,
-    section: 'Performance & Security',
-    title: 'How do you optimize app startup time?',
-    tags: [ 'performance', 'startup' ],
-    related: [ 'tech-35', 'tech-114' ],
-    keyPoints: `- Measure with: Android Studio Profiler, \`reportFullyDrawn()\`, Perfetto
-- Fix: move heavy \`Application.onCreate()\` work to background, lazy-initialize libraries, use App Startup library
-- Avoid: synchronous network calls, heavy DI initialization on main thread`,
-    answer: `- Measure with Profiler, Perfetto, and \`reportFullyDrawn()\` for real readiness timing
-- Push heavy \`Application.onCreate()\` work to the background, lazily init libraries, use App Startup
-- Launch blockers: synchronous network calls and expensive DI setup on the main thread`,
-    followUp: `**Follow-up:** What is the App Startup library?
-> Jetpack library that initializes components lazily and in dependency order via a single \`ContentProvider\`, avoiding multiple providers that each block startup.`,
-    redFlags: `- Puts network calls in \`Application.onCreate\`
-- Has never measured startup time`,
+    redFlags: `- Tries fixes by intuition without capturing a trace
+- Tests only on a flagship device and ships stutter to low-end phones`,
   },
   {
     id: 'tech-37',
@@ -778,7 +699,7 @@ WorkManager.getInstance(context)
     section: 'Performance & Security',
     title: 'How do you securely store sensitive data on Android?',
     tags: [ 'security', 'storage' ],
-    related: [ 'tech-38', 'tech-39' ],
+    related: [ 'tech-164', 'tech-161' ],
     keyPoints: `- **Keystore**: store cryptographic keys, never extracted from hardware-backed storage
 - **Jetpack Security (EncryptedSharedPreferences / EncryptedFile) is deprecated — no longer the primary recommendation**: use a Keystore-backed master key with app-level AES-GCM (or a maintained community replacement) to encrypt values at rest
 - Never store tokens in plain SharedPreferences or files
@@ -788,50 +709,7 @@ WorkManager.getInstance(context)
 - Encrypt at rest with Keystore-backed AES-GCM; no plaintext tokens in prefs, no secrets in source`,
     followUp: `**Follow-up:** What's wrong with storing auth tokens in SharedPreferences?
 > Unencrypted on rooted devices. On Android 6+, use EncryptedSharedPreferences or Keystore-backed storage.`,
-    redFlags: `- Stores tokens in plain SharedPreferences or hardcoded strings
-- Has never heard of Android Keystore`,
-  },
-  {
-    id: 'tech-38',
-    type: 'technical',
-    num: 38,
-    difficulty: 'M',
-    star: false,
-    section: 'Performance & Security',
-    title: 'What is certificate pinning and when would you use it?',
-    tags: [ 'security', 'networking' ],
-    related: [ 'sd-9', 'tech-20', 'tech-37' ],
-    keyPoints: `- Pinning validates the server's certificate matches a known expected certificate/public key
-- Prevents MITM attacks even if a rogue CA is trusted
-- Implemented via OkHttp \`CertificatePinner\` or \`network-security-config.xml\``,
-    answer: `- Pinning compares the served certificate or public key against one the app already trusts
-- It blocks MITM even after a rogue CA lands in the trusted store
-- Wire it with OkHttp \`CertificatePinner\` or \`network-security-config.xml\``,
-    followUp: `**Follow-up:** What's the downside of certificate pinning?
-> Certificate rotation — when the server rotates its cert, the app breaks until updated. Requires careful pin management and backup pins.`,
-    redFlags: `- Thinks HTTPS alone prevents MITM
-- Has never implemented or heard of certificate pinning`,
-  },
-  {
-    id: 'tech-39',
-    type: 'technical',
-    num: 39,
-    difficulty: 'E',
-    star: false,
-    section: 'Performance & Security',
-    title: 'What does ProGuard / R8 do?',
-    tags: [ 'security', 'build' ],
-    related: [ 'tech-37', 'tech-111' ],
-    keyPoints: `- **Minification**: removes unused code and resources
-- **Obfuscation**: renames classes/methods to short names (harder to reverse engineer)
-- **Optimization**: inlines methods, removes dead code
-- R8 is the modern replacement for ProGuard (faster, better optimization, built into AGP)`,
-    answer: `- Minify drops unused code and resources; obfuscation renames symbols; optimization inlines and prunes
-- R8 is today's ProGuard — faster, stronger, and bundled into AGP`,
-    followUp: `**Follow-up:** What's a common ProGuard mistake that causes crashes in release builds?
-> Missing \`@Keep\` annotations or rules for classes accessed via reflection (Gson models, Firebase, Retrofit). Classes get renamed/removed and reflection fails at runtime.`,
-    redFlags: `- Has never seen a ProGuard-caused crash
-- Doesn't know the difference between minification and obfuscation`,
+    redFlags: `- Stores tokens in plain SharedPreferences or hardcoded strings`,
   },
   {
     id: 'tech-40',
@@ -849,30 +727,7 @@ WorkManager.getInstance(context)
 - \`reified\` lets an inline function touch \`T::class\` at runtime despite JVM erasure`,
     followUp: `**Follow-up:** What's the performance cost of non-inline lambdas?
 > Each lambda creates an anonymous class instance; inline avoids that allocation entirely.`,
-    redFlags: `- Doesn't know inline exists
-- Thinks \`reified\` works on non-inline functions`,
-  },
-  {
-    id: 'tech-41',
-    type: 'technical',
-    num: 41,
-    difficulty: 'H',
-    star: true,
-    section: 'Kotlin',
-    title: 'Explain Kotlin Flow vs LiveData vs StateFlow vs SharedFlow. When do you use each?',
-    tags: [ 'coroutines', 'flow', 'architecture' ],
-    related: [ 'tech-14', 'tech-17', 'tech-23' ],
-    keyPoints: `- \`LiveData\`: lifecycle-aware, only for UI layer, always replays last value
-- \`StateFlow\`: hot flow, always has a current value (replaces LiveData in ViewModel), replays 1
-- \`SharedFlow\`: hot, configurable replay/buffer, for one-shot events
-- \`Flow\`: cold, lazily executed, best for data pipelines`,
-    answer: `- \`Flow\` is cold and lazy — right for data pipelines; the hot kinds emit regardless
-- \`StateFlow\`: hot, never empty, replays 1 — replaces lifecycle-bound \`LiveData\` in VMs
-- \`SharedFlow\`: configurable replay/buffer — pick it for one-shot events`,
-    followUp: `**Follow-up:** What's the difference between cold and hot flows?
-> Cold: each collector gets its own independent execution. Hot: runs independently of collectors, all collectors share the same emissions.`,
-    redFlags: `- Uses LiveData in Repository
-- Doesn't know what "cold" means`,
+    redFlags: `- Thinks \`reified\` works on non-inline functions`,
   },
   {
     id: 'tech-42',
@@ -902,7 +757,7 @@ WorkManager.getInstance(context)
     section: 'Jetpack',
     title: 'How does Compose manage recomposition scope? What is `CompositionLocal`?',
     tags: [ 'compose', 'advanced', 'state' ],
-    related: [ 'tech-11', 'tech-12' ],
+    related: [ 'tech-138', 'tech-12' ],
     keyPoints: `- Recomposition is scoped — only composables that read changed state recompose, not the whole tree
 - \`CompositionLocal\` provides implicit data down the composition tree without passing params explicitly (e.g., \`MaterialTheme\`, \`LocalContext\`)
 - Use sparingly — makes data flow implicit and harder to track`,
@@ -923,7 +778,7 @@ WorkManager.getInstance(context)
     section: 'Jetpack',
     title: 'How do you create a custom `Modifier` in Compose?',
     tags: [ 'compose', 'advanced', 'ui' ],
-    related: [ 'tech-11', 'tech-13' ],
+    related: [ 'tech-138', 'tech-13' ],
     keyPoints: `- Implement \`Modifier.Element\` or use \`Modifier.composed {}\` for stateful modifiers
 - \`drawBehind\`, \`drawWithContent\`: custom drawing behind or over content
 - \`layout\`: change measurement and placement
@@ -933,8 +788,7 @@ WorkManager.getInstance(context)
 - \`layout\` rewrites measurement and placement; \`pointerInput\` adds gestures`,
     followUp: `**Follow-up:** What's the difference between \`Modifier.layout\` and \`Modifier.drawBehind\`?
 > \`layout\` changes how the composable is measured and placed. \`drawBehind\` draws behind the content without affecting layout at all.`,
-    redFlags: `- Has never created a custom modifier
-- Only uses built-in modifiers`,
+    redFlags: `- Only uses built-in modifiers`,
   },
   {
     id: 'tech-45',
@@ -945,17 +799,17 @@ WorkManager.getInstance(context)
     section: 'Architecture',
     title: 'What is Clean Architecture and how do you apply it to Android?',
     tags: [ 'architecture', 'clean-architecture', 'mvvm' ],
-    related: [ 'tech-7', 'tech-102' ],
+    related: [ 'tech-75', 'tech-102' ],
     keyPoints: `- Three layers: Presentation (ViewModel + UI), Domain (UseCases + entities, pure Kotlin, no Android deps), Data (Repositories, API, DB)
 - Dependency rule: outer layers depend on inner layers, never the reverse
 - UseCases encapsulate single business operations and are reusable across ViewModels`,
-    answer: `- Presentation (ViewModel + UI), Domain (use cases, entities, no Android deps), Data (repositories, API, DB)
-- Dependency rule points inward: outer may know inner, inner never knows outer
-- One use case holds one business operation, reusable by several ViewModels`,
-    followUp: `**Follow-up:** Why put UseCases in the domain layer?
-> Reusable across multiple ViewModels, testable without the Android framework, single responsibility.`,
+    answer: `- Apply it as a dependency direction, not a folder layout: business rules must compile without Android
+- Add a use case only for real business operations; don't mandate one per repository call (trade-off: tech-132)
+- Start with layers as packages and split into modules when compile-time enforcement is worth the build cost`,
+    followUp: `**Follow-up:** Does Clean Architecture require a separate Gradle module per layer?
+> No — layers can be packages. Separate modules make the dependency rule compiler-enforced (a \`:domain\` module with no Android plugin cannot import \`Context\`), at the cost of more build configuration.`,
     redFlags: `- Puts business logic in ViewModel or Repository
-- Doesn't know what a UseCase is`,
+- Lets Android types (\`Context\`, \`Parcelable\`, Room annotations) leak into domain entities`,
   },
   {
     id: 'tech-46',
@@ -966,28 +820,22 @@ WorkManager.getInstance(context)
     section: 'Architecture',
     title: 'What is Unidirectional Data Flow (UDF)? How does MVI implement it strictly?',
     tags: [ 'architecture', 'udf', 'mvi', 'state', 'compose' ],
-    related: [ 'tech-7', 'tech-45', 'tech-131', 'tech-75' ],
+    related: [ 'tech-75', 'tech-45', 'tech-157' ],
     keyPoints: `- **UDF (Unidirectional Data Flow)**: state flows down, events flow up — one direction, no bidirectional binding loops
 - **Jetpack UDF**: a state holder exposes one immutable UI-state stream (StateFlow) and receives events as plain function calls
 - **MVI (Model-View-Intent)**: the strict form of UDF — a single immutable State object per screen, every user action modeled as an Intent, run through a pure reducer (current state + intent → new state)
-- **MVI vs MVVM**: MVVM allows multiple independent LiveData/StateFlow streams; MVI forces one canonical state object
 - **Compose state hoisting**: same UDF idea at composable scale — state down as parameters, events up as lambdas
 - **Payoff**: every visual change traces to an event and a state transition — testable without a device, replayable, debuggable with state logs
 - **Cost**: one mega state object churns recomposition when unrelated fields change — slice the state or split snapshot state objects per region`,
-    answer: `- UDF: state down, events up — single direction, no loops
-- Jetpack's UDF: state holder with one immutable \`StateFlow\`, events as plain functions
-- MVI: strict UDF with single \`State\` + \`Intent → reducer → new State\` — atomic updates, no tearing
-- MVI vs MVVM: many streams → one canonical object; MVI enforces immutability and pure reducers`,
+    answer: `- If you can't trace a pixel back to one event and one state transition, the flow isn't unidirectional
+- Apply the same rule at every scale: screen state holder, then hoisted composables
+- Reach for strict MVI when you need that guarantee enforced by types, not by convention`,
     followUp: `**Follow-up:** What's a "reducer" in MVI?
 > A pure function: \`(currentState, intent) → newState\`. No side effects.
 
 **Follow-up:** What is a Side Effect in MVI and how do you handle it?
-> One-shot events that shouldn't be replayed (navigation, snackbar). Use a separate \`SharedFlow<Effect>\` alongside the \`StateFlow<State>\`.
-
-**Follow-up:** How do you migrate a ViewModel-based screen to MVI incrementally?
-> Collapse exposed streams into one UiState first (MVVM with single state), then introduce an intent/reducer layer on top — no big-bang rewrite.`,
-    redFlags: `- Confuses MVI with MVVM
-- Doesn't know unidirectional data flow
+> One-shot events that shouldn't be replayed (navigation, snackbar). Use a separate \`SharedFlow<Effect>\` alongside the \`StateFlow<State>\`.`,
+    redFlags: `- Two-way binds a text field to ViewModel state and the value ping-pongs (a UDF loop)
 - Puts side effects (navigation) in the State object
 - Mutates state directly instead of emitting new state
 - Confuses Intent (user action) with Android's \`android.content.Intent\``,
@@ -1014,69 +862,6 @@ WorkManager.getInstance(context)
 - No UI testing experience at all`,
   },
   {
-    id: 'tech-48',
-    type: 'technical',
-    num: 48,
-    difficulty: 'H',
-    star: false,
-    section: 'Performance & Security',
-    title: 'What is Baseline Profile and how does it improve app performance?',
-    tags: [ 'performance', 'startup', 'advanced' ],
-    related: [ 'tech-36', 'tech-35' ],
-    keyPoints: `- Baseline Profiles are pre-compiled critical code paths (startup, common interactions) that ART uses to AOT-compile instead of JIT
-- Defined in a \`BaselineProfileRule\` test, generates a \`baseline-prof.txt\` file committed to the repo
-- Typically cuts startup time and jank by roughly 20-40% in published measurements — the effect varies with app size, device tier, and Android version`,
-    answer: `- A \`Baseline Profile\` records critical paths (launch, common interactions) for AOT instead of JIT
-- Written by a \`BaselineProfileRule\` test; the emitted \`baseline-prof.txt\` is committed to the repo
-- Published numbers land near 20–40% better startup and jank, varying with app, device tier, OS`,
-    followUp: `**Follow-up:** How do you generate a Baseline Profile?
-> Use the Macrobenchmark library with \`BaselineProfileRule\`, run on a real device, commit the generated file alongside your app module.`,
-    redFlags: `- Has never heard of Baseline Profiles
-- Thinks R8 alone optimizes startup`,
-  },
-  {
-    id: 'tech-49',
-    type: 'technical',
-    num: 49,
-    difficulty: 'H',
-    star: true,
-    section: 'Networking & Data',
-    title: 'How do you implement offline-first architecture on Android?',
-    tags: [ 'architecture', 'networking', 'storage', 'system-design' ],
-    related: [ 'sd-18', 'tech-18', 'tech-19', 'tech-72' ],
-    keyPoints: `- Single source of truth = local DB (Room). Network response writes to DB, UI reads from DB only
-- Use \`NetworkBoundResource\` pattern: emit cached DB data, fetch from network, write to DB, emit updated DB data
-- WorkManager for background sync; handle conflicts with timestamps or server authority`,
-    answer: `- Local DB (\`Room\`) is the only truth: responses are written into it, the UI reads nothing else
-- \`NetworkBoundResource\`: emit cached rows, hit network, persist, re-emit from the DB
-- \`WorkManager\` runs the sync; conflicts resolved by timestamps or by deferring to the server`,
-    followUp: `**Follow-up:** What's the "single source of truth" principle?
-> UI only reads from one place (local DB), never directly from network responses. Ensures consistency between offline and online states.`,
-    redFlags: `- UI reads from network responses directly
-- No offline handling at all`,
-  },
-  {
-    id: 'tech-50',
-    type: 'technical',
-    num: 50,
-    difficulty: 'M',
-    star: false,
-    section: 'Performance & Security',
-    title: 'What is Android App Bundle (AAB) and how does it differ from APK?',
-    tags: [ 'build', 'security', 'advanced' ],
-    related: [ 'tech-39', 'tech-36' ],
-    keyPoints: `- AAB is the upload format to Play Store. Play Store generates device-specific APKs (splits by ABI, screen density, language) — resulting in smaller installs
-- APK is a self-contained package you can install directly
-- You cannot install an AAB directly on a device`,
-    answer: `- AAB is the Play upload format; Play derives device-specific APKs split by ABI, density, language
-- Those per-device splits are what shrink the install a user downloads
-- An APK stays the self-contained package you install directly — an AAB cannot be installed that way`,
-    followUp: `**Follow-up:** What are Dynamic Feature Modules?
-> On-demand delivery of app features — a user downloads a module only when they need it, reducing the initial install size.`,
-    redFlags: `- Thinks APK and AAB are the same
-- Doesn't know about configuration splits`,
-  },
-  {
     id: 'tech-51',
     type: 'technical',
     num: 51,
@@ -1098,8 +883,7 @@ WorkManager.getInstance(context)
 - Hidden deps also break refactors (nothing flags stale \`get()\` sites) and leak scopes you must close`,
     followUp: `**Follow-up:** What does "compile-time safety" mean for DI?
 > Hilt generates code at build time — missing bindings are compile errors, not runtime crashes. Koin only fails when the dependency is first requested.`,
-    redFlags: `- Thinks Koin and Hilt are equivalent in safety
-- Doesn't know Hilt is built on Dagger`,
+    redFlags: `- Thinks Koin and Hilt are equivalent in safety`,
   },
   {
     id: 'tech-52',
@@ -1110,7 +894,7 @@ WorkManager.getInstance(context)
     section: 'Concurrency',
     title: 'Explain Flow operators: `map`, `flatMapLatest`, `combine`, `zip`, `debounce`. When do you use each?',
     tags: [ 'coroutines', 'flow', 'advanced' ],
-    related: [ 'tech-14', 'tech-41', 'tech-16' ],
+    related: [ 'tech-14', 'tech-136', 'tech-16' ],
     keyPoints: `- \`map\`: transforms each emission
 - \`flatMapLatest\`: cancels previous inner flow on new emission (great for search-as-you-type)
 - \`combine\`: emits when ANY upstream emits, using the latest value from each source
@@ -1121,8 +905,7 @@ WorkManager.getInstance(context)
 - \`zip\` waits on both sides and pairs 1:1; \`combine\` fires on any source change using each latest value`,
     followUp: `**Follow-up:** When would you use \`flatMapLatest\` vs \`combine\`?
 > \`flatMapLatest\`: sequential dependent requests where only the latest matters (search). \`combine\`: two independent state streams that should be merged into one combined state.`,
-    redFlags: `- Only knows \`map\` and \`filter\`
-- Has never used Flow operators in production`,
+    redFlags: `- Only knows \`map\` and \`filter\``,
   },
   {
     id: 'tech-53',
@@ -1133,20 +916,19 @@ WorkManager.getInstance(context)
     section: 'Android Core',
     title: 'What does "lifecycle-aware" mean, and how do you scope work to a lifecycle correctly?',
     tags: [ 'lifecycle', 'coroutines', 'flow' ],
-    related: [ 'tech-6', 'tech-13', 'tech-11', 'tech-89' ],
+    related: [ 'tech-6', 'tech-13', 'tech-138', 'tech-89' ],
     keyPoints: `- Lifecycle-aware components observe Lifecycle events and do work only while the owner is at least STARTED
 - The classic bug: lifecycleScope.launch { flow.collect() } keeps collecting while backgrounded — gate with repeatOnLifecycle(STARTED) so collection pauses off-screen
 - repeatOnLifecycle re-runs its block on every STARTED; launchWhenStarted cancels at STOP and a suspended collect never resumes — use it only for single suspending calls
 - ProcessLifecycleOwner gives app-level foreground/background observation (sessions, timeouts) instead of per-screen wiring
 - The Compose equivalents: DisposableEffect ties resource cleanup to composition, and collectAsStateWithLifecycle handles STARTED-aware collection
 - The leak pattern to name: an observer registered on a longer-lived lifecycle that captures the Activity — remove the observer in onDestroy or scope it to the right owner`,
-    answer: `- Bare \`flow.collect()\` inside \`lifecycleScope\` keeps running when backgrounded
-- \`repeatOnLifecycle(STARTED)\` pauses collection offscreen and restarts the block per cycle
-- \`launchWhenStarted\` cancels at STOP — a suspended collect never resumes; single calls only`,
+    answer: `- Collect UI flows only inside \`repeatOnLifecycle(STARTED)\` (or \`collectAsStateWithLifecycle\` in Compose)
+- Let the lifecycle, not manual flags, decide when work starts and stops
+- Treat \`launchWhenX\` as legacy — never use it for streams`,
     followUp: `**Follow-up:** Why is launchWhenStarted discouraged in favor of repeatOnLifecycle?
 > A suspending point inside the block (like flow.collect) is cancelled at STOP and never resumes — later STARTED events do not re-enter the block. repeatOnLifecycle restarts the whole block each time the state reaches STARTED, so collection genuinely pauses and resumes.`,
     redFlags: `- Collects Flows in lifecycleScope.launch with no STARTED gating
-- Cannot explain why launchWhenStarted does not restart after suspension
 - Registers LifecycleEventObservers but never removes them`,
   },
   {
@@ -1154,46 +936,22 @@ WorkManager.getInstance(context)
     type: 'technical',
     num: 54,
     difficulty: 'H',
-    star: false,
+    star: true,
     section: 'Performance & Security',
     title: 'What is the Android rendering pipeline? What causes dropped frames at each stage?',
-    tags: [ 'performance', 'rendering', 'advanced', 'profiling' ],
+    tags: [ 'performance', 'rendering', 'advanced', 'profiling', 'pipeline' ],
     related: [ 'tech-34', 'tech-35', 'tech-8' ],
     keyPoints: `- Pipeline stages: Input → Animation → Measure → Layout → Draw → GPU (RenderThread) → Display
 - Dropped frames occur when any stage takes >16ms (60fps budget)
 - Common causes by stage: main thread IO (Input), expensive \`onDraw\` (Draw), deep view hierarchy (Measure/Layout), texture uploads (GPU)
 - Tools: Systrace/Perfetto reveals which stage is the bottleneck`,
-    answer: `- Passes run Input, Animation, Measure, Layout, Draw, then GPU work on \`RenderThread\`, then Display
-- Any single stage past 16ms loses the frame under the 60fps budget
-- Main-thread IO stalls Input, deep trees cost Measure/Layout; Perfetto or Systrace names the bottleneck`,
+    answer: `- A frame is a relay: the budget is shared by every stage, so find the stage that overran before optimizing
+- Main-thread stages (input, measure/layout, draw recording) and GPU-side stages need different fixes
+- Diagnose from a trace, not intuition — the slow stage is usually not the one you suspected`,
     followUp: `**Follow-up:** What is the RenderThread and why was it introduced?
 > RenderThread offloads GPU work from the main thread. Introduced in Android 5.0 so animations can continue even when the main thread is briefly busy.`,
-    redFlags: `- Doesn't know the pipeline exists
-- Has never used Systrace or Perfetto`,
-  },
-  {
-    id: 'tech-56',
-    type: 'technical',
-    num: 56,
-    difficulty: 'M',
-    star: false,
-    section: 'Concurrency',
-    title: 'What is `StateFlow` vs `SharedFlow`? When do you use each?',
-    tags: [ 'coroutines', 'state', 'viewmodel', 'flow' ],
-    related: [ 'tech-14', 'tech-15', 'tech-44' ],
-    keyPoints: `- \`StateFlow\`: always has a current value, replays latest to new collectors, behaves like LiveData but coroutine-native
-- \`SharedFlow\`: configurable replay (default 0), can have multiple subscribers, used for events/one-shots
-- Use \`StateFlow\` for UI state. Use \`SharedFlow\` for navigation events, snackbars, one-time effects.`,
-    answer: `- \`StateFlow\` holds a current value and replays the newest to a fresh collector — coroutine cousin of LiveData
-- \`SharedFlow\` has configurable replay (0 by default) and serves many subscribers
-- UI state goes in \`StateFlow\`; navigation, snackbars, and one-shots go in \`SharedFlow\``,
-    followUp: `**Follow-up:** What happens if you collect a \`SharedFlow\` with replay=0 and the event was emitted before collection started?
-> The subscriber misses it — SharedFlow with no replay doesn't cache. This is intentional for fire-once events.
-
-**Follow-up:** How do you expose a \`StateFlow\` safely from a ViewModel?
-> Back with a \`MutableStateFlow\`, expose as \`StateFlow\` using \`asStateFlow()\` so callers can't mutate.`,
-    redFlags: `- Uses LiveData + MutableLiveData exposed publicly
-- Uses SharedFlow for UI state (loses the current-value guarantee)`,
+    redFlags: `- Blames every dropped frame on "too much work" without saying which stage — main thread or RenderThread/GPU — blew the budget
+- Assumes the budget is always 16ms — on a 90Hz or 120Hz display it is ~11ms or ~8ms`,
   },
   {
     id: 'tech-57',
@@ -1204,7 +962,7 @@ WorkManager.getInstance(context)
     section: 'Kotlin',
     title: 'Explain Kotlin coroutine `Flow` cold vs hot streams.',
     tags: [ 'coroutines', 'flow', 'advanced', 'kotlin' ],
-    related: [ 'tech-14', 'tech-44', 'tech-56' ],
+    related: [ 'tech-14', 'tech-44', 'tech-136' ],
     keyPoints: `- Cold flow: starts executing when collected; each collector gets its own independent stream. Created with \`flow { }\` builder.
 - Hot flow: exists independently of collectors; emits whether or not someone is listening. \`StateFlow\` and \`SharedFlow\` are hot.
 - Cold → hot: \`stateIn()\` or \`shareIn()\` operators convert a cold flow to hot, managing the upstream lifetime with a scope.`,
@@ -1225,14 +983,14 @@ WorkManager.getInstance(context)
     section: 'Performance & Security',
     title: 'How do you implement biometric authentication on Android?',
     tags: [ 'security', 'biometric', 'android-components' ],
-    related: [ 'tech-37', 'tech-38', 'tech-9' ],
+    related: [ 'tech-37', 'tech-164', 'tech-9' ],
     keyPoints: `- Use \`BiometricPrompt\` (AndroidX) — unified API for fingerprint, face, iris
 - \`BiometricManager.canAuthenticate(authenticators)\` — check device capability before showing prompt
 - Callback: \`onAuthenticationSucceeded\`, \`onAuthenticationError\`, \`onAuthenticationFailed\`
 - Crypto layer: authenticate with a \`CryptoObject\` wrapping a \`Cipher\` backed by a key in Android Keystore — ensures biometric gate is cryptographically enforced`,
-    answer: `- \`BiometricPrompt\` (AndroidX) is one API across fingerprint, face, and iris
-- Probe capability first with \`BiometricManager.canAuthenticate(authenticators)\` before showing UI
-- Bind a \`CryptoObject\` around a Keystore \`Cipher\` so the gate is cryptographic, not just a callback`,
+    answer: `- Always gate something real: unlock a Keystore key via \`CryptoObject\`, otherwise the prompt is cosmetic
+- Check capability up front and offer a device-credential fallback instead of dead-ending the user
+- Use \`BiometricPrompt\` only; never talk to fingerprint hardware directly`,
     followUp: `**Follow-up:** What's the difference between \`BIOMETRIC_STRONG\` and \`BIOMETRIC_WEAK\`?
 > Strong: Class 3 biometric, usable with \`CryptoObject\` (cryptographic binding). Weak: Class 2, lower security, cannot bind to a crypto key.`,
     redFlags: `- Uses deprecated \`FingerprintManager\` directly
@@ -1251,16 +1009,16 @@ WorkManager.getInstance(context)
     keyPoints: `- \`ContentProvider\` exposes structured data to other apps via a content URI (\`content://authority/table\`)
 - Used for: sharing data across apps (Contacts, MediaStore), \`FileProvider\` for sharing files securely via Intent
 - Query interface mirrors SQLite: \`query()\`, \`insert()\`, \`update()\`, \`delete()\``,
-    answer: `- Shares structured data across apps via \`content://authority/table\` URIs
-- Contacts/MediaStore; \`FileProvider\` shares files safely through Intents
-- CRUD surface mirrors SQLite: \`query\`/\`insert\`/\`update\`/\`delete\``,
+    answer: `- Reach for a \`ContentProvider\` only when another app (or the system) must read your data
+- For sharing a file, use \`FileProvider\` with temporary URI grants — never a raw path
+- Inside your own app, go straight to Room/DAOs`,
     followUp: `**Follow-up:** When must you use \`FileProvider\` instead of direct file path?
 > Android 7.0+ blocks \`file://\` URIs in Intents. \`FileProvider\` wraps the path as a \`content://\` URI with temporary permission.
 
 **Follow-up:** Do you need a ContentProvider to access your own app's Room database?
 > No — ContentProvider is for cross-app sharing. Internal data access goes directly through the DAO.`,
     redFlags: `- Creates a ContentProvider for internal app data
-- Doesn't know FileProvider is a ContentProvider subclass`,
+- Exports a provider (\`android:exported="true"\`) without read/write permissions`,
   },
   {
     id: 'tech-60',
@@ -1271,20 +1029,20 @@ WorkManager.getInstance(context)
     section: 'Engineering',
     title: 'How do you speed up Android Gradle builds?',
     tags: [ 'build', 'gradle', 'performance', 'tooling' ],
-    related: [ 'sd-23', 'tech-39', 'tech-43' ],
+    related: [ 'sd-23', 'tech-161', 'tech-43' ],
     keyPoints: `- Enable configuration cache (\`org.gradle.configuration-cache=true\`) — skips Gradle configuration phase on repeat builds
 - Enable build cache (\`org.gradle.caching=true\`) — reuses task outputs across builds and CI
 - Modularize — feature modules compile independently; only changed modules recompile
 - Use \`kotlin.incremental=true\` and \`kapt.incremental.apt=true\`
 - Replace \`kapt\` with \`ksp\` (Kotlin Symbol Processing) — significantly faster annotation processing
 - R8/ProGuard only in release builds (not debug)`,
-    answer: `- Enable \`org.gradle.configuration-cache=true\` and \`org.gradle.caching=true\` to reuse task outputs
-- Split feature modules so only changed ones recompile; keep R8/ProGuard out of debug builds
-- Replace \`kapt\` with \`ksp\`; leave \`kotlin.incremental\` and \`kapt.incremental.apt\` switched on`,
+    answer: `- Profile first with a build scan; optimize the phase that actually dominates
+- Turn on the free wins (build and configuration cache, KSP over kapt) before restructuring anything
+- Then invest in module structure so a typical change recompiles as little as possible`,
     followUp: `**Follow-up:** What is the difference between kapt and ksp?
 > kapt converts Kotlin to Java stubs then runs Java annotation processors — slow. ksp processes Kotlin directly without stubs — 2–3× faster.`,
-    redFlags: `- Has never profiled build with \`--scan\` or \`--profile\`
-- Doesn't know what the configuration phase is`,
+    redFlags: `- Upgrades hardware or CI machines before profiling where the build time goes
+- Does expensive work (network calls, \`git\` commands) at configuration time in build scripts`,
   },
   {
     id: 'tech-61',
@@ -1299,9 +1057,9 @@ WorkManager.getInstance(context)
     keyPoints: `- Mock: generated object (MockK/Mockito) where you define return values per call. Tight coupling to method calls — fragile if internals change.
 - Fake: real but simplified implementation (e.g., \`FakeRepository\` backed by \`HashMap\`). More resilient to refactors, better for integration-style tests.
 - Rule: mock infrastructure boundaries (HTTP client, DB). Fake domain abstractions (Repository, Cache).`,
-    answer: `- A mock is a generated stand-in (MockK/Mockito) with per-call stubs; brittle when internals shift
-- A fake is genuine but simplified code — \`FakeRepository\` over a \`HashMap\` — and tolerates refactors
-- Rule: mock outer boundaries like HTTP and DB, fake your abstractions like Repository and Cache`,
+    answer: `- Default to fakes for your own abstractions; they survive refactors
+- Mock only at edges you don't own or where the interaction itself is the behaviour
+- If a test breaks after a refactor that didn't change behaviour, it was over-mocked`,
     followUp: `**Follow-up:** What is the Arrange-Act-Assert pattern?
 > Arrange: set up dependencies and state. Act: invoke the system under test. Assert: verify output/state/interactions.`,
     redFlags: `- Mocks everything including simple data classes
@@ -1316,18 +1074,18 @@ WorkManager.getInstance(context)
     section: 'Performance & Security',
     title: 'How does the Android Keystore work? What guarantees does it provide?',
     tags: [ 'security', 'keystore', 'biometric', 'advanced' ],
-    related: [ 'tech-37', 'tech-38', 'tech-58' ],
+    related: [ 'tech-37', 'tech-164', 'tech-58' ],
     keyPoints: `- Android Keystore stores cryptographic keys in a secure hardware enclave (TEE or StrongBox) — keys never leave hardware in plaintext
 - Generate a key: \`KeyPairGenerator\` or \`KeyGenerator\` with \`KeyStore.getInstance("AndroidKeyStore")\`
 - Specify constraints: \`userAuthenticationRequired\`, \`invalidatedByBiometricEnrollment\`, \`keyValidityDuration\`
 - Use cases: Keystore master key protecting app-level field encryption, biometric crypto gates, HTTPS client certificates`,
-    answer: `- Keys live inside a hardware enclave (TEE or StrongBox) and never surface as plaintext
-- Build them with \`KeyGenerator\`/\`KeyPairGenerator\` from \`KeyStore.getInstance("AndroidKeyStore")\`
-- Constrain use with \`userAuthenticationRequired\`, \`invalidatedByBiometricEnrollment\`, \`keyValidityDuration\``,
+    answer: `- Put key material in the Keystore and keep only ciphertext in app storage
+- Add constraints (user auth, biometric-enrollment invalidation, validity window) to match the threat model
+- Plan for key loss — design data so a wiped key means re-login, not a crash`,
     followUp: `**Follow-up:** What happens to a Keystore key if the user enrolls a new fingerprint?
 > If \`invalidatedByBiometricEnrollment = true\`, the key is permanently deleted — prevents an attacker adding a fingerprint to bypass auth.`,
     redFlags: `- Stores encrypted keys in SharedPreferences (no hardware protection)
-- Doesn't know keys can have \`userAuthenticationRequired\` constraint`,
+- Assumes Keystore keys survive app uninstall, or migrate to a new device through backup/restore`,
   },
   {
     id: 'tech-63',
@@ -1337,19 +1095,20 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Performance & Security',
     title: 'How do Baseline Profiles improve app startup? How do you generate one?',
-    tags: [ 'performance', 'startup', 'profiling' ],
-    related: [ 'tech-35', 'tech-36', 'tech-39' ],
+    tags: [ 'performance', 'startup', 'profiling', 'advanced', 'baseline-profile' ],
+    related: [ 'tech-35', 'tech-114', 'tech-161', 'tech-110' ],
     keyPoints: `- Baseline Profiles pre-compile a subset of app bytecode to native (AOT) at install time, reducing JIT compilation during first run
-- Result: 20–40% faster startup, reduced jank on cold start
-- Generation: use \`BaselineProfileRule\` (Macrobenchmark library) to record a startup journey, output \`baseline-prof.txt\`, commit to source
+- Result: published measurements land around 20–40% faster startup and less jank on cold start and early interactions (better time-to-interactive) — the effect varies with app size, device tier, and Android version
+- Coverage is exact: only the methods listed in the profile are precompiled; any path you did not record still starts interpreted/JIT
+- Generation: use \`BaselineProfileRule\` (Macrobenchmark library) on a real device or emulator to record a startup journey plus critical user journeys, output \`baseline-prof.txt\`, commit to source
 - AGP bundles the profile into the APK/AAB. Play Store pre-compiles it on device.`,
-    answer: `- Profiled bytecode is AOT-compiled to native during install, so first launch skips most JIT
-- Record the launch journey with \`BaselineProfileRule\` (Macrobenchmark), then commit \`baseline-prof.txt\`
-- AGP packages it and Play pre-compiles; roughly 20–40% faster startup, less cold-start jank`,
+    answer: `- Treat a Baseline Profile as the default first fix for slow cold start and first-interaction jank
+- Profile the journeys users actually hit first — anything you don't record gets no benefit
+- Regenerate it whenever those journeys change; a stale profile silently stops paying off`,
     followUp: `**Follow-up:** What is the difference between a Baseline Profile and a Startup Profile?
 > Both are the same format. "Startup Profile" is a term used when the profile covers only cold start paths. Baseline Profile may also cover critical user journeys beyond startup.`,
     redFlags: `- Thinks Baseline Profiles are only for library code
-- Has never heard of Macrobenchmark`,
+- Expects R8 alone to fix startup — R8 shrinks and optimizes bytecode but does nothing about interpreting/JIT-compiling it on first run`,
   },
   {
     id: 'tech-64',
@@ -1360,15 +1119,15 @@ WorkManager.getInstance(context)
     section: 'Jetpack',
     title: 'How do you handle different screen sizes and orientations in Compose?',
     tags: [ 'compose', 'ui', 'responsive', 'adaptive' ],
-    related: [ 'tech-11', 'tech-34' ],
+    related: [ 'tech-138', 'tech-34' ],
     keyPoints: `- \`WindowSizeClass\` (Material3) — compact / medium / expanded buckets for width and height
 - \`BoxWithConstraints\` for local size-aware layouts
 - Adaptive layouts: \`NavigationSuiteScaffold\` auto-switches between bottom nav (compact) and side rail (expanded)
 - \`LocalConfiguration.current\` for raw screen info (less preferred)
 - Avoid hardcoded dp values for major layout decisions — use \`WindowSizeClass\` instead`,
-    answer: `- Material3 \`WindowSizeClass\` buckets width and height as compact, medium, or expanded
-- \`BoxWithConstraints\` covers one size-aware region; \`NavigationSuiteScaffold\` swaps bar for a rail
-- Skip hardcoded dp for major layout choices; \`LocalConfiguration.current\` is the less preferred route`,
+    answer: `- Branch layout on window size classes, not device type or orientation
+- Decide at the top of the screen and pass the decision down; use local constraints only for leaf components
+- Test compact, medium and expanded widths as part of the normal workflow`,
     followUp: `**Follow-up:** How do you test layout on different screen sizes without a device?
 > Android Studio preview with \`@PreviewScreenSizes\` annotation or Resizable Emulator.`,
     redFlags: `- Hardcodes layout for phone only
@@ -1384,43 +1143,20 @@ WorkManager.getInstance(context)
     title: 'Hilt vs Koin — architecture, tradeoffs, when to pick each.',
     tags: [ 'di', 'hilt', 'koin', 'architecture' ],
     related: [ 'tech-25', 'tech-26', 'tech-27' ],
-    keyPoints: `- Hilt: compile-time DI via Dagger, code generation, verified at build time, zero-cost at runtime, steep learning curve
-- Koin: runtime service locator, no code gen, fast to learn, small overhead at runtime, errors at runtime not build time
+    keyPoints: `- The safety difference (build-time graph validation vs failure on first \`get()\`) is covered in tech-51 and tech-168; this is the team/project decision around it
+- Hilt: Dagger underneath — steep learning curve, kapt/KSP codegen adds build time, Android-only
+- Koin: plain Kotlin DSL, fast to learn, no codegen, runs on Kotlin Multiplatform
 - Hilt integrates with \`@HiltViewModel\`, \`@AndroidEntryPoint\`, Compose navigation, WorkManager — all via Android Jetpack
 - Koin integrates with \`viewModel\`, \`get()\`, easy for KMM
 
 **When to pick:**
 - Hilt: large team, high correctness bar, full Android project
 - Koin: rapid prototyping, KMM shared code, small team with Kotlin familiarity`,
-    answer: `- Hilt is Dagger under the hood: generated code, checked at build time, nothing to pay at runtime
-- Koin is a runtime locator with no codegen — quick to learn, but bad wiring appears in production
-- Hilt for large teams and correctness bars; Koin for prototypes, small teams, KMM shared code`,
-    redFlags: `- Thinks Koin and Hilt are equivalent (they have fundamentally different guarantees)
+    answer: `- Choose on team and platform, not taste: Android-only and many contributors → Hilt
+- Kotlin Multiplatform shared code or a small, fast-moving team → Koin
+- Whichever you pick, keep classes on constructor injection so switching later is a wiring change`,
+    redFlags: `- Proposes migrating a working codebase from one to the other with no concrete pain point driving it
 - Uses Hilt without understanding the Dagger component hierarchy underneath`,
-  },
-  {
-    id: 'tech-66',
-    type: 'technical',
-    num: 66,
-    difficulty: 'H',
-    star: true,
-    section: 'Android Core',
-    title: 'How do you handle process death and state restoration in Android?',
-    tags: [ 'lifecycle', 'state', 'viewmodel', 'advanced' ],
-    related: [ 'tech-6', 'tech-12', 'tech-7' ],
-    keyPoints: `- Process death: Android kills your process when memory is needed. The user returns and expects to resume.
-- Lightweight UI state: \`rememberSaveable\` / \`onSaveInstanceState\` → survives rotation AND process death (via Bundle)
-- Complex state: \`ViewModel\` + \`SavedStateHandle\` — \`SavedStateHandle\` is backed by the Bundle, persists through process death
-- Large data: don't. Save ID only, reload from DB on restore.
-- Test it: Developer Options → "Don't keep activities" forces recreation on back-foreground`,
-    answer: `- OS may kill the process under memory pressure; returning users expect their spot back
-- Light state: \`rememberSaveable\`/\`onSaveInstanceState\` bundles beat rotation and death
-- \`SavedStateHandle\` persists VM bits in the Bundle; big data — keep an ID and reload`,
-    followUp: `**Follow-up:** What is \`SavedStateHandle\` and how does it differ from a regular ViewModel property?
-> \`SavedStateHandle\` is injected into the ViewModel and backed by the saved instance state Bundle — its values survive process death. Regular ViewModel properties are lost on process death.`,
-    redFlags: `- Only handles rotation but not process death
-- Stores large objects in \`onSaveInstanceState\` (limited Bundle size)
-- Has never tested process death scenario`,
   },
   {
     id: 'tech-67',
@@ -1437,9 +1173,9 @@ WorkManager.getInstance(context)
 - \`onCreateView\`: inflate and return the layout — keep it lightweight (no binding to views here)
 - \`onViewCreated\`: called immediately after; safe to access views, set up observers, click listeners
 - Key: views are destroyed in \`onDestroyView\` but the Fragment instance lives on (backstack). Null ViewBinding reference in \`onDestroyView\` to avoid leaks.`,
-    answer: `- Up: \`onAttach→onCreate→onCreateView→onViewCreated→onStart→onResume\`; down ends \`onDetach\`
-- \`onCreateView\` just inflates and returns the view; wire listeners in \`onViewCreated\`
-- Backstack keeps the instance while views die in \`onDestroyView\` — null out binding there`,
+    answer: `- Put view wiring in \`onViewCreated\` and view teardown in \`onDestroyView\`
+- Remember the fragment outlives its view on the back stack — never hold view references past it
+- Observe with \`viewLifecycleOwner\`, not the fragment itself`,
     followUp: `**Follow-up:** What survives a config change in a Fragment?
 > A \`ViewModel\` scoped to the Fragment survives. Fragment arguments (\`setArguments\`) survive as they're in the Bundle.`,
     redFlags: `- Sets up observers or click listeners in \`onCreateView\` instead of \`onViewCreated\`
@@ -1454,18 +1190,17 @@ WorkManager.getInstance(context)
     section: 'Android Core',
     title: 'How do Fragments communicate with each other and with their host Activity?',
     tags: [ 'fragments', 'architecture', 'viewmodel' ],
-    related: [ 'tech-7', 'tech-67' ],
+    related: [ 'tech-75', 'tech-67' ],
     keyPoints: `- **Shared ViewModel** (recommended): two fragments in the same activity share a ViewModel scoped to the activity — state flows through the VM, no direct references
 - **Fragment Result API** (Jetpack): \`setFragmentResult\` / \`setFragmentResultListener\` — decoupled, safe for back-stack scenarios
 - **Interface listener** (legacy): Fragment defines a listener interface, Activity implements it, Fragment calls it via \`requireActivity() as MyListener\` — tightly coupled`,
-    answer: `- Shared ViewModel scoped to the host: state flows through it, no direct references
-- Fragment Result API — \`setFragmentResult\` + listener: decoupled, back-stack-safe
-- Legacy route: callback interface via \`requireActivity() as MyListener\`, tightly coupled`,
+    answer: `- Share state through an activity-scoped ViewModel; send one-off results through the Fragment Result API
+- Keep fragments ignorant of each other and of the concrete host Activity
+- Treat direct Activity casts and event buses as legacy to migrate away from`,
     followUp: `**Follow-up:** Why is the interface approach considered legacy?
 > Fragment holds a direct reference to the Activity, creating tight coupling and making unit tests hard. SharedViewModel and Fragment Result API are fully decoupled.`,
     redFlags: `- Calls \`getActivity().someField\` directly from a Fragment
-- Uses global event buses (RxBus, EventBus) — hard to reason about, global state
-- Unaware of Fragment Result API`,
+- Uses global event buses (RxBus, EventBus) — hard to reason about, global state`,
   },
   {
     id: 'tech-69',
@@ -1505,13 +1240,13 @@ WorkManager.getInstance(context)
 - Matching rules: action test, category test, data test — all three must pass
 - \`CATEGORY_DEFAULT\` must be in the filter for an Activity to receive implicit intents via \`startActivity\`
 - If multiple apps match, the system shows a chooser`,
-    answer: `- \`<intent-filter>\` advertises which action, category, and data a component handles
-- All three tests — action, category, data — must pass; multi-match opens a chooser
-- \`startActivity\` delivers implicit intents only if \`CATEGORY_DEFAULT\` is declared`,
+    answer: `- Declare filters as narrowly as you can — every extra action or data pattern is a new entry point into your app
+- Remember implicit \`startActivity\` needs \`CATEGORY_DEFAULT\`, the most common reason a filter "doesn't match"
+- Prefer explicit intents inside your own app; implicit ones are for cross-app handoff`,
     followUp: `**Follow-up:** What is \`action.MAIN\` + \`category.LAUNCHER\`?
 > Marks the entry-point Activity — appears in the device launcher. Every app needs exactly one.`,
-    redFlags: `- Doesn't know \`CATEGORY_DEFAULT\` is required for \`startActivity\` resolution
-- Has never declared a custom intent filter`,
+    redFlags: `- Uses implicit intents to navigate between screens of their own app
+- Declares a broad filter on an exported Activity without validating incoming extras`,
   },
   {
     id: 'tech-71',
@@ -1529,13 +1264,13 @@ WorkManager.getInstance(context)
   - \`singleTop\`: reuses the existing instance if it's already on top — calls \`onNewIntent()\`
   - \`singleTask\`: one instance per task — brings to front, clears everything above it, calls \`onNewIntent()\`
   - \`singleInstance\`: one instance in its own dedicated task`,
-    answer: `- Task = stack of activities the user walks through; back press pops it
-- \`standard\` always creates anew; \`singleTop\` reuses a top instance via \`onNewIntent()\`
-- \`singleTask\` clears what is above its lone instance; \`singleInstance\` owns a separate task`,
+    answer: `- Leave \`standard\` as the default and change \`launchMode\` only for a concrete duplicate-instance problem
+- Any non-standard mode means handling \`onNewIntent()\`, or the new data is silently ignored
+- In single-activity apps most of this moves into the navigation back stack instead`,
     followUp: `**Follow-up:** When would you use \`singleTop\`?
 > Push notifications that open a detail screen — prevents duplicate activities when the user is already on that screen.`,
-    redFlags: `- Doesn't know \`onNewIntent\` is called for \`singleTop\`/\`singleTask\`
-- Thinks \`singleTask\` and \`singleInstance\` are the same`,
+    redFlags: `- Thinks \`singleTask\` and \`singleInstance\` are the same
+- Sets \`singleInstance\` on a normal screen and breaks Back and Recents behaviour`,
   },
   {
     id: 'tech-72',
@@ -1546,20 +1281,20 @@ WorkManager.getInstance(context)
     section: 'Networking & Data',
     title: 'Explain Room\'s key components: `@Entity`, `@Dao`, `@Database`, `@TypeConverter`. How do you handle schema migrations?',
     tags: [ 'storage', 'room', 'data' ],
-    related: [ 'sd-8', 'tech-19', 'tech-49' ],
+    related: [ 'sd-8', 'tech-19', 'sd-18' ],
     keyPoints: `- \`@Entity\`: maps a Kotlin class to a DB table. Fields map to columns; use \`@PrimaryKey\`, \`@ColumnInfo\`, \`@Embedded\`, \`@Relation\`.
 - \`@Dao\`: interface with \`@Query\`, \`@Insert\`, \`@Update\`, \`@Delete\` — Room generates the implementation. Can return \`Flow<T>\` for reactive queries.
 - \`@Database\`: abstract class extending \`RoomDatabase\`, lists entities and schema version.
 - \`@TypeConverter\`: converts non-primitive types Room can't store natively (e.g., \`Date\` ↔ \`Long\`)
 - Migrations: \`addMigrations(Migration(1, 2) { db -> db.execSQL("ALTER TABLE ...") })\`. \`fallbackToDestructiveMigration()\` only in dev.`,
-    answer: `- \`@Entity\` = table (\`@PrimaryKey\`/\`@Embedded\`/\`@Relation\`); \`@Database\` lists entities and the version
-- \`@Dao\`: \`@Query\`/\`@Insert\`/\`@Update\`/\`@Delete\` are generated, and may return \`Flow<T>\`
-- \`@TypeConverter\` covers \`Date\`; upgrades use \`Migration(1, 2)\` in \`addMigrations\`, destructive in dev only`,
+    answer: `- Keep DAOs pure data access — queries in, \`Flow\`/\`suspend\` out, no networking or business rules
+- Treat every schema version bump as a release item: migration plus test, never a destructive fallback in production
+- Add a \`@TypeConverter\` only for simple value types; model real relationships with tables`,
     followUp: `**Follow-up:** What happens if you bump the DB version without providing a migration?
 > Room throws \`IllegalStateException\` at runtime — you must provide a migration or use \`fallbackToDestructiveMigration()\` (wipes all data).`,
     redFlags: `- Makes network calls inside a DAO
 - Uses \`fallbackToDestructiveMigration()\` in production
-- Doesn't know TypeConverters exist`,
+- Serializes whole object graphs into a JSON column through a TypeConverter instead of modelling tables`,
   },
   {
     id: 'tech-73',
@@ -1582,11 +1317,11 @@ private val binding get() = _binding!!
 override fun onCreateView(i, c, s) = FragmentHomeBinding.inflate(i, c, false).also { _binding = it }.root
 override fun onDestroyView() { super.onDestroyView(); _binding = null }
 \`\`\``,
-    answer: `- ViewBinding: one compile-time binding class per layout — type-safe, null-safe
-- Beats \`findViewById\` (untyped, nullable); DataBinding adds XML expressions + \`@BindingAdapter\`
-- Fragment: null \`_binding\` in \`onDestroyView\`, else the old view tree leaks`,
-    followUp: `**Follow-up:** Why null the binding in \`onDestroyView\`?
-> Fragments outlive their views on the back stack. Holding the binding past \`onDestroyView\` leaks the entire view hierarchy.`,
+    answer: `- Use ViewBinding for every View-based screen; there is no reason for new \`findViewById\`
+- Pick DataBinding only if you truly want expressions in XML — most teams don't
+- In Fragments, scope the binding to the view lifecycle`,
+    followUp: `**Follow-up:** How do you reuse an existing ViewBinding layout inside a Compose screen?
+> Use the \`AndroidViewBinding(MyLayoutBinding::inflate) { ... }\` composable from \`androidx.compose.ui:ui-viewbinding\` — it inflates the layout once and hands you the binding in the update block, a common bridge during XML → Compose migration.`,
     redFlags: `- Still using \`findViewById\` in new code
 - Doesn't null the binding in \`onDestroyView\``,
   },
@@ -1599,15 +1334,15 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
     section: 'Architecture',
     title: 'What is the Repository Pattern? Why does it sit between ViewModel and data sources?',
     tags: [ 'architecture', 'repository', 'mvvm', 'clean-architecture' ],
-    related: [ 'tech-7', 'tech-45', 'tech-49' ],
+    related: [ 'tech-75', 'tech-45', 'sd-18' ],
     keyPoints: `- Repository abstracts all data access behind a single API — ViewModel doesn't know whether data comes from network, cache, or DB
 - Responsibilities: coordinate multiple sources (Retrofit + Room), enforce caching strategy, expose clean \`Flow<T>\` or suspend functions
-- Enables single source of truth: network response writes to Room, UI reads only from Room via the Repository`,
-    answer: `- One API hides every source, so the ViewModel cannot tell network from cache from DB
-- It coordinates \`Retrofit\` + \`Room\`, owns the caching policy, exposes \`Flow<T>\` or suspend functions
-- Keeps a single source of truth: writes land in \`Room\`, reads come only from \`Room\``,
-    followUp: `**Follow-up:** What's the difference between Repository and UseCase in Clean Architecture?
-> Repository: data access abstraction. UseCase: business logic combining one or more repositories into a single operation. ViewModel calls UseCase, not Repository directly.`,
+`,
+    answer: `- Put the "where does this data come from" decision in exactly one class per data type
+- Expose domain types and \`Flow\`/\`suspend\` APIs — nothing Retrofit- or Room-shaped leaks upward
+- If a ViewModel can tell whether data came from cache, the abstraction has failed`,
+    followUp: `**Follow-up:** Network and Room both have the data — which one does the UI read?
+> Room only. The network response is written into the DB and the UI observes the DAO \`Flow\` through the repository, so there is a single source of truth and online/offline states can't diverge. Offline-first sync and conflict handling build on this (sd-18).`,
     redFlags: `- ViewModel calls Retrofit or Room directly
 - Repository mixes network, DB, and UI logic in one class`,
   },
@@ -1619,8 +1354,8 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
     star: true,
     section: 'Architecture',
     title: 'Compare MVC, MVP, and MVVM architecture patterns in Android — what are the key differences and when to use each?',
-    tags: [ 'architecture', 'mvc', 'mvp', 'mvvm' ],
-    related: [ 'tech-7', 'tech-46', 'tech-45' ],
+    tags: [ 'architecture', 'mvc', 'mvp', 'mvvm', 'viewmodel' ],
+    related: [ 'tech-46', 'tech-45', 'ds-1', 'tech-6' ],
     keyPoints: `- **MVC (Model-View-Controller)**:
   - Controller handles user input and updates Model
   - View and Controller both depend on Model
@@ -1635,19 +1370,19 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
   - ViewModel exposes observable state (\`StateFlow\`/\`LiveData\`); View observes — no direct reference
   - ViewModel survives config changes naturally, no View lifecycle concerns
   - Google Jetpack made MVVM idiomatic on Android
+  - What belongs in each layer: **Model** = data + business logic (repositories); **ViewModel** = UI state, calls the repository, ideally no Android framework imports; **View** = renders observed state and forwards events to the VM
 - **Decision Guide**:
   - MVC: Simple apps, learning Android basics
   - MVP: When you need better testability than MVC
   - MVVM: Default choice for modern Android apps (Jetpack Compose)`,
-    answer: `- MVC: Controller updates Model, View observes Model changes (highest Android coupling)
-- MVP: Presenter mediates via View interface (better testability, Presenter manages lifecycle)
-- MVVM: ViewModel exposes state streams, View observes (best testability, config change survival)
-- MVVM is currently recommended by Google Jetpack for most Android applications`,
+    answer: `- The axis that separates them is who holds a reference to whom — each step removes the logic layer's grip on the View
+- Pick MVVM for new Android work: Jetpack's lifecycle support removes the Presenter's attach/detach bookkeeping
+- Meet MVP in legacy code with respect — its View-interface contract is still perfectly testable`,
     followUp: `**Follow-up:** How does Jetpack Compose influence the choice between these patterns?
 > Compose encourages MVVM or MVI due to its declarative nature and state hoisting principles. ViewModel works naturally with Compose's state management (remember, collectAsStateWithLifecycle)`,
     redFlags: `- Thinks MVC is obsolete for all Android development
 - Believes MVP requires no interfaces or contracts
-- Claims MVVM ViewModel can safely hold direct View references`,
+- Puts network calls directly in the Activity/Fragment and calls it "MVC"`,
   },
   {
     id: 'tech-76',
@@ -1669,8 +1404,7 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
 - \`Delegates.observable\` fires per assignment; \`vetoable\` can reject the incoming value`,
     followUp: `**Follow-up:** Why prefer \`by lazy\` over \`lateinit var\`?
 > \`lazy\` is thread-safe, never throws \`UninitializedPropertyAccessException\`, and is \`val\` (immutable reference). \`lateinit var\` is mutable and throws if accessed before initialization.`,
-    redFlags: `- Doesn't know \`by lazy\` is thread-safe by default
-- Confuses \`lazy\` (computed on demand) with \`lateinit\` (initialized later by code)`,
+    redFlags: `- Confuses \`lazy\` (computed on demand) with \`lateinit\` (initialized later by code)`,
   },
   {
     id: 'tech-77',
@@ -1710,7 +1444,7 @@ try { d.await() } catch (e: IOException) { }  // caught here
     section: 'Concurrency',
     title: 'RxJava vs Kotlin Coroutines — why did the Android ecosystem shift?',
     tags: [ 'coroutines', 'rxjava', 'concurrency' ],
-    related: [ 'tech-14', 'tech-41', 'tech-52' ],
+    related: [ 'tech-14', 'tech-136', 'tech-52' ],
     keyPoints: `- **RxJava**: reactive streams, rich operators (\`map\`, \`flatMap\`, \`zip\`, \`combineLatest\`), everything is \`Observable\`/\`Single\`/\`Completable\`. Steep learning curve; manual subscription lifecycle (\`CompositeDisposable\`).
 - **Coroutines + Flow**: sequential-looking async code, simpler mental model, structured concurrency prevents leaks, first-class Kotlin support, \`Flow\` replaces \`Observable\`
 - Why coroutines won: Google Jetpack adopted coroutines as default, simpler threading model, easier onboarding, no library overhead`,
@@ -1719,38 +1453,7 @@ try { d.await() } catch (e: IOException) { }  // caught here
 - Jetpack made them the default, with simpler threading and no library dependency`,
     followUp: `**Follow-up:** Is RxJava dead?
 > No — widely used in legacy codebases. Interop exists: \`flow.asObservable()\`, \`observable.asFlow()\`. New projects default to coroutines.`,
-    redFlags: `- Has never heard of RxJava at all
-- Thinks coroutines and RxJava are fully equivalent with no trade-offs
-- Doesn't know what \`CompositeDisposable\` is used for`,
-  },
-  {
-    id: 'tech-79',
-    type: 'technical',
-    num: 79,
-    difficulty: 'M',
-    star: true,
-    section: 'Engineering',
-    title: 'Explain Hilt\'s component hierarchy and scopes. What do `@HiltAndroidApp`, `@AndroidEntryPoint`, and `@HiltViewModel` do?',
-    tags: [ 'di', 'hilt', 'advanced' ],
-    related: [ 'tech-25', 'tech-51' ],
-    keyPoints: `- Hilt generates a component hierarchy mirroring Android lifecycle:
-  \`SingletonComponent\` → \`ActivityRetainedComponent\` → \`ActivityComponent\` → \`FragmentComponent\`
-  \`ViewModelComponent\` is scoped to ViewModel lifetime
-- Scope annotations control instance lifetime: \`@Singleton\`, \`@ActivityRetainedScoped\`, \`@ActivityScoped\`, \`@FragmentScoped\`, \`@ViewModelScoped\`
-- Key annotations:
-  - \`@HiltAndroidApp\`: triggers Hilt code generation in \`Application\` — required
-  - \`@AndroidEntryPoint\`: enables field injection in Activity/Fragment
-  - \`@HiltViewModel\`: allows \`@Inject\` constructor on ViewModel
-  - \`@Module\` + \`@InstallIn(SingletonComponent::class)\`: provides bindings for a component
-- Key annotations: \`@HiltAndroidApp\` on the Application generates the SingletonComponent; \`@AndroidEntryPoint\` enables injection in lifecycle hosts; \`@HiltViewModel\` binds a ViewModel to its generated component`,
-    answer: `- Chain: \`SingletonComponent\` → \`ActivityRetainedComponent\` → \`ActivityComponent\` → \`FragmentComponent\`
-- \`@HiltAndroidApp\` on \`Application\` generates the graph; \`@AndroidEntryPoint\` wires field injection
-- Scope annotations set lifetime (\`@Singleton\` … \`@ViewModelScoped\`); \`@InstallIn\` targets a component`,
-    followUp: `**Follow-up:** Difference between \`@Singleton\` and \`@ActivityScoped\`?
-> \`@Singleton\`: one instance for the entire app process. \`@ActivityScoped\`: one per Activity instance — recreated on config change.`,
-    redFlags: `- Marks everything \`@Singleton\` without thinking about scope
-- Doesn't know \`@AndroidEntryPoint\` is required for field injection
-- Confuses Hilt (compile-time) with Koin (runtime)`,
+    redFlags: `- Thinks coroutines and RxJava are fully equivalent with no trade-offs`,
   },
   {
     id: 'tech-80',
@@ -1772,13 +1475,13 @@ try { d.await() } catch (e: IOException) { }  // caught here
 **Unit tests vs Espresso:**
 - Unit tests: fast (JVM only, no device), test logic in isolation (ViewModel, Repository)
 - Espresso: slow (emulator required), verifies real UI behavior end-to-end`,
-    answer: `- Espresso drives real UI on a device or emulator via \`onView(matcher).perform(action).check(assertion)\`
-- It auto-syncs with the main thread, waiting for idleness before each action
-- JVM unit tests check ViewModel/Repository logic cheaply; Espresso is slower but proves the flow`,
+    answer: `- Keep Espresso for user-journey and integration checks; put logic tests on the JVM
+- Rely on its idle synchronisation — register idling resources instead of adding sleeps
+- Fake the network and data layer so UI tests are deterministic`,
     followUp: `**Follow-up:** How do you test a screen that fetches data from the network?
 > Replace the real repository with a fake via DI (Hilt test components). Espresso tests should never hit the real network.`,
-    redFlags: `- Has never written any UI test
-- Tries to use Espresso for business logic that belongs in unit tests`,
+    redFlags: `- Tries to use Espresso for business logic that belongs in unit tests
+- Adds \`Thread.sleep()\` to fix flaky Espresso tests`,
   },
   {
     id: 'tech-81',
@@ -1796,14 +1499,14 @@ try { d.await() } catch (e: IOException) { }  // caught here
 - \`@BeforeClass\` / \`@AfterClass\`: run once per class — for expensive one-time setup (e.g., in-memory DB creation)
 - \`@Rule\`: applies a \`TestRule\` that wraps each test. Common rules:
   - \`InstantTaskExecutorRule\`: makes LiveData/Architecture Components execute synchronously
-  - \`MainCoroutineRule\` (custom): replaces \`Dispatchers.Main\` with a \`TestCoroutineDispatcher\``,
-    answer: `- \`@Before\` and \`@After\` bracket every test; \`@BeforeClass\`/\`@AfterClass\` run once per class
-- \`@Rule\` wraps each test in a \`TestRule\`, e.g. \`InstantTaskExecutorRule\` for synchronous LiveData
-- A custom \`MainCoroutineRule\` swaps \`Dispatchers.Main\` for a \`TestCoroutineDispatcher\``,
-    followUp: `**Follow-up:** Why do you need \`InstantTaskExecutorRule\` in ViewModel tests?
-> Forces all Architecture Components (LiveData) to run synchronously on the test thread — removes async timing issues.`,
-    redFlags: `- Has never written a JUnit test
-- Doesn't know what a \`TestRule\` does or why you'd need one`,
+  - \`MainCoroutineRule\` (custom): calls \`Dispatchers.setMain(StandardTestDispatcher())\` before each test and \`Dispatchers.resetMain()\` after (the older \`TestCoroutineDispatcher\` is deprecated)`,
+    answer: `- Keep per-test setup in \`@Before\` so tests never depend on each other's state
+- Move reusable setup/teardown (Main dispatcher, LiveData executor, temp folders) into a \`TestRule\`, not a base class
+- Reserve \`@BeforeClass\` for genuinely expensive one-time fixtures`,
+    followUp: `**Follow-up:** What is the difference between \`@Rule\` and \`@ClassRule\`?
+> \`@Rule\` wraps every test method; \`@ClassRule\` wraps the whole class once and must be a static field (in Kotlin, a \`@JvmField\` in a \`companion object\`). Use it for fixtures like a server or database that are expensive to start per test.`,
+    redFlags: `- Shares mutable state between tests through fields that \`@Before\` doesn't reset
+- Builds a deep test base-class hierarchy instead of composable rules`,
   },
   {
     id: 'tech-82',
@@ -1821,13 +1524,13 @@ try { d.await() } catch (e: IOException) { }  // caught here
   - **Data message**: always delivered to \`FirebaseMessagingService.onMessageReceived()\` — your code handles display in all states
 - Implement \`FirebaseMessagingService\`: override \`onMessageReceived(message)\` for foreground, and \`onNewToken(token)\` to push the device token to your server
 - Device token: unique per device/install. Required to target a specific device.`,
-    answer: `- Delivery path: backend → FCM → Play Services → the device app
-- Notification messages: SDK displays when backgrounded; \`onMessageReceived\` fires only in foreground
-- Data messages always hit \`onMessageReceived()\`; \`onNewToken()\` yields the per-install token to upload`,
+    answer: `- Send data messages when the app must decide what to show; notification messages only for simple broadcast alerts
+- Upload the token from \`onNewToken()\` every time — it changes on reinstall, restore and data clear
+- Don't treat push as guaranteed delivery; sync real state on app open`,
     followUp: `**Follow-up:** What happens to data messages when the app is force-killed?
 > High-priority data messages may wake the app. Normal priority may be delayed or dropped — not guaranteed.`,
-    redFlags: `- Doesn't know the difference between notification and data messages
-- Doesn't know \`onNewToken\` exists — token changes on reinstall`,
+    redFlags: `- Sends notification messages and is surprised \`onMessageReceived()\` never runs in the background
+- Uses FCM as a reliable queue for business-critical state`,
   },
   {
     id: 'tech-83',
@@ -1848,8 +1551,7 @@ try { d.await() } catch (e: IOException) { }  // caught here
 - \`.log(...)\` adds timeline breadcrumbs; \`.setCustomKey(...)\` attaches context to later reports`,
     followUp: `**Follow-up:** When would you use \`recordException\` instead of letting it crash?
 > Caught exceptions you handle gracefully but want visibility into: network errors you retry silently, JSON parsing fallbacks, optional feature failures.`,
-    redFlags: `- Swallows exceptions in catch blocks without any logging
-- Has never used any crash reporting tool in production`,
+    redFlags: `- Swallows exceptions in catch blocks without any logging`,
   },
   {
     id: 'tech-84',
@@ -1860,18 +1562,18 @@ try { d.await() } catch (e: IOException) { }  // caught here
     section: 'Performance & Security',
     title: 'What is ktlint? How does detekt differ?',
     tags: [ 'code-quality', 'linting', 'build' ],
-    related: [ 'tech-39', 'tech-116' ],
+    related: [ 'tech-161', 'tech-116' ],
     keyPoints: `- **ktlint**: enforces Kotlin code *formatting* — indentation, spacing, import ordering, brace placement. Auto-fixes with \`ktlintFormat\`.
 - **detekt**: static analysis for code *quality* — finds code smells: excessive function length, magic numbers, naked \`!!\`, high complexity. Not about formatting.
 - In CI: run both. \`ktlintCheck\` for style, \`detekt\` for quality.
 - Both have Gradle plugins; gate CI builds on violations.`,
-    answer: `- ktlint governs formatting — indentation, spacing, imports, braces — and \`ktlintFormat\` fixes it
-- detekt is quality analysis instead: long functions, magic numbers, bare \`!!\`, high complexity
-- Gate CI on both Gradle plugins: \`ktlintCheck\` for style, \`detekt\` for smells`,
+    answer: `- Run both — they catch different classes of problem, and neither replaces code review
+- Auto-fix formatting so humans never discuss whitespace in review
+- Baseline detekt on legacy code, then fail CI only on new issues`,
     followUp: `**Follow-up:** How do you auto-format on commit?
 > Use the ktlint Gradle plugin's \`addKtlintCheckGitPreCommitHook\` task or a tool like \`lefthook\` to format staged files before each commit.`,
     redFlags: `- Thinks formatting and static analysis are the same thing
-- Has never run either tool on a project`,
+- Suppresses detekt rules wholesale instead of tuning or baselining them`,
   },
   {
     id: 'tech-85',
@@ -1888,15 +1590,15 @@ try { d.await() } catch (e: IOException) { }  // caught here
 - **Chains**: group views along an axis and distribute space between them. Styles: \`spread\` (even spacing), \`spread_inside\` (space between, not at edges), \`packed\` (grouped together)
 - **Guidelines**: invisible reference lines at a fixed dp or percentage from an edge — align multiple views to the same position
 - **Barriers**: virtual line that tracks the edge of the largest referenced child — use when a sibling's size is dynamic (e.g., localized text of varying length)`,
-    answer: `- One flat hierarchy instead of nested \`LinearLayout\`s — cuts repeated measure passes
-- Chains space views along an axis: \`spread\`, \`spread_inside\`, \`packed\`
-- Guidelines = invisible lines at fixed dp/%; barriers = edge of the fattest referenced child`,
+    answer: `- Use ConstraintLayout to flatten a View-based screen that would otherwise nest several layouts
+- Reach for barriers whenever sibling sizes are dynamic (localised text); guidelines for fixed proportions
+- In Compose, use it only when Row/Column/Box genuinely can't express the relationships`,
     followUp: `**Follow-up:** When would you use MotionLayout?
 > MotionLayout extends ConstraintLayout and adds transitions between constraint sets. Use for complex, multi-step animations coordinated across multiple views.
 
 **Note:** In Compose-only projects, ConstraintLayout is largely replaced by \`Box\`, \`Row\`, \`Column\`.`,
     redFlags: `- Uses deeply nested \`LinearLayout\` stacks for complex UIs
-- Doesn't know what a Barrier is`,
+- Hard-codes widths for localized labels instead of constraining to a barrier`,
   },
   {
     id: 'tech-86',
@@ -1917,37 +1619,7 @@ try { d.await() } catch (e: IOException) { }  // caught here
 - \`@Parcelize\` removes the boilerplate; use \`Serializable\` only for Java interop`,
     followUp: `**Follow-up:** What's the difference between \`@Parcelize\` and implementing \`Parcelable\` manually?
 > \`@Parcelize\` generates the boilerplate at compile time. Manual implementation gives more control (versioning, custom order) but is tedious and error-prone.`,
-    redFlags: `- Uses \`Serializable\` everywhere because it's "easier"
-- Doesn't know \`@Parcelize\` exists
-- Doesn't understand that Parcelable is specifically designed for Binder IPC`,
-  },
-  {
-    id: 'tech-87',
-    type: 'technical',
-    num: 87,
-    difficulty: 'M',
-    star: true,
-    section: 'Android Core',
-    title: 'What is `onSaveInstanceState`? How does it differ from ViewModel for state preservation?',
-    tags: [ 'state', 'viewmodel', 'lifecycle', 'process-death' ],
-    related: [ 'tech-3', 'tech-95' ],
-    keyPoints: `- **ViewModel**: survives configuration changes (rotation). Lives as long as the Activity/Fragment is not finished. Does NOT survive process death.
-- **\`onSaveInstanceState\` (OSIS)**: survives process death + configuration changes. Size-limited (~1MB Bundle). For small, lightweight UI state only (selected tab, scroll position, user input text).
-- **\`SavedStateHandle\`** (in ViewModel): best of both worlds — ViewModel-scoped but data is saved to/restored from \`onSaveInstanceState\` automatically.
-
-| Scenario | ViewModel | OSIS / SavedStateHandle |
-|---|---|---|
-| Rotation | ✅ | ✅ |
-| Process death | ❌ | ✅ |
-| Large objects | ✅ | ❌ (1MB limit) |`,
-    answer: `- \`ViewModel\` survives configuration changes but not process death
-- OSIS spans death too; Bundle is ~1MB, so only tabs, scroll, typed text
-- \`SavedStateHandle\`: ViewModel-scoped yet Bundle-backed — best of both`,
-    followUp: `**Follow-up:** How do you store state in a ViewModel that survives process death?
-> Inject \`SavedStateHandle\` into the ViewModel. Use \`state.saveable { mutableStateOf("") }\` or \`state.getStateFlow("key", default)\` for reactive reads.`,
-    redFlags: `- Thinks ViewModel survives process death
-- Stores large bitmaps or complex objects in \`onSaveInstanceState\`
-- Doesn't know \`SavedStateHandle\` exists`,
+    redFlags: `- Uses \`Serializable\` everywhere because it's "easier"`,
   },
   {
     id: 'tech-88',
@@ -1974,8 +1646,7 @@ Handler(Looper.getMainLooper()).post { updateUI() }
 - A \`Handler\` posts to its thread queue; \`Handler(Looper.getMainLooper()).post { }\` reaches UI`,
     followUp: `**Follow-up:** Why are coroutines preferred over \`Handler\` for async work today?
 > \`Handler\` is low-level and verbose. Coroutines with \`withContext(Dispatchers.Main)\` achieve the same thread switch with structured concurrency, cancellation, and cleaner syntax.`,
-    redFlags: `- Doesn't know the main thread has a Looper
-- Confuses \`Handler\` (dispatcher) with \`Looper\` (loop mechanism)
+    redFlags: `- Confuses \`Handler\` (dispatcher) with \`Looper\` (loop mechanism)
 - Would call \`Handler\` on a background thread without \`Looper.prepare()\``,
   },
   {
@@ -2003,14 +1674,13 @@ lifecycleScope.launch {
     }
 }
 \`\`\``,
-    answer: `- \`viewModelScope\` dies with \`onCleared()\`, so it owns ViewModel fetching and business logic
-- \`lifecycleScope\` ends with its \`LifecycleOwner\`; collect UI flows in \`repeatOnLifecycle(STARTED)\`
-- \`GlobalScope\` tracks the process and is never auto-cancelled — leaks UI; rare app-level use only`,
+    answer: `- Pick the scope whose lifetime matches the work: data loading in \`viewModelScope\`, UI collection in \`lifecycleScope\` + \`repeatOnLifecycle\`
+- If the work must outlive the screen, it belongs in WorkManager or an injected app scope — not \`GlobalScope\`
+- Treat any \`GlobalScope\` in review as a bug until proven otherwise`,
     followUp: `**Follow-up:** What's the difference between \`launchWhenStarted\` and \`repeatOnLifecycle\`?
 > \`launchWhenStarted\` suspends (pauses) collection when stopped but keeps the coroutine alive. \`repeatOnLifecycle\` cancels the inner block on stop and relaunches on start — safer, avoids retaining upstream state.`,
     redFlags: `- Uses \`GlobalScope\` in UI code
-- Collects Flow in Fragment without \`repeatOnLifecycle\` — stale updates while backgrounded
-- Doesn't know \`viewModelScope\` auto-cancels on \`ViewModel.onCleared()\``,
+- Collects Flow in Fragment without \`repeatOnLifecycle\` — stale updates while backgrounded`,
   },
   {
     id: 'tech-90',
@@ -2021,7 +1691,7 @@ lifecycleScope.launch {
     section: 'Kotlin',
     title: 'What is the difference between `StateFlow` and `SharedFlow`?',
     tags: [ 'flow', 'stateflow', 'sharedflow', 'coroutines' ],
-    related: [ 'tech-41', 'tech-91' ],
+    related: [ 'tech-136', 'tech-91' ],
     keyPoints: `- **StateFlow**: always has a current value. New collectors immediately receive the latest value (hot, stateful). Equality-checked — same value won't re-emit. Created with \`MutableStateFlow(initialValue)\`.
   - Use for: UI state, latest known value (isLoading, list items)
 - **SharedFlow**: no initial value, no current-value concept. Configurable replay cache (\`replay = N\`). Does not check equality. Created with \`MutableSharedFlow()\`.
@@ -2038,9 +1708,7 @@ lifecycleScope.launch {
 - UI state (\`isLoading\`, lists) → StateFlow; nav/toast/analytics events → SharedFlow`,
     followUp: `**Follow-up:** Why is using \`StateFlow\` for navigation events problematic?
 > StateFlow replays its latest value to every new collector. A navigation event would re-trigger after rotation — causing double-navigation.`,
-    redFlags: `- Uses \`StateFlow\` for one-time events (toasts, navigation)
-- Doesn't know \`SharedFlow\` replay parameter
-- Doesn't know \`StateFlow\` requires an initial value`,
+    redFlags: `- Uses \`StateFlow\` for one-time events (toasts, navigation)`,
   },
   {
     id: 'tech-91',
@@ -2051,7 +1719,7 @@ lifecycleScope.launch {
     section: 'Kotlin',
     title: 'Explain key Flow operators: `flatMapLatest`, `combine`, `zip`, `buffer`, and `conflate`.',
     tags: [ 'flow', 'operators', 'coroutines', 'advanced' ],
-    related: [ 'tech-41', 'tech-52', 'tech-90' ],
+    related: [ 'tech-136', 'tech-52', 'tech-90' ],
     keyPoints: `- **\`flatMapLatest\`**: maps each emission to a new Flow, cancels the previous inner Flow when a new emission arrives. Classic use: search queries — new keystroke cancels the in-flight API call.
 - **\`combine\`**: collects the latest value from N Flows and emits whenever any of them emits. All Flows must have emitted at least once.
 - **\`zip\`**: pairs emissions from two Flows one-to-one. Waits for both to emit before producing a pair — slower Flow dictates pace.
@@ -2071,7 +1739,6 @@ searchQuery
     followUp: `**Follow-up:** When would you use \`conflate\` vs \`buffer\`?
 > \`conflate\` drops intermediate values — fine for UI state where only the latest matters. \`buffer\` keeps all values but decouples producer from consumer speed.`,
     redFlags: `- Uses deprecated \`flatMap\` instead of \`flatMapLatest\`
-- Doesn't know \`combine\` requires all flows to have emitted once before producing values
 - Confuses \`zip\` (1:1 pairing) with \`combine\` (latest from all)`,
   },
   {
@@ -2083,7 +1750,7 @@ searchQuery
     section: 'Jetpack',
     title: 'What is `derivedStateOf` and when should you use it?',
     tags: [ 'compose', 'state', 'performance', 'recomposition' ],
-    related: [ 'tech-10', 'tech-11', 'tech-93' ],
+    related: [ 'tech-10', 'tech-138', 'tech-93' ],
     keyPoints: `- \`derivedStateOf { }\`: creates a Compose state object whose value is only recalculated when its **inputs** (state reads inside the lambda) change — not every time the enclosing composable recomposes.
 - Without it: the derived computation runs on every recomposition. With it: recomposition only triggers downstream when the **result** actually changes.
 - Use when: a derived value is expensive to compute, or its inputs change more frequently than the derived value.
@@ -2102,8 +1769,7 @@ val isButtonEnabled by remember {
 - Pay for it when deriving is costly or inputs churn far faster than the derived value`,
     followUp: `**Follow-up:** Is \`remember { derivedStateOf { } }\` always better than a plain calculation?
 > No — it has overhead. Only worthwhile when inputs change frequently but the result changes rarely, or the computation is expensive. For simple one-liners that always match input changes, plain code is cleaner.`,
-    redFlags: `- Never heard of \`derivedStateOf\`
-- Uses it everywhere without understanding the cost
+    redFlags: `- Uses it everywhere without understanding the cost
 - Doesn't wrap it in \`remember { }\` — loses the caching benefit`,
   },
   {
@@ -2135,7 +1801,6 @@ CompositionLocalProvider(LocalUserPrefs provides prefs) {
     followUp: `**Follow-up:** When should you NOT use \`CompositionLocal\`?
 > Avoid for data that legitimately flows through the UI — use explicit params instead. CompositionLocal makes data flow implicit and harder to trace or test. Reserve it for cross-cutting concerns: theme, locale, analytics, navigation.`,
     redFlags: `- Uses CompositionLocal to avoid passing parameters — creates hidden dependencies
-- Doesn't know \`LocalContext.current\` is a CompositionLocal
 - Uses \`compositionLocalOf\` for a value that never changes (should be \`staticCompositionLocalOf\`)`,
   },
   {
@@ -2160,7 +1825,6 @@ CompositionLocalProvider(LocalUserPrefs provides prefs) {
     followUp: `**Follow-up:** What's the difference between \`invalidate()\` and \`requestLayout()\`?
 > \`invalidate()\` only redraws — runs \`onDraw\` without re-measuring. Use when visual state changes but size doesn't (color change). \`requestLayout()\` forces full re-measure — use when size could change.`,
     redFlags: `- Allocates \`Paint\` or \`Bitmap\` objects inside \`onDraw\` — GC pressure every frame
-- Doesn't know how to read custom XML attributes
 - Calls \`requestLayout()\` when \`invalidate()\` would suffice`,
   },
   {
@@ -2171,12 +1835,20 @@ CompositionLocalProvider(LocalUserPrefs provides prefs) {
     star: true,
     section: 'Android Core',
     title: 'What happens during process death? How do you handle state restoration with `SavedStateHandle`?',
-    tags: [ 'process-death', 'state', 'savedstatehandle', 'lifecycle' ],
-    related: [ 'tech-87', 'tech-3' ],
+    tags: [ 'process-death', 'state', 'savedstatehandle', 'lifecycle', 'viewmodel', 'advanced' ],
+    related: [ 'tech-3', 'tech-6', 'tech-12', 'tech-75', 'tech-155', 'tech-160' ],
     keyPoints: `- Android can kill an app's process at any time when backgrounded (to reclaim memory). When the user returns, Android recreates the Activity stack from scratch using the saved instance state.
-- **What survives**: the \`Bundle\` from \`onSaveInstanceState\`. Must be serializable, < ~1MB.
+- **What survives**: the \`Bundle\` from \`onSaveInstanceState\` (OSIS). Must be serializable, < ~1MB — only small, lightweight UI state belongs there (selected tab, scroll position, typed text).
 - **What does NOT survive**: ViewModel instances, in-memory cache, coroutine state, any runtime objects.
-- **\`SavedStateHandle\`**: injected into ViewModel automatically by Jetpack. A key-value store backed by \`onSaveInstanceState\`. Survives both config changes and process death.
+- **\`SavedStateHandle\`**: injected into ViewModel automatically by Jetpack. A key-value store backed by \`onSaveInstanceState\`. Survives both config changes and process death — ViewModel-scoped, yet Bundle-backed.
+- **Compose**: \`rememberSaveable\` is the composable-level equivalent — it writes into the same saved-state Bundle.
+- **Large data**: don't carry it through the Bundle. Save an ID only and reload from the DB on restore.
+
+| Scenario | ViewModel | OSIS / SavedStateHandle |
+|---|---|---|
+| Rotation | ✅ | ✅ |
+| Process death | ❌ | ✅ |
+| Large objects | ✅ | ❌ (1MB limit) |
 
 \`\`\`kotlin
 class SearchViewModel(private val state: SavedStateHandle) : ViewModel() {
@@ -2187,15 +1859,14 @@ class SearchViewModel(private val state: SavedStateHandle) : ViewModel() {
 }
 \`\`\`
 
-- **Testing process death**: \`adb shell am kill <package>\` while backgrounded, then return via Recents.`,
-    answer: `- A backgrounded process can be killed anytime; the activity stack is then rebuilt
-- Only the ~1MB \`onSaveInstanceState\` Bundle crosses death — not VMs, caches, or coroutines
-- \`SavedStateHandle\`, injected into the VM, is the Bundle-backed KV bridge over both`,
+- **Testing process death**: \`adb shell am kill <package>\` while backgrounded, then return via Recents — or Developer Options → "Don't keep activities" to force recreation on every background/foreground.`,
+    answer: `- Design every screen assuming its process will die in the background — rotation passing is not proof
+- Rule of thumb: ids, query text and selections go in \`SavedStateHandle\`; everything heavier gets re-fetched
+- Make a process-death round trip part of the test plan for any screen holding user input`,
     followUp: `**Follow-up:** How do you verify your ViewModel was reconstructed after process death?
 > After process death, \`SavedStateHandle\` has restored values but the ViewModel instance is new. Check by logging in \`init {}\` and inspecting \`SavedStateHandle\` for expected keys.`,
-    redFlags: `- Thinks ViewModel survives process death
-- Never tested process death in their app
-- Stores large objects or non-Parcelable data in \`SavedStateHandle\``,
+    redFlags: `- Only handles rotation and has never exercised a process-death round trip in their app
+- Stores large objects, bitmaps or non-Parcelable data in \`SavedStateHandle\` / \`onSaveInstanceState\``,
   },
   {
     id: 'tech-96',
@@ -2206,8 +1877,8 @@ class SearchViewModel(private val state: SavedStateHandle) : ViewModel() {
     section: 'Networking & Data',
     title: 'What are OkHttp Interceptors? Explain Application vs Network interceptors.',
     tags: [ 'networking', 'okhttp', 'retrofit', 'interceptor' ],
-    related: [ 'tech-19', 'tech-20', 'tech-38' ],
-    keyPoints: `- OkHttp interceptors form a chain applied to every request/response. Two types:
+    related: [ 'tech-19', 'tech-20', 'tech-164' ],
+    keyPoints: `- OkHttp interceptors form a chain applied to every request/response: each link can rewrite the request, call \`chain.proceed()\` to hand it on (or short-circuit with its own response), then inspect or rewrite the response on the way back. Two types:
 - **Application interceptors** (\`addInterceptor\`): run before the network. See the original request. Don't observe redirects or retries. Called once per \`call.execute()\`.
   - Use for: adding auth headers, logging request data, adding common headers
 - **Network interceptors** (\`addNetworkInterceptor\`): run just before/after the actual TCP connection. Observe real wire data including redirects. Not called for cached responses.
@@ -2223,14 +1894,13 @@ val client = OkHttpClient.Builder()
     }
     .build()
 \`\`\``,
-    answer: `- Chain wraps every request/response; register via \`addInterceptor\` or \`addNetworkInterceptor\`
-- Application level runs before the network, sees the original request, never the retries or redirects
-- Network level sits at the TCP boundary: real transferred bytes, but cached responses skip it`,
+    answer: `- Default to an application interceptor for app concerns: auth headers, common headers, request logging
+- Use a network interceptor only when you must see what actually hits the wire — redirects, real bytes
+- Keep token-refresh-and-retry logic application-side (or in an \`Authenticator\`), never per network hop`,
     followUp: `**Follow-up:** How would you implement automatic token refresh using an interceptor?
 > In an application interceptor: proceed with the request → if 401, refresh the token → retry the request with the new token. Use a \`Mutex\` to prevent concurrent refresh races.`,
-    redFlags: `- Doesn't know the difference between application and network interceptors
-- Adds auth headers in Retrofit \`@Headers\` annotation (not dynamic, can't rotate tokens)
-- Has never written a custom interceptor`,
+    redFlags: `- Adds auth headers in Retrofit \`@Headers\` annotation (not dynamic, can't rotate tokens)
+- Registers a body-level logging interceptor as a network interceptor in release builds, leaking tokens and PII to logcat`,
   },
   {
     id: 'tech-97',
@@ -2266,7 +1936,6 @@ AsyncImage(
     followUp: `**Follow-up:** Why does Glide need a \`RequestManager\` tied to a lifecycle?
 > So it can automatically pause loading when the UI is stopped and cancel in-flight requests when the Activity/Fragment is destroyed — prevents crashes from updating destroyed views.`,
     redFlags: `- Manually loads bitmaps on the main thread
-- Doesn't know the difference between memory and disk cache
 - Creates a new \`OkHttpClient\` per image load instead of sharing one`,
   },
   {
@@ -2289,13 +1958,12 @@ AsyncImage(
   - \`BitmapFactory.Options.inPreferredConfig = RGB_565\`: 2 bytes/pixel instead of 4 — half the memory (no alpha)
   - Use image loading libraries (Coil/Glide) — they handle sampling and caching automatically
   - \`bitmap.recycle()\` for explicitly managed bitmaps (rarely needed with modern GC)`,
-    answer: `- A 12MP bitmap at \`ARGB_8888\` costs ~48MB (12M × 4 bytes) — beyond most heap budgets
-- Causes: no downsampling to display size, caches ignoring free memory, stale refs to big bitmaps
-- \`inSampleSize\` downsamples on decode; \`RGB_565\` halves bytes per pixel but drops alpha`,
+    answer: `- Always decode at display size, never at source size
+- Let an image library (Coil/Glide) own decoding, pooling and caching instead of hand-rolling it
+- Size in-memory caches from available memory, and profile native memory for bitmap OOMs`,
     followUp: `**Follow-up:** How does Android's memory model handle bitmaps since Android 8.0?
 > Since Oreo, Bitmap pixel data is allocated in native memory (not Java heap). Bitmaps are still GC'd when the Java object is collected. This reduces Java heap pressure but native heap is still bounded — OOM is still possible.`,
     redFlags: `- Loads full-resolution images directly into an \`ImageView\` without sampling
-- Doesn't know about \`inSampleSize\`
 - Thinks \`bitmap.recycle()\` is required for every bitmap in modern Android`,
   },
   {
@@ -2327,8 +1995,7 @@ AsyncImage(
     followUp: `**Follow-up:** Can you get \`ApplicationContext\` inside a ViewModel?
 > Yes — inject \`Application\` or use \`AndroidViewModel\` which provides it. Never reference Activity from ViewModel — ViewModel outlives Activity on config changes.`,
     redFlags: `- Passes Activity context to a singleton
-- Uses Activity context for long-lived objects like Room database or image loading singletons
-- Doesn't know ViewModel must never hold an Activity reference`,
+- Uses Activity context for long-lived objects like Room database or image loading singletons`,
   },
   {
     id: 'tech-100',
@@ -2364,8 +2031,7 @@ val isDark: Flow<Boolean> = context.dataStore.data.map { it[DARK_MODE] ?: false 
     followUp: `**Follow-up:** When would you still use SharedPreferences over DataStore?
 > Only in legacy code where async migration isn't worth the churn, or when integrating with libraries that require SharedPreferences directly. All new code should use DataStore.`,
     redFlags: `- Still creates new \`SharedPreferences\` usage in modern code
-- Uses \`commit()\` on the main thread
-- Doesn't know DataStore is coroutines/Flow-based`,
+- Uses \`commit()\` on the main thread`,
   },
   {
     id: 'tech-101',
@@ -2382,13 +2048,12 @@ val isDark: Flow<Boolean> = context.dataStore.data.map { it[DARK_MODE] ?: false 
 - **\`PagingData<T>\`**: container of paginated data. Emitted as a \`Flow<PagingData<T>>\` from a \`Pager\`.
 - **\`RemoteMediator\`**: for network + local DB hybrid (offline-first). Loads pages from network into Room; UI always reads from Room. Handles the "boundary" when the local cache is exhausted.
 - **UI side:** \`LazyPagingItems\` in Compose (\`collectAsLazyPagingItems()\`) or \`PagingDataAdapter\` in RecyclerView — both handle append/prepend loading states automatically.`,
-    answer: `- \`PagingSource.load(params)\` returns \`LoadResult.Page\` with data plus next/prev keys, or \`LoadResult.Error\`
-- \`PagingData<T>\` is the emitted container, delivered as a \`Flow\` from a \`Pager\`
-- \`RemoteMediator\` prefetches network pages into \`Room\` and owns the exhausted-cache boundary`,
-    followUp: `**Follow-up:** How does Paging 3 handle errors and retries?
-> \`PagingSource\` returns \`LoadResult.Error\` on failure. \`LazyPagingItems.loadState\` exposes \`LoadState.Error\`. Call \`.retry()\` on the items to retry the failed page load.`,
+    answer: `- Use Paging 3 for any unbounded list instead of a hand-rolled scroll listener
+- Network-only list → a \`PagingSource\`; offline-capable list → Room \`PagingSource\` + \`RemoteMediator\`
+- Always render \`LoadState\` (loading, error, retry) — the library hands it to you`,
+    followUp: `**Follow-up:** With \`RemoteMediator\`, what must you persist besides the items themselves?
+> Remote keys — the next/previous network page key per item or per query (typically a \`RemoteKeys\` table written in the same transaction). Without them the mediator cannot know which network page follows the last cached row after process death, and APPEND/PREPEND breaks.`,
     redFlags: `- Implements manual pagination with a scroll listener and offset counter
-- Doesn't know the difference between \`PagingSource\` and \`RemoteMediator\`
 - Doesn't handle \`LoadState\` in the UI — no loading spinner or error message`,
   },
   {
@@ -2400,7 +2065,7 @@ val isDark: Flow<Boolean> = context.dataStore.data.map { it[DARK_MODE] ?: false 
     section: 'Architecture',
     title: 'What is multi-module Android architecture? What are the benefits and how do you structure modules?',
     tags: [ 'multi-module', 'architecture', 'gradle', 'modularization' ],
-    related: [ 'sd-20', 'sd-23', 'tech-53', 'tech-54', 'tech-46', 'tech-131' ],
+    related: [ 'sd-20', 'sd-23', 'tech-53', 'tech-54', 'tech-46', 'tech-157' ],
     keyPoints: `- Multi-module: splitting the app into separate Gradle modules (\`:app\`, \`:feature:feed\`, \`:core:network\`, \`:core:ui\`, etc.) instead of one monolithic \`:app\`.
 - **Benefits:**
   - Faster incremental builds — only rebuild changed modules
@@ -2424,30 +2089,6 @@ val isDark: Flow<Boolean> = context.dataStore.data.map { it[DARK_MODE] ?: false 
     redFlags: `- Everything in one \`:app\` module
 - Circular dependencies between modules
 - Feature modules that import other feature modules directly`,
-  },
-  {
-    id: 'tech-103',
-    type: 'technical',
-    num: 103,
-    difficulty: 'E',
-    star: false,
-    section: 'Android Core',
-    title: 'What is an Android App Bundle (AAB)? How does it differ from an APK?',
-    tags: [ 'aab', 'apk', 'build', 'play-store', 'dynamic-delivery' ],
-    related: [ 'tech-84', 'tech-105' ],
-    keyPoints: `- **APK**: traditional installable format. One fat APK contains all resources (all screen densities, all languages, all ABIs).
-- **AAB (Android App Bundle)**: publishing format (\`.aab\`). Google Play uses it to generate device-specific split APKs — containing only what the target device needs.
-- **Benefits of AAB**: avg 15% smaller download size, no wasted resources, required by Google Play for new apps since August 2021.
-- **Dynamic Delivery**: AAB enables Play Feature Delivery — deliver optional feature modules on demand (e.g., download an AR module only when the user activates AR).
-- Splits are generated by: screen density (hdpi, xxhdpi), ABI (arm64-v8a, x86_64), language (en, fr, de).`,
-    answer: `- APK ships every density, language, and ABI in one installable blob
-- AAB is a publishing format; Play generates device-matched split APKs — about 15% smaller
-- Required for new Play apps since Aug 2021; also powers on-demand feature modules`,
-    followUp: `**Follow-up:** Can you sideload an AAB directly on a device?
-> No — AAB is a publishing format, not an installable format. Use \`bundletool build-apks --bundle=app.aab --output=app.apks\` to generate local split APKs for testing.`,
-    redFlags: `- Doesn't know Google Play now requires AAB for new apps
-- Thinks AAB is just a "larger APK"
-- Has never heard of Dynamic Feature Modules`,
   },
   {
     id: 'tech-104',
@@ -2483,9 +2124,9 @@ Box(
     }
 )
 \`\`\``,
-    answer: `- Serves TalkBack and Switch Access; focus order must match visual order
-- \`contentDescription\` for meaningful icons, \`null\` when decorative; 48dp targets; no color-only meaning
-- Compose: \`Modifier.semantics { }\`, \`role = Role.Button\`, \`mergeDescendants = true\``,
+    answer: `- Treat accessibility as a definition-of-done item for every screen, not a later audit
+- Give every interactive element a label, a role and a 48dp target; merge semantics so TalkBack reads one sensible unit
+- Verify by actually navigating with TalkBack, backed by automated checks in tests`,
     followUp: `**Follow-up:** How do you test accessibility in your app?
 > Enable TalkBack on a device and navigate by swiping. Use the Accessibility Scanner app (Google) to auto-detect issues. In Compose: \`composeTestRule.onNode(hasContentDescription("...")).assertIsDisplayed()\`.`,
     redFlags: `- Never tested with TalkBack
@@ -2501,7 +2142,7 @@ Box(
     section: 'Android Core',
     title: 'What is a Gradle build variant? Explain build types, product flavors, and `BuildConfig`.',
     tags: [ 'gradle', 'build-variants', 'build-types', 'flavors' ],
-    related: [ 'tech-84', 'tech-103', 'tech-106' ],
+    related: [ 'tech-84', 'tech-163', 'tech-106' ],
     keyPoints: `- **Build Types**: define build behavior. Defaults: \`debug\` (debuggable, no minification) and \`release\` (minified, signed). Can add custom types like \`staging\` or \`benchmark\`.
 - **Product Flavors**: define different versions of the same app. Grouped into \`flavorDimensions\`.
   - Example: \`free\` vs \`paid\`, or \`mock\` vs \`prod\` (backend environment)
@@ -2521,14 +2162,13 @@ productFlavors {
     }
 }
 \`\`\``,
-    answer: `- Build types set how you compile: \`debug\` vs minified+signed \`release\`, plus customs
-- Flavors set which edition (\`free\`/\`paid\`, \`mock\`/\`prod\`), grouped by \`flavorDimensions\`
-- Variant = type × flavor (\`prodRelease\`); \`BuildConfig\` fields come from \`buildConfigField\``,
+    answer: `- Build types answer "how is it built" (debuggable, minified, signed); flavors answer "which app or environment"
+- Keep flavor dimensions few — variants multiply and slow every build
+- Put per-variant values in \`buildConfigField\`/resources, never \`if (BuildConfig.FLAVOR == ...)\` scattered in code`,
     followUp: `**Follow-up:** How do you use source sets to have flavor-specific implementations?
 > Source sets merge rather than override: a class with the same package+name in both \`src/main/java/\` and \`src/prod/java/\` is a duplicate-class build error. Keep the shared interface in main, give each flavor source set its own implementation class, and each variant compiles exactly one — that is the flavor-specific pattern.`,
     redFlags: `- Hardcodes environment URLs in main source code
-- Doesn't know the difference between a build type and a product flavor
-- Has never added a custom field to \`BuildConfig\``,
+- Adds a new flavor dimension for every toggle and ends up with dozens of variants`,
   },
   {
     id: 'tech-106',
@@ -2559,14 +2199,13 @@ android-application = { id = "com.android.application", version = "8.4.0" }
 
 - **Usage in module**: \`implementation(libs.compose.ui)\` — compile-time checked accessor.
 - Tooling: Renovate, Dependabot, and the Gradle Versions plugin can all auto-update \`.toml\` files.`,
-    answer: `- \`gradle/libs.versions.toml\` centralizes versions, libraries, and plugins in one file
-- Stops per-module coordinate strings drifting apart across a multi-module build
-- Type-safe accessors (\`implementation(libs.compose.ui)\`); Dependabot/Renovate update the toml`,
+    answer: `- Adopt a version catalog as soon as there is more than one module
+- Put only coordinates and versions in it; shared build logic goes in convention plugins
+- Let Renovate or Dependabot bump the catalog so upgrades land as one reviewable change`,
     followUp: `**Follow-up:** What's the difference between version catalog and \`buildSrc\`?
 > \`buildSrc\` is a Gradle subproject for sharing build logic (custom tasks, convention plugins). Version catalog is purely for dependency declarations — simpler, no Kotlin code. They're complementary: version catalog for versions, \`buildSrc\`/convention plugins for reusable build logic.`,
     redFlags: `- Still uses a \`Versions.kt\` file in \`buildSrc\` instead of the official TOML catalog
-- Doesn't know multi-module projects benefit most from centralized versioning
-- Has never opened a \`.toml\` version catalog file`,
+- Pins the same library to different versions in different modules "because it works"`,
   },
   {
     id: 'tech-107',
@@ -2607,8 +2246,7 @@ fun fetchUser(cont: Continuation<User>): Any? {
     followUp: `**Follow-up:** Why are coroutines far cheaper than threads?
 > A suspended coroutine is just a heap object. No OS thread is blocked. Millions of coroutines can coexist where only thousands of threads are feasible.`,
     redFlags: `- Thinks coroutines are syntactic sugar with no runtime machinery
-- Believes a thread is blocked during \`delay()\` or network IO
-- Doesn't know what \`Continuation\` is`,
+- Believes a thread is blocked during \`delay()\` or network IO`,
   },
   {
     id: 'tech-108',
@@ -2619,7 +2257,7 @@ fun fetchUser(cont: Continuation<User>): Any? {
     section: 'Jetpack',
     title: 'How does Compose internally track state and skip recomposition? Explain the slot table and stability.',
     tags: [ 'compose', 'internals', 'recomposition', 'slot-table', 'stability' ],
-    related: [ 'tech-10', 'tech-11', 'tech-92', 'tech-120' ],
+    related: [ 'tech-10', 'tech-138', 'tech-92', 'tech-120' ],
     keyPoints: `- Compose maintains a **slot table** (backed by a gap buffer array) that records the tree of composable calls, their parameters, and remembered values. Each composable occupies a group of slots.
 - **Initial composition**: slot table is written — composable parameters and \`remember\` values stored.
 - **Recomposition**: Compose compares new parameters to stored values using \`==\`. If stable inputs haven't changed, the composable is **skipped** entirely.
@@ -2636,8 +2274,7 @@ fun fetchUser(cont: Continuation<User>): Any? {
     followUp: `**Follow-up:** What does \`@Stable\` actually promise to the Compose compiler?
 > Two instances that compare equal produce equal composition results, and public property changes always trigger recomposition. The compiler can then trust those properties won't silently change without notifying Compose.`,
     redFlags: `- Thinks all composables always recompose when parent recomposes
-- Uses \`List<T>\` as a parameter and wonders why the composable always recomposes
-- Has never checked Compose compiler metrics output`,
+- Mutates a \`mutableListOf()\` held in state and wonders why the UI never updates — the snapshot system only sees writes to \`State\` objects`,
   },
   {
     id: 'tech-109',
@@ -2655,14 +2292,13 @@ fun fetchUser(cont: Continuation<User>): Any? {
 - **Transaction limit**: ~1MB per Binder transaction. Passing large bitmaps or arrays throws \`TransactionTooLargeException\`. Use \`ContentProvider\` + \`ParcelFileDescriptor\` (file descriptor over Binder) for large data.
 - **Thread pool**: each process has a Binder thread pool (max 15 threads) to serve incoming calls. \`oneway\` AIDL methods are fire-and-forget — no return, no blocking of the client.
 - **Security**: Binder exposes \`Binder.getCallingUid()\` / \`getCallingPid()\` — used by system services for permission checks without trusting the caller.`,
-    answer: `- Kernel IPC via one \`mmap\`'d buffer shared by both processes — no double copy
-- AIDL generates Proxy (client) + \`Stub\` (server); a Binder thread pool (max 15) serves calls
-- ~1MB per transaction — \`TransactionTooLargeException\`; ship bulk via \`ParcelFileDescriptor\``,
+    answer: `- Budget every cross-process call: it is a synchronous kernel round trip with a ~1MB shared ceiling
+- Move bulk data by file descriptor, not by value in a Parcel
+- Check the caller's UID in any exported Binder service; never trust arguments alone`,
     followUp: `**Follow-up:** How does \`ContentProvider\` avoid the 1MB Binder limit?
 > It returns a \`ParcelFileDescriptor\` over Binder — just the file descriptor, not the data. The client reads from the file/pipe directly, bypassing the Binder transaction buffer entirely.`,
     redFlags: `- Thinks Binder is just RPC with no understanding of the kernel mechanism
-- Has never seen or debugged \`TransactionTooLargeException\`
-- Doesn't know AIDL generates proxy/stub code`,
+- Passes bitmaps or large lists through Intent extras or saved state and ships \`TransactionTooLargeException\``,
   },
   {
     id: 'tech-110',
@@ -2692,9 +2328,7 @@ Install → JIT (collect profile) → background dex2oat → AOT compiled method
 - Android 9+ is profile-guided: a shipped Baseline Profile means first launch is already optimized`,
     followUp: `**Follow-up:** Why does ART recompile after an OTA update?
 > The OTA may change the ART runtime itself. On the first boot post-OTA, ART recompiles apps in the background using their saved profiles — users get fast execution after the first boot without reinstalling.`,
-    redFlags: `- Thinks ART is AOT-only (ignores the JIT + profile hybrid since Android 7)
-- Doesn't know what \`dex2oat\` does
-- Has never shipped or measured the impact of Baseline Profiles`,
+    redFlags: `- Thinks ART is AOT-only (ignores the JIT + profile hybrid since Android 7)`,
   },
   {
     id: 'tech-111',
@@ -2705,7 +2339,7 @@ Install → JIT (collect profile) → background dex2oat → AOT compiled method
     section: 'Performance & Security',
     title: 'How does R8 shrink and obfuscate code? What are keep rules and how do you debug release-only crashes?',
     tags: [ 'r8', 'proguard', 'obfuscation', 'shrinking', 'build', 'security' ],
-    related: [ 'tech-39', 'tech-84' ],
+    related: [ 'tech-161', 'tech-84' ],
     keyPoints: `- **R8** (replaced ProGuard, enabled by default since AGP 3.4): runs on release builds, performs three passes:
   1. **Shrinking** (tree-shaking): removes unreachable classes, methods, fields. Starts from entry points declared in the manifest (Activities, Services, etc.).
   2. **Obfuscation**: renames classes/methods/fields to short names (\`a\`, \`b\`, \`c\`) — reduces binary size, complicates decompilation.
@@ -2723,8 +2357,7 @@ Install → JIT (collect profile) → background dex2oat → AOT compiled method
     followUp: `**Follow-up:** What does \`-keepclassmembers\` do vs \`-keep\`?
 > \`-keep\` preserves the class AND its members. \`-keepclassmembers\` preserves members of a class but still allows the class itself to be removed if unused. Use \`-keepclassmembers\` for serialization fields to avoid accidental class removal.`,
     redFlags: `- Adds \`-keep class ** { *; }\` to "fix" crashes — disables all R8 shrinking
-- Doesn't know \`mapping.txt\` exists or how to retrace
-- Thinks ProGuard and R8 are the same tool`,
+- Publishes a library without \`consumer-rules.pro\`, pushing its keep-rule work onto every consuming app`,
   },
   {
     id: 'tech-112',
@@ -2758,13 +2391,12 @@ launch {
 // WRONG — swallowing cancellation:
 try { delay(1000) } catch (e: CancellationException) { /* ignore */ }  // breaks cancellation
 \`\`\``,
-    answer: `- Cooperative: the stop lands only at a suspension point, so a \`suspend\`-free CPU loop finishes anyway
-- \`cancel()\` sets Cancelling; \`CancellationException\` throws at the next suspension, not at the parent
-- Cooperate via \`ensureActive()\`/\`yield()\`; cleanup in \`withContext(NonCancellable)\`; never swallow it`,
+    answer: `- Assume cancellation is only a request — long CPU work must check for it explicitly
+- Put must-run cleanup in \`finally\`, wrapped in \`NonCancellable\` if it has to suspend
+- Rethrow \`CancellationException\` wherever you catch broadly`,
     followUp: `**Follow-up:** What happens to sibling coroutines when one throws a non-cancellation exception?
 > Under a regular \`Job\`, the exception cancels the parent, which then cancels all siblings. Under \`SupervisorJob\`, sibling failure is isolated — the parent and siblings continue. Use \`supervisorScope {}\` for independent child tasks.`,
-    redFlags: `- Thinks \`job.cancel()\` immediately stops the coroutine
-- Swallows \`CancellationException\` — breaks structured concurrency
+    redFlags: `- Wraps suspend calls in \`runCatching { }\` or \`catch (e: Exception)\` and swallows cancellation by accident
 - Doesn't use \`ensureActive()\` in CPU-bound work`,
   },
   {
@@ -2805,8 +2437,8 @@ class Counter {
     answer: `- Shared mutable state is the root: \`var\` writes, check-then-act, \`ArrayList\` touched from threads
 - \`Mutex.withLock { }\` suspends instead of blocking, which makes it the coroutine-correct guard
 - \`synchronized\` blocks the thread, risky on Main; atoms fit counters, \`ConcurrentHashMap\` fits maps`,
-    followUp: `**Follow-up:** Why prefer \`Mutex\` over \`synchronized\` in coroutine code?
-> \`synchronized\` blocks the OS thread — if a coroutine holds the lock and then suspends, the dispatcher thread is blocked, starving other coroutines. \`Mutex.withLock {}\` suspends the coroutine without blocking the thread.`,
+    followUp: `**Follow-up:** Is a coroutine \`Mutex\` reentrant?
+> No. Calling \`mutex.withLock { }\` again from inside a block that already holds the same \`Mutex\` suspends forever — a self-deadlock — whereas \`synchronized\` is reentrant. Keep the locked section small and never call back into code that takes the same lock.`,
     redFlags: `- Uses \`synchronized\` inside a \`Dispatchers.Main\` coroutine
 - Accesses a \`HashMap\` from multiple threads
 - Thinks \`val\` makes an object thread-safe (the reference is immutable; the object may not be)`,
@@ -2820,7 +2452,7 @@ class Counter {
     section: 'Performance & Security',
     title: 'How do you optimize Android app startup? Explain cold vs warm launch, App Startup library, and key bottlenecks.',
     tags: [ 'performance', 'startup', 'app-startup', 'cold-start', 'baseline-profile' ],
-    related: [ 'tech-34', 'tech-110' ],
+    related: [ 'tech-34', 'tech-110', 'tech-35', 'tech-63', 'tech-146' ],
     keyPoints: `- **Launch types:**
   - **Cold start**: process doesn't exist → fork → class loading → \`Application.onCreate()\` → \`Activity.onCreate()\` → first frame drawn. Most expensive. Target < 500ms.
   - **Warm start**: process alive, Activity destroyed → recreate Activity → first frame. Medium cost.
@@ -2835,15 +2467,15 @@ class Counter {
   2. Use Baseline Profiles to pre-compile hot startup code
   3. Use App Startup library to consolidate ContentProvider overhead
   4. Add \`androidx.tracing.Trace.beginSection()\` / \`endSection()\` around startup work to identify hotspots in Android Studio Profiler
-- **Measuring**: \`adb shell am start-activity -W\` for TotalTime. Macrobenchmark with \`StartupTimingMetric\` for automated regression detection.`,
-    answer: `- Cold: new process through first frame (target <500ms); warm: Activity recreated; hot: \`onRestart()\`
-- Cost drivers: sync work in \`Application.onCreate()\`, a \`ContentProvider\` per auto-init library, JIT paths
-- App Startup collapses providers into one \`InitializationProvider\` ordering \`Initializer<T>\` dependencies`,
-    followUp: `**Follow-up:** How do Content Providers slow down startup?
-> The Android system initializes all ContentProviders declared in the manifest before calling \`Application.onCreate()\`. Each library that registers its own ContentProvider for auto-init adds to this sequential initialization chain.`,
+- **Measuring**: \`adb shell am start-activity -W\` for TotalTime. Macrobenchmark with \`StartupTimingMetric\` for automated regression detection. Call \`reportFullyDrawn()\` once real content is on screen so time-to-full-display is measured, not just the first frame; Android Studio Profiler and Perfetto show where the time goes.`,
+    answer: `- Optimize cold start first — warm and hot starts are subsets of it
+- Keep the main thread before the first frame for work the first screen needs; defer or background the rest
+- Measure with a reproducible benchmark before and after each change, and gate regressions in CI`,
+    followUp: `**Follow-up:** A library auto-initializes through App Startup but you want it lazy. How?
+> Remove its entry from the merged manifest — keep \`InitializationProvider\` with \`tools:node="merge"\` and mark that initializer's \`<meta-data>\` \`tools:node="remove"\` — then call \`AppInitializer.getInstance(context).initializeComponent(TheInitializer::class.java)\` at the point the feature is first needed.`,
     redFlags: `- Does all SDK initialization synchronously in \`Application.onCreate()\`
-- Doesn't know ContentProviders contribute to startup cost
-- Has never measured startup time with tooling`,
+- Makes network calls or heavy DI graph construction on the main thread during launch
+- Tunes startup by feel, never measuring it with tooling`,
   },
   {
     id: 'tech-115',
@@ -2884,15 +2516,14 @@ class Counter {
     followUp: `**Follow-up:** Why can't you run Macrobenchmark against a debuggable build?
 > Debuggable builds have JIT overhead, extra validations, and aren't eligible for ART profile-guided compilation. Results are artificially slower and don't represent production behavior.`,
     redFlags: `- Uses \`System.currentTimeMillis()\` to measure startup
-- Tries to run benchmarks in a debug build
-- Doesn't know the difference between Micro and Macrobenchmark`,
+- Tries to run benchmarks in a debug build`,
   },
   {
     id: 'tech-116',
     type: 'technical',
     num: 116,
     difficulty: 'H',
-    star: false,
+    star: true,
     section: 'Engineering',
     title: 'How do you write a custom Android Lint rule? What are `Detector`, `Issue`, and `IssueRegistry`?',
     tags: [ 'lint', 'custom-lint', 'static-analysis', 'code-quality', 'build' ],
@@ -2931,9 +2562,7 @@ class GlobalScopeDetector : Detector(), SourceCodeScanner {
 - \`IssueRegistry\` lists the issues; prove the rule with \`LintDetectorTest\` asserting \`LintResult\``,
     followUp: `**Follow-up:** How do you suppress a custom Lint warning on a specific call site?
 > \`@SuppressLint("GlobalScopeUsage")\` on the element, or \`// noinspection GlobalScopeUsage\` comment above the line. Both suppress by Issue ID.`,
-    redFlags: `- Enforces code patterns only through code review, never tooling
-- Doesn't know Lint is extensible beyond built-in checks
-- Has never written or read a custom Lint rule`,
+    redFlags: `- Enforces code patterns only through code review, never tooling`,
   },
   {
     id: 'tech-117',
@@ -2944,7 +2573,7 @@ class GlobalScopeDetector : Detector(), SourceCodeScanner {
     section: 'Kotlin',
     title: 'How does cold Flow handle backpressure? Explain `buffer`, `conflate`, `collectLatest`, and upstream cancellation.',
     tags: [ 'flow', 'coroutines', 'cold-stream', 'backpressure', 'advanced' ],
-    related: [ 'tech-41', 'tech-90', 'tech-91', 'tech-112' ],
+    related: [ 'tech-136', 'tech-90', 'tech-91', 'tech-112' ],
     keyPoints: `- **Cold Flow**: each \`collect {}\` call starts the producer from scratch in the same coroutine. The producer and collector are in the same call stack — producer suspends at each \`emit()\` until the collector processes it. This is **built-in backpressure**: producer can never outrun consumer.
 - **\`buffer(capacity)\`**: decouples producer and consumer into separate coroutines with a channel buffer between them. Producer emits freely up to capacity; collector reads at its own pace. Removes backpressure — producer can get ahead.
 - **\`conflate()\`**: producer runs freely; if collector is busy, intermediate values are dropped — only the latest is delivered. Use when only the most recent state matters (UI rendering).
@@ -2970,7 +2599,7 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
     followUp: `**Follow-up:** What happens if you \`collect\` a cold Flow from two coroutines simultaneously?
 > Each \`collect\` gets an independent producer — the flow runs twice, completely separately. For shared execution (one producer, many consumers), use \`shareIn()\` to convert to a \`SharedFlow\`.`,
     redFlags: `- Thinks cold Flow has SharedFlow's sharing semantics
-- Doesn't know backpressure is implicit in cold Flow (adds \`buffer()\` everywhere)
+- Adds \`buffer()\` to every cold Flow by reflex, removing the natural backpressure instead of choosing it
 - Confuses \`conflate()\` (drop intermediates) with \`collectLatest\` (cancel previous processing)`,
   },
   {
@@ -2982,7 +2611,7 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
     section: 'Performance & Security',
     title: 'What is the Play Integrity API? How do you implement root/tamper detection and what are its limits?',
     tags: [ 'security', 'play-integrity', 'root-detection', 'tampering', 'attestation' ],
-    related: [ 'tech-37', 'tech-38', 'tech-42' ],
+    related: [ 'tech-37', 'tech-164', 'tech-42' ],
     keyPoints: `- **Play Integrity API** (replaced SafetyNet Attestation): lets an app ask Google to attest that it runs on a genuine Android device, with an unmodified app binary, installed from the Play Store.
 - **Verdict payload contains:**
   - \`deviceIntegrity\`: hardware attestation level (\`MEETS_STRONG_INTEGRITY\` = hardware-backed, hardest to spoof)
@@ -3006,8 +2635,7 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
     followUp: `**Follow-up:** What are the privacy considerations of Play Integrity?
 > Requests are tied to the Google account. Avoid storing full verdict payloads long-term. Don't silently deny service for \`MEETS_BASIC_INTEGRITY\` failures without clear user communication — many legitimate users on custom ROMs would be affected.`,
     redFlags: `- Relies solely on client-side \`su\` binary checks (trivially bypassed)
-- Verifies the integrity token on the client (defeats the purpose — token must go to YOUR server)
-- Doesn't know SafetyNet is deprecated`,
+- Verifies the integrity token on the client (defeats the purpose — token must go to YOUR server)`,
   },
   {
     id: 'tech-119',
@@ -3018,7 +2646,7 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
     section: 'Performance & Security',
     title: 'How do memory leaks happen in Android? How does LeakCanary detect them and what patterns should you know?',
     tags: [ 'memory-leak', 'leakcanary', 'heap-dump', 'performance', 'gc' ],
-    related: [ 'tech-9', 'tech-34', 'tech-98', 'tech-99' ],
+    related: [ 'tech-9', 'tech-34', 'tech-98', 'tech-99', 'tech-10' ],
     keyPoints: `- A memory leak is an object the GC cannot collect because something still holds a reference to it — even though the app no longer needs it.
 - **Most common Android leak patterns:**
   - **Static field holding Activity/View**: \`companion object { var ctx: Context }\` — Activity can't be GC'd as long as the process lives
@@ -3027,16 +2655,17 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
   - **Listener not unregistered**: \`LocationManager\`, \`SensorManager\`, \`BroadcastReceiver\` registered but never removed in \`onPause\`/\`onDestroy\`
   - **ViewModel holding Activity context**: ViewModel survives config change; Activity is recreated
   - **Coroutine referencing Activity via closure**: coroutine in a leaked scope captures the Activity
+- **Standard fixes**: null the view binding in \`onDestroyView\`, unregister listeners in the matching teardown callback, keep only the application context in anything long-lived
 - **LeakCanary detection**: watches objects that should be GC'd (Activities, Fragments, ViewModels) after destruction. Wraps them in a \`WeakReference\`. After 5s, triggers GC. If the WeakReference's referent is still non-null → heap dump → parses the shortest reference path from a GC root to the leaking object → shows it in a human-readable notification.
 - **Heap dump analysis** beyond LeakCanary: Android Studio Profiler → "Capture heap dump", or \`Memory Analyzer Tool (MAT)\` for deep retained-size analysis.`,
-    answer: `- Common patterns: static \`Context\` in a \`companion object\`, inner classes holding \`this\`, \`Handler\` delays
-- LeakCanary watches destroyed Activities/Fragments/ViewModels weakly, GCs after 5s, then dumps the heap
-- A surviving referent yields the shortest GC-root path; MAT or a Profiler dump for retained size`,
+    answer: `- Run LeakCanary on every debug build so leaks surface during development, not in production
+- Fix leaks at the owner: whoever registers or captures must release at the matching lifecycle event
+- Judge severity by retained size, not by the number of leak reports`,
     followUp: `**Follow-up:** What's the difference between shallow size and retained size in a heap dump?
 > **Shallow size**: the memory consumed by the object itself (its fields only). **Retained size**: the total memory that would be freed if this object were GC'd — includes all objects exclusively reachable through it. Retained size identifies the real impact of a leak.`,
-    redFlags: `- Has never added LeakCanary to a debug build
-- Stores Activity context in a singleton or companion object
-- Doesn't unregister listeners in \`onPause\`/\`onDestroy\``,
+    redFlags: `- Stores Activity context in a singleton or companion object
+- Doesn't unregister listeners in \`onPause\`/\`onDestroy\`
+- Treats every LeakCanary report as noise and never reads the reference chain`,
   },
   {
     id: 'tech-120',
@@ -3047,7 +2676,7 @@ searchQuery.collectLatest { query -> delay(300); search(query) }  // cancels old
     section: 'Jetpack',
     title: 'How do you prevent unnecessary recomposition in Compose? Explain stability, lambda capture, and `remember` semantics.',
     tags: [ 'compose', 'performance', 'recomposition', 'stability', 'remember', 'advanced' ],
-    related: [ 'tech-10', 'tech-11', 'tech-92', 'tech-108' ],
+    related: [ 'tech-10', 'tech-138', 'tech-92', 'tech-108' ],
     keyPoints: `- **Skippability**: Compose skips recomposing a function if all parameters are stable and haven't changed. Unstable parameters force recomposition every time.
 - **What makes a type unstable** (Compose compiler assumes unstable by default unless proven otherwise):
   - \`List<T>\`, \`Map<K,V>\` — mutable interface, even if \`val\`. Use \`ImmutableList\`/\`ImmutableMap\` from \`kotlinx-collections-immutable\`
@@ -3072,8 +2701,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** What does the Compose compiler mean by "restartable but not skippable"?
 > Restartable = the composable has a scope boundary — Compose can restart recomposition here independently of the parent. Not skippable = an input parameter is unstable, so the composable must always re-execute when its parent recomposes. Fix: make the parameter type \`@Stable\` or \`@Immutable\`.`,
     redFlags: `- Passes raw \`List<T>\` to a composable and wonders why it always recomposes
-- Creates lambdas inline in composables without \`remember\`
-- Has never run Compose compiler metrics`,
+- Creates lambdas inline in composables without \`remember\``,
   },
   {
     id: 'tech-121',
@@ -3084,7 +2712,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Jetpack',
     title: 'How does Compose handle recomposition and state observation at the compiler level?',
     tags: [ 'compose', 'internals', 'recomposition' ],
-    related: [ 'tech-11', 'tech-108', 'tech-120' ],
+    related: [ 'tech-138', 'tech-108', 'tech-120' ],
     keyPoints: `- Compose uses a slot table (gap buffer) to track composable calls and their parameters
 - The compiler generates code that compares new parameter values to stored values using ==
 - If all inputs are stable and unchanged, the composable is skipped entirely
@@ -3095,8 +2723,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Only the scope that read a changed value invalidates; \`@Stable\`/\`@Immutable\` certify a type as safe to skip`,
     followUp: `**Follow-up:** What is the difference between restartable and skippable?
 > Restartable = can restart independently. Skippable = can be skipped when inputs unchanged. A composable can be restartable but not skippable if inputs are unstable.`,
-    redFlags: `- Thinks Compose redraws everything like invalidate()
-- Has never checked compose compiler metrics`,
+    redFlags: `- Thinks Compose redraws everything like invalidate()`,
   },
   {
     id: 'tech-122',
@@ -3107,7 +2734,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Concurrency',
     title: 'Explain Kotlin Flow backpressure and how cold streams handle it natively.',
     tags: [ 'flow', 'coroutines', 'backpressure' ],
-    related: [ 'tech-41', 'tech-91', 'tech-117' ],
+    related: [ 'tech-136', 'tech-91', 'tech-117' ],
     keyPoints: `- Cold Flow: producer suspends at emit() until collector processes — built-in backpressure
 - buffer() decouples producer/consumer with a channel
 - conflate() drops intermediates, keeps only latest
@@ -3118,153 +2745,6 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - \`collectLatest\` cancels the running block per new value; hot \`SharedFlow\` relies on replay/buffer`,
     redFlags: `- Uses buffer() everywhere without understanding backpressure
 - Confuses cold and hot flow semantics`,
-  },
-  {
-    id: 'tech-123',
-    type: 'technical',
-    num: 123,
-    difficulty: 'M',
-    star: true,
-    section: 'Android Core',
-    title: 'How do you handle process death and restore state with SavedStateHandle?',
-    tags: [ 'lifecycle', 'state', 'process-death' ],
-    related: [ 'tech-87', 'tech-95' ],
-    keyPoints: `- Process death: OS kills process when memory needed; user returns to recreated Activity
-- ViewModel does NOT survive process death — only config changes
-- SavedStateHandle: injected into VM, backed by Bundle, survives both rotation and process death
-- Use state.saveable { mutableStateOf() } or state.getStateFlow()
-- Only store lightweight serializable data (<1MB Bundle limit)`,
-    answer: `- A plain \`ViewModel\` only spans configuration changes — process death clears it
-- \`SavedStateHandle\` is injected and Bundle-backed, so it spans rotation and death
-- Keep payloads under the ~1MB Bundle limit; use \`saveable\`/\`getStateFlow\` for state`,
-    redFlags: `- Stores large objects in SavedStateHandle
-- Thinks ViewModel survives process death`,
-  },
-  {
-    id: 'tech-124',
-    type: 'technical',
-    num: 124,
-    difficulty: 'H',
-    star: true,
-    section: 'Performance & Security',
-    title: 'What is Baseline Profile and how does it improve startup performance?',
-    tags: [ 'performance', 'startup', 'baseline-profile' ],
-    related: [ 'tech-36', 'tech-110', 'tech-114' ],
-    keyPoints: `- Baseline Profile = pre-compiled critical code paths (startup, common interactions)
-- ART uses profile to AOT-compile instead of JIT at first run
-- Generated via Macrobenchmark BaselineProfileRule, committed as baseline-prof.txt
-- Reduces startup jank 20-40%, improves time-to-interactive
-- Only applies to code paths in profile — not full app`,
-    answer: `- A pre-compiled set of critical paths so ART picks AOT over JIT on the first run
-- Built with Macrobenchmark's \`BaselineProfileRule\`, stored as \`baseline-prof.txt\` in source
-- Roughly 20–40% startup-jank relief, limited to exactly the paths the profile lists`,
-    redFlags: `- Thinks R8 alone optimizes startup
-- Has never generated a profile`,
-  },
-  {
-    id: 'tech-125',
-    type: 'technical',
-    num: 125,
-    difficulty: 'H',
-    star: true,
-    section: 'Engineering',
-    title: 'How do you write a custom Android Lint rule? Explain Detector, Issue, IssueRegistry.',
-    tags: [ 'lint', 'static-analysis', 'build' ],
-    related: [ 'tech-84', 'tech-111' ],
-    keyPoints: `- Separate module with lint-api dependency
-- Detector implements Scanner interface (SourceCodeScanner, XmlScanner)
-- Issue defines ID, severity, category, explanation
-- IssueRegistry registers all issues
-- Test with LintDetectorTest and inline source strings`,
-    answer: `- Its own module against lint-api; the \`Detector\` implements a scanner such as \`SourceCodeScanner\`
-- Each \`Issue\` declares id, severity, category, explanation; an \`IssueRegistry\` publishes them
-- Validate with \`LintDetectorTest\`, feeding inline source and asserting the produced \`LintResult\``,
-    redFlags: `- Enforces patterns only via code review
-- Has never written a custom rule`,
-  },
-  {
-    id: 'tech-126',
-    type: 'technical',
-    num: 126,
-    difficulty: 'M',
-    star: true,
-    section: 'Networking & Data',
-    title: 'How does OkHttp Interceptor work? Difference between Application and Network interceptors.',
-    tags: [ 'networking', 'okhttp', 'interceptor' ],
-    related: [ 'tech-20', 'tech-96' ],
-    keyPoints: `- Application interceptor: before network, sees original request, not redirects/retries
-- Network interceptor: just before TCP, observes wire data, includes redirects
-- Chain: each interceptor can modify request/response or call chain.proceed()
-- Auth refresh: application interceptor checks 401, refreshes token, retries with new auth`,
-    answer: `- Every link may rewrite request/response or continue through \`chain.proceed()\`
-- Application interceptor: pre-network, original request, blind to redirects and retries
-- Network interceptor is at the TCP edge and sees wire reality; refresh-retry logic stays application-side`,
-    redFlags: `- Confuses application vs network interceptor
-- Adds auth headers in Retrofit annotations (not dynamic)`,
-  },
-  {
-    id: 'tech-127',
-    type: 'technical',
-    num: 127,
-    difficulty: 'M',
-    star: true,
-    section: 'Performance & Security',
-    title: 'How does LeakCanary detect memory leaks? What patterns should you know?',
-    tags: [ 'memory-leak', 'leakcanary', 'gc' ],
-    related: [ 'tech-9', 'tech-10', 'tech-119' ],
-    keyPoints: `- Watches objects that should be GCd (Activities, Fragments, ViewModels)
-- Uses WeakReference; after 5s triggers GC; if referent non-null → heap dump
-- Parses shortest reference path from GC root to leaking object
-- Common leaks: static Activity ref, anonymous inner class, unregistered listener, Handler delay
-- Fix: null bindings in onDestroyView, unregister in onPause, avoid static context`,
-    answer: `- It tracks destroyed Activities, Fragments, and ViewModels through a \`WeakReference\`
-- GC fires after 5s; a live referent triggers a heap dump and the shortest GC-root path is shown
-- Fix usual sources: reset views in \`onDestroyView\`, deregister listeners in \`onPause\`, no static context`,
-    redFlags: `- Has never added LeakCanary
-- Stores Activity in singleton/companion object`,
-  },
-  {
-    id: 'tech-128',
-    type: 'technical',
-    num: 128,
-    difficulty: 'H',
-    star: true,
-    section: 'Concurrency',
-    title: 'How does coroutine cancellation work internally? What does cooperative mean?',
-    tags: [ 'coroutines', 'cancellation', 'structured-concurrency' ],
-    related: [ 'tech-14', 'tech-112' ],
-    keyPoints: `- Cooperative: only suspends at suspension points; CPU loops without suspend never cancel
-- cancel() sets Cancelling state; throws CancellationException at next suspension
-- CancellationException is special — does NOT propagate to parent
-- ensureActive() or yield() checks cancellation in tight loops
-- Never swallow CancellationException — breaks structured concurrency
-- withContext(NonCancellable) for cleanup that must complete`,
-    answer: `- A coroutine is never interrupted — it stops at the next suspension point, so busy loops ignore \`cancel()\`
-- Job state becomes Cancelling, and the pending \`CancellationException\` surfaces as soon as it suspends
-- That exception is not a failure: it stays local; use \`ensureActive()\` or \`yield()\` inside loops`,
-    redFlags: `- Thinks cancel() stops immediately
-- Swallows CancellationException`,
-  },
-  {
-    id: 'tech-129',
-    type: 'technical',
-    num: 129,
-    difficulty: 'H',
-    star: true,
-    section: 'Performance & Security',
-    title: 'How does the Android rendering pipeline work? What causes dropped frames?',
-    tags: [ 'performance', 'rendering', 'pipeline' ],
-    related: [ 'tech-34', 'tech-54' ],
-    keyPoints: `- Pipeline: Input → Animation → Measure → Layout → Draw → GPU (RenderThread) → Display
-- Dropped frames when any stage >16ms (60fps budget)
-- Main thread IO (Input), expensive onDraw (Draw), deep hierarchy (Measure/Layout)
-- RenderThread offloads GPU work since Android 5.0
-- Tools: Systrace/Perfetto reveals bottleneck stage`,
-    answer: `- Passes: Input, Animation, Measure, Layout, Draw, then GPU on \`RenderThread\`, then Display
-- One stage over 16ms drops the frame — main-thread IO (Input), heavy \`onDraw\`, deep hierarchies
-- Since Android 5.0 the \`RenderThread\` takes GPU work off main; Perfetto or Systrace localises it`,
-    redFlags: `- Has never used Systrace/Perfetto
-- Doesn't know 16ms budget`,
   },
   {
     id: 'tech-130',
@@ -3286,28 +2766,6 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     redFlags: `- Tries to manage composable with Activity callbacks`,
   },
   {
-    id: 'tech-131',
-    type: 'undefined',
-    num: 131,
-    difficulty: 'H',
-    star: true,
-    section: 'Architecture',
-    title: 'Compare MVVM and MVI. When does MVI earn its extra complexity in a large app like Walmart\'s?',
-    tags: [ 'walmart', 'architecture', 'mvvm', 'mvi', 'state' ],
-    related: [ 'tech-45', 'tech-46', 'tech-102', 'tech-132' ],
-    keyPoints: `- MVVM: ViewModel exposes state via LiveData/StateFlow; View observes; multiple state streams allowed
-- MVI: single immutable state object, unidirectional data flow — Intent → reducer → new state; strict single source of truth
-- MVI wins when: state is highly interdependent (feed + cart badge + promo banner), you need time-travel debuggability, or large teams need enforced consistency
-- MVVM wins when: screens are simple, iteration speed matters, reducer boilerplate outweighs benefits`,
-    answer: `- MVVM lets a screen expose several state streams; MVI forces one immutable object through a reducer
-- MVI earns its cost when state fields are interdependent, teams need uniformity, or replayed state matters
-- Stay with MVVM for simple screens where reducer ceremony outweighs the control`,
-    followUp: `**Follow-up:** How do you migrate a ViewModel-based screen to MVI incrementally?
-> Collapse exposed streams into one UiState first (MVVM with single state), then introduce an intent/reducer layer on top — no big-bang rewrite`,
-    redFlags: `- Presents MVI as strictly better
-- Can't articulate the state-interdependency argument for MVI`,
-  },
-  {
     id: 'tech-132',
     type: 'undefined',
     num: 132,
@@ -3316,40 +2774,17 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Architecture',
     title: 'Is the domain layer (use cases) in Clean Architecture worth it on Android? Argue both sides.',
     tags: [ 'walmart', 'architecture', 'clean-architecture' ],
-    related: [ 'tech-46', 'tech-74', 'tech-131' ],
-    keyPoints: `- For: business logic reusable across presentations (app + Wear/TV), testable without Android, decouples ViewModels from repo shape
+    related: [ 'tech-46', 'tech-74', 'tech-157' ],
+    keyPoints: `- For: beyond the textbook reuse/testability case (tech-45), a domain layer decouples ViewModels from repository shape — repositories can be split, merged or re-cached without touching presentation code
 - Against: boilerplate (one class per operation), pass-through mappers, slows simple CRUD screens
 - Senior take: use cases earn their place for multi-step orchestration (checkout pricing rules, offline sync policy), not one-line repo delegation`,
-    answer: `- Pro: business rules shared by app and Wear/TV, JVM-testable, ViewModels decoupled from repository shape
-- Con: a class per operation plus pass-through mapping drags simple CRUD screens
-- Verdict: keep use cases for multi-step orchestration such as pricing rules or sync policy`,
+    answer: `- Make the domain layer optional per feature, not a project-wide mandate
+- Add a use case the moment logic spans repositories or is shared by screens; skip it for one-line delegation
+- Say the cost out loud in the interview — the all-or-nothing answer is the weak one`,
     followUp: `**Follow-up:** Where does mapping live?
 > At layer boundaries; DTOs never leak past the data layer, domain models never carry Retrofit/Room annotations`,
     redFlags: `- All-or-nothing stance with no cost acknowledgment
 - Lets Room entities reach the UI layer`,
-  },
-  {
-    id: 'tech-133',
-    type: 'undefined',
-    num: 133,
-    difficulty: 'H',
-    star: true,
-    section: 'Architecture',
-    title: 'Design an offline-first architecture for a shopping app: local DB as source of truth, sync, and conflict resolution.',
-    tags: [ 'walmart', 'offline-first', 'room', 'sync', 'architecture' ],
-    related: [ 'tech-101', 'sd-93', 'tech-138' ],
-    keyPoints: `- Room as single source of truth; UI observes DAO flows; network refreshes write through to the DB — UI never reads network state directly
-- Mutations: write optimistically to Room with a pending-sync flag; a WorkManager sync drains the mutation queue with backoff
-- Conflicts: server-authoritative for prices/stock; per-field last-write-wins or version vectors for user edits; surface conflicts rather than silently overwriting critical flows (cart, order)
-- Reconciliation: server returns canonical entity versions; client applies them idempotently`,
-    answer: `- \`Room\` is authoritative, UI collects DAO flows; refresh writes through rather than feeding views directly
-- Mutations go optimistic with a pending-sync flag, drained later by \`WorkManager\` with backoff
-- Server owns price and stock; concurrent edits resolve per field — newest write or vector clock wins`,
-    followUp: `**Follow-up:** How do you prevent double-submitting a queued mutation?
-> Idempotency key stored with the queue entry; server dedupes; client marks the mutation synced only on ack`,
-    redFlags: `- UI binds to Retrofit call results directly
-- No mutation queue — assumes connectivity
-- Silent last-write-wins on cart/order data`,
   },
   {
     id: 'tech-134',
@@ -3359,42 +2794,22 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Architecture',
     title: 'Explain Hilt\'s component hierarchy and scoping. What breaks if you put things in the wrong scope?',
-    tags: [ 'walmart', 'hilt', 'dagger', 'dependency-injection' ],
-    related: [ 'tech-102', 'tech-75', 'tech-135' ],
+    tags: [ 'walmart', 'hilt', 'dagger', 'dependency-injection', 'di', 'advanced' ],
+    related: [ 'tech-102', 'tech-75', 'tech-155', 'tech-25', 'tech-51' ],
     keyPoints: `- SingletonComponent (app) → ActivityRetainedComponent (survives config change) → two child branches: ViewModelComponent (one per @HiltViewModel) and ActivityComponent → FragmentComponent → ViewComponent — ViewModelComponent is a sibling of ActivityComponent under ActivityRetainedComponent, not a link between them
-- Scopes: @Singleton, @ActivityRetainedScoped, @ViewModelScoped, @ActivityScoped — a binding is injectable only where its scope is visible
+- Scopes: @Singleton, @ActivityRetainedScoped, @ViewModelScoped, @ActivityScoped, @FragmentScoped — a binding is injectable only where its scope is visible
+- Lifetime examples: \`@Singleton\` = one instance for the whole app process; \`@ActivityScoped\` = one per Activity instance, recreated on every configuration change; \`@ActivityRetainedScoped\` survives that recreation
+- Entry annotations: \`@HiltAndroidApp\` on the \`Application\` triggers codegen and creates the \`SingletonComponent\` (required); \`@AndroidEntryPoint\` enables field injection in Activities/Fragments/Views/Services; \`@HiltViewModel\` lets a ViewModel use an \`@Inject\` constructor inside \`ViewModelComponent\`; \`@Module\` + \`@InstallIn(XComponent::class)\` contributes bindings to a component
 - Wrong-scope failures: @ActivityScoped dependency into a ViewModel = compile error; heavy cache @ActivityScoped leaks per rotation; @Singleton holding a Context must hold only the application context
 `,
-    answer: `- \`SingletonComponent\` -> \`ActivityRetainedComponent\` -> \`ViewModelComponent\` beside \`ActivityComponent\`
-- A binding is visible only inside its scope: \`@ActivityScoped\` into a ViewModel is a compile error
-- A \`@Singleton\` may retain only the application \`Context\`; a heavy \`@ActivityScoped\` cache leaks per rotation`,
+    answer: `- Default to unscoped; add the narrowest scope whose lifetime matches the state you need to share
+- Anything a ViewModel consumes must be bound at \`ViewModelComponent\` or an ancestor of it
+- If a \`@Singleton\` needs a \`Context\`, it gets \`@ApplicationContext\` — nothing else`,
     followUp: `**Follow-up:** What does @ViewModelScoped give you over @Singleton?
 > Instance shared within one ViewModel's graph, recreated with the VM — right lifetime for per-screen use-case state`,
-    redFlags: `- Injects an Activity context into a Singleton
-- No understanding that scopes define lifetime, not just sharing`,
-  },
-  {
-    id: 'tech-135',
-    type: 'undefined',
-    num: 135,
-    difficulty: 'M',
-    star: false,
-    section: 'Jetpack',
-    title: 'Why must a ViewModel never hold an Activity/View reference? How does SavedStateHandle extend it?',
-    tags: [ 'walmart', 'viewmodel', 'jetpack', 'lifecycle' ],
-    related: [ 'tech-11', 'tech-82', 'tech-120' ],
-    keyPoints: `- ViewModel outlives config changes; holding Activity/View leaks the destroyed instance and can crash on post-destroy emission
-- Use AndroidViewModel (application context) or inject app-scoped deps; UI one-shot events via Channel/SharedFlow, never callbacks into views
-- SavedStateHandle restores small key-value state after process death — ViewModel memory does not survive process death
-- Store nav args, query text, selection ids; NOT large lists (refetch from DB/cache instead)
-`,
-    answer: `- A ViewModel outlives configuration changes, so an Activity or View field leaks it and may emit post-destroy
-- Prefer \`AndroidViewModel\` app context or app-scoped deps; one-shot events on \`Channel\`/\`SharedFlow\`
-- \`SavedStateHandle\` restores small keys (nav args, query, ids) after process death; memory itself does not`,
-    followUp: `**Follow-up:** ViewModel vs SavedStateHandle?
-> VM = rotation survival; SavedStateHandle = process-death survival for small state; refetch heavy data from DB/cache`,
-    redFlags: `- Holds a View or Activity in a ViewModel
-- Puts large bitmaps/lists into SavedStateHandle`,
+    redFlags: `- Tries to inject \`@ActivityContext\` into a \`@Singleton\` and "fixes" the compile error by passing the Activity in manually
+- Marks everything \`@Singleton\` "to be safe", turning per-screen state into process-wide state
+- Treats scopes as a sharing knob only, ignoring that they define lifetime`,
   },
   {
     id: 'tech-136',
@@ -3404,43 +2819,28 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Jetpack',
     title: 'LiveData vs StateFlow vs SharedFlow — pick per use case and justify.',
-    tags: [ 'walmart', 'flow', 'stateflow', 'livedata', 'jetpack' ],
-    related: [ 'tech-12', 'tech-83', 'tech-121', 'tech-138' ],
+    tags: [ 'walmart', 'flow', 'stateflow', 'livedata', 'jetpack', 'coroutines', 'state', 'viewmodel', 'architecture' ],
+    related: [ 'tech-12', 'tech-83', 'tech-121', 'tech-138', 'tech-14', 'tech-15', 'tech-44', 'tech-17', 'tech-23', 'tech-90' ],
     keyPoints: `- StateFlow: hot, always-has-value, conflated — state semantics, the default for UiState in Kotlin-first code
 - SharedFlow: hot, configurable replay/buffer — event semantics (one-shot events with replay 0 + buffer)
 - LiveData: lifecycle-aware out of the box, Java-friendly; fine for legacy XML screens but no operators, main-thread bound
+- Plain \`Flow\`: cold and lazy — each collector runs its own pipeline; the right shape for repository/data pipelines, turned hot at the ViewModel edge
 - Collect stateFlow with repeatOnLifecycle(STARTED) so background work stops
+- Expose a private \`MutableStateFlow\` as \`StateFlow\` via \`asStateFlow()\` so callers can't mutate it
 `,
-    answer: `- \`StateFlow\`: hot, conflated, always valued — the UiState default; collect under \`repeatOnLifecycle(STARTED)\`
-- \`SharedFlow\`: hot with tunable replay/buffer; replay 0 plus buffer gives one-shot event semantics
-- \`LiveData\` stays lifecycle-aware and Java-friendly but is main-thread bound with no operators`,
+    answer: `- Screen state → \`StateFlow\`; fire-once effects → \`SharedFlow\`/\`Channel\`; data pipelines → cold \`Flow\`
+- Keep \`LiveData\` only where Java or legacy XML binding forces it; don't start new code on it
+- Whatever you pick, collect it lifecycle-aware so a backgrounded screen stops working`,
     followUp: `**Follow-up:** Why \`stateIn(scope, WhileSubscribed(5000), initial)\`?
-> Survives rotation without refetch, stops upstream when UI leaves, conflates rapid emissions`,
+> Survives rotation without refetch, stops upstream when UI leaves, conflates rapid emissions
+
+**Follow-up:** What happens if you collect a \`SharedFlow\` with replay=0 and the event was emitted before collection started?
+> The subscriber misses it — SharedFlow with no replay doesn't cache. This is intentional for fire-once events.`,
     redFlags: `- Uses LiveData + coroutines everywhere with no migration rationale
-- Collects flows in lifecycleScope without repeatOnLifecycle`,
-  },
-  {
-    id: 'tech-137',
-    type: 'undefined',
-    num: 137,
-    difficulty: 'M',
-    star: false,
-    section: 'Jetpack',
-    title: 'Design a background order-sync with WorkManager: constraints, retry, and Doze behavior.',
-    tags: [ 'walmart', 'workmanager', 'background', 'jetpack' ],
-    related: [ 'tech-30', 'tech-64', 'tech-133' ],
-    keyPoints: `- One-time or periodic work with constraints (network connected); exponential backoff policy
-- Unique work by name (ExistingWorkPolicy.KEEP/REPLACE) prevents duplicate syncs; chained work for upload → server-ack → mark-synced
-- Doze: periodic work defers to maintenance windows; expedited work for user-visible urgency
-- Workers return Retry() on transient failures; worker bodies must be idempotent (may re-run after process death)
-`,
-    answer: `- Constrain on network, use exponential backoff, return \`Retry()\`; bodies rerun, so keep them idempotent
-- Unique named work with \`ExistingWorkPolicy.KEEP\`/\`REPLACE\` stops duplicate syncs; chain upload → ack
-- Doze pushes periodic runs into maintenance windows; only expedited work gets user-visible urgency`,
-    followUp: `**Follow-up:** Why make the worker body idempotent?
-> WorkManager can re-run work after process death; a non-idempotent sync duplicates mutations`,
-    redFlags: `- Runs sync on a GlobalScope coroutine tied to the app process
-- No unique-work policy — stacked duplicate workers`,
+- Collects flows in lifecycleScope without repeatOnLifecycle
+- Exposes \`MutableLiveData\`/\`MutableStateFlow\` publicly from the ViewModel
+- Uses \`SharedFlow\` for UI state and loses the current-value guarantee
+- Uses \`LiveData\` inside a repository`,
   },
   {
     id: 'tech-138',
@@ -3450,19 +2850,19 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Jetpack',
     title: 'What triggers recomposition in Compose, and how do you diagnose and fix performance problems?',
-    tags: [ 'walmart', 'compose', 'performance', 'jetpack' ],
-    related: [ 'tech-92', 'tech-108', 'tech-144' ],
+    tags: [ 'walmart', 'compose', 'performance', 'jetpack', 'state' ],
+    related: [ 'tech-92', 'tech-108', 'tech-144', 'tech-12', 'tech-13', 'tech-120' ],
     keyPoints: `- Recomposition triggers: a read of changed state (MutableState, derivedStateOf, collectAsState values) within a composition scope
 - Stability: @Stable/@Immutable contracts; unstable params (List, lambdas not remembered) defeat skipping
 - Diagnosis: Layout Inspector recomposition counts, composition tracing in Perfetto
-- Fixes: state hoisting, derivedStateOf for computed reads, remember for expensive objects, immutable data classes, deferred reads via lambdas
+- Fixes: state hoisting, derivedStateOf for computed reads, remember for expensive objects, immutable data classes, deferred reads via lambdas, stable \`key()\`s on list items so siblings can skip
 `,
-    answer: `- A scope reruns when state it read — \`MutableState\`, \`derivedStateOf\`, \`collectAsState\` — changes value
-- Unstable parameters defeat skipping, notably plain \`List\`s and lambdas that were never remembered
-- Diagnose via Layout Inspector counts or Perfetto tracing; fix with hoisting, \`derivedStateOf\`, \`remember\``,
+    answer: `- Measure recomposition counts before changing code — most "slow Compose" hunches are wrong
+- Fix the widest scope first: read state as late and as low in the tree as possible
+- Only then chase stability annotations and remembered lambdas for the hot composables`,
     followUp: `**Follow-up:** Deferred state reads — why do they help?
 > Reading state inside a lambda narrows the recomposition scope to that block instead of the whole composable`,
-    redFlags: `- No concept of stability
+    redFlags: `- Sprinkles \`remember\`/\`@Stable\` on every parameter by reflex instead of measuring which composables actually over-recompose
 - Debugs jank with logging instead of tooling`,
   },
   {
@@ -3481,13 +2881,13 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Exceptions: launch → CoroutineExceptionHandler at the root; async → surfaces at await; try/catch around await is mandatory
 - CancellationException must never be swallowed — rethrow
 `,
-    answer: `- Coroutines sit in a scope hierarchy: cancellation descends, failure ascends according to \`Job\` rules
-- \`coroutineScope\` is fail-fast — any child error cancels the parent and its siblings too
-- \`supervisorScope\` lets children fail alone; \`launch\` wants a root handler, \`async\` errors surface at \`await\``,
-    followUp: `**Follow-up:** Two parallel API calls, one fails — what should happen?
-> Jointly required → coroutineScope fail-fast; independent → supervisorScope with per-call error states`,
+    answer: `- Decide per feature whether sibling tasks are jointly required (fail-fast) or independent (supervise)
+- Put error handling where the exception actually surfaces: at \`await\` for \`async\`, a root handler for \`launch\`
+- Never let error handling swallow cancellation`,
+    followUp: `**Follow-up:** A \`launch\`ed child of \`supervisorScope\` throws and nothing handles it — what happens?
+> The failure is not propagated to the parent, so it goes to the child's \`CoroutineExceptionHandler\`, or, if there is none, to the thread's uncaught-exception handler — which crashes an Android app. Supervised \`launch\` children still need a handler or their own \`try/catch\`.`,
     redFlags: `- Catches all exceptions generically and continues
-- Uses GlobalScope in production code`,
+- Wraps independent parallel calls in \`coroutineScope\`, so one failed widget blanks the whole screen`,
   },
   {
     id: 'tech-140',
@@ -3498,7 +2898,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Concurrency',
     title: 'Cold vs hot Flows — what do stateIn/ShareIn actually solve, and what are the SharingStarted trade-offs?',
     tags: [ 'walmart', 'flow', 'coroutines', 'kotlin' ],
-    related: [ 'tech-15', 'tech-56', 'tech-136' ],
+    related: [ 'tech-15', 'tech-136' ],
     keyPoints: `- Cold: each collector re-runs the builder (flow { }, Retrofit-generated flows) — one upstream per collector
 - Hot: shared upstream, multi-cast (StateFlow, SharedFlow)
 - stateIn/ShareIn convert cold → hot: upstream runs once while shared; WhileSubscribed stops it with no collectors
@@ -3508,32 +2908,10 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     answer: `- Cold: every collector starts its own builder run, so \`flow { }\` and Retrofit work repeat per subscriber
 - \`stateIn\`/\`shareIn\` make it hot so one upstream run is multicast to all collectors
 - \`Eagerly\` preheats, \`Lazily\` waits for the first collector, \`WhileSubscribed(5000)\` tolerates rotation`,
-    followUp: `**Follow-up:** Two screens collect the same repo flow — how many network calls?
-> Without sharing: one per collector; with shareIn(WhileSubscribed): one upstream run shared`,
+    followUp: `**Follow-up:** Why does \`stateIn\` demand an initial value while \`shareIn\` doesn't?
+> \`stateIn\` produces a \`StateFlow\`, which must always hold a current value (and de-duplicates equal ones); \`shareIn\` produces a \`SharedFlow\` with configurable replay and no current value. Use \`shareIn\` for event streams or when no sensible initial state exists.`,
     redFlags: `- Thinks StateFlow is cold
 - Uses Eagerly everywhere and never stops upstream`,
-  },
-  {
-    id: 'tech-141',
-    type: 'undefined',
-    num: 141,
-    difficulty: 'H',
-    star: true,
-    section: 'Networking & Data',
-    title: 'Design an image-loading library (Glide/Coil class): caching tiers, request lifecycle, downsampling.',
-    tags: [ 'walmart', 'image-loading', 'caching', 'glide', 'coil' ],
-    related: [ 'tech-96', 'tech-100', 'sd-97' ],
-    keyPoints: `- Request pipeline: key (URL + target size + transform) → memory cache (LRU ~1/8 heap) → disk cache (original vs resized variants) → network
-- Downsampling: decode bounds first, inSampleSize toward the target view size — never decode full-res for a thumbnail
-- Request lifecycle: bind to lifecycle (pause on detach, restart on attach); dedupe identical in-flight requests
-- Eviction: LRU memory + disk cap; freshness via cache headers`,
-    answer: `- Cache key combines URL, target size, and transform; lookup order is memory, disk, then network
-- Read decode bounds first and choose \`inSampleSize\` for the view, so a thumbnail never decodes full-res
-- Tie requests to lifecycle (pause on detach) and collapse duplicate in-flight loads for the same key`,
-    followUp: `**Follow-up:** What belongs in the cache key?
-> URL + target dimensions + transformation + decoder options — miss any and you serve the wrong-sized image`,
-    redFlags: `- Decodes full-resolution images for thumbnails
-- One global cache with no key dimensioning`,
   },
   {
     id: 'tech-142',
@@ -3544,7 +2922,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Networking & Data',
     title: 'How do you ship a Room schema migration safely? Destructive vs auto vs manual.',
     tags: [ 'walmart', 'room', 'database', 'testing' ],
-    related: [ 'tech-19', 'tech-72', 'tech-133' ],
+    related: [ 'tech-19', 'tech-72', 'sd-18' ],
     keyPoints: `- Versioned migrations with Migration objects; @AutoMigration for simple adds/renames with exportSchema=true
 - Manual SQL for data transforms; test with MigrationTestHelper against exported schemas in CI
 - Destructive fallback acceptable only for caches, never user data (cart, drafts)
@@ -3567,15 +2945,15 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Engineering',
     title: 'Walk through how you would build Walmart\'s CountryViewer take-home: fetch JSON, render a RecyclerView list, survive rotation, handle errors.',
     tags: [ 'walmart', 'take-home', 'recyclerview', 'architecture', 'interview-prep' ],
-    related: [ 'tech-23', 'tech-60', 'tech-131' ],
+    related: [ 'tech-23', 'tech-60', 'tech-157' ],
     keyPoints: `- This is a real Walmart Android assignment (2022): fetch a country list (name, region, code, capital) → render in a RecyclerView in JSON order → robust error/edge-case handling → survive rotation AND background activity destruction. Graded on code quality of what you choose to build, not feature count
 - Architecture: ViewModel + StateFlow UiState (Loading/Success/Error), Repository over Retrofit, list in a Fragment or Compose
 - Rotation: state in ViewModel; process death via SavedStateHandle or an explicit refetch policy
 - Errors: typed UiState.Error with retry; empty state; malformed items tolerated (skip or placeholder — never crash)
 `,
-    answer: `- ViewModel plus a \`StateFlow\` UiState of Loading/Success/Error, with a Repository over Retrofit
-- Rotation keeps state in the ViewModel; process death needs \`SavedStateHandle\` or a deliberate refetch
-- Expose a typed retry error plus an empty state; skip or placeholder malformed items rather than crash`,
+    answer: `- Optimize for reviewable quality over feature count — a small, clean, tested slice beats a sprawling one
+- Make every state explicit (loading, content, empty, error-with-retry) and prove it survives rotation and process death
+- Call out your trade-offs in the README; graders read the reasoning as closely as the code`,
     followUp: `**Follow-up:** The list were 100K items — what changes?
 > Paging 3 with a Room-backed boundary callback, DiffUtil recycling, image prefetch windows`,
     redFlags: `- Loads JSON on the main thread or in onCreate without lifecycle handling
@@ -3589,46 +2967,21 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     difficulty: 'M',
     star: false,
     section: 'Engineering',
-    title: 'What does a sane Android test pyramid look like? Where do fakes beat mocks?',
+    title: 'What does a sane Android test pyramid look like, and which tools belong at each layer?',
     tags: [ 'walmart', 'testing', 'quality' ],
-    related: [ 'tech-25', 'tech-65', 'tech-116' ],
+    related: [ 'tech-25', 'tech-65', 'tech-116', 'tech-61' ],
     keyPoints: `- Unit (JVM: JUnit, Turbine for flows, coroutines runTest): ViewModels, use cases, mappers — fast, in the thousands
 - Integration: Room in-memory, MockWebServer, Hilt test components
 - UI: Compose testing APIs or Espresso — few, journey-level; screenshot tests (Paparazzi/Roborazzi) for visual regression
-- Fakes beat mocks at behavior-bearing boundaries (FakeRepository backed by in-memory lists); mocks fit protocol edges (interaction counts)
+- Which test double to use at each boundary is its own question (fakes vs mocks: tech-61)
 `,
-    answer: `- JVM unit layer (JUnit, Turbine, \`runTest\`) covers ViewModels, use cases, mappers — in the thousands
-- Integration uses Room in-memory, \`MockWebServer\`, Hilt test components; UI tests stay few and journey-level
-- Fakes win at behavior-bearing boundaries; reserve mocks for protocol edges and interaction counts`,
+    answer: `- Push each check down to the cheapest layer that can catch the bug; most should never need a device
+- Spend device time only on journeys that cross real framework boundaries
+- Treat a slow or flaky suite as a pyramid-shape problem, not a CI-hardware problem`,
     followUp: `**Follow-up:** Why inject dispatchers instead of hard-coding Dispatchers.IO?
 > Testability — swap to a StandardTestDispatcher under runTest; also enables per-module threading guarantees`,
     redFlags: `- Inverted pyramid (mostly instrumentation tests)
-- Mocks repositories (brittle, tests implementation not behavior)`,
-  },
-  {
-    id: 'tech-145',
-    type: 'undefined',
-    num: 145,
-    difficulty: 'H',
-    star: true,
-    section: 'Engineering',
-    title: 'How would you modularize a 100-developer app? Feature modules, api/impl split, and build-time wins.',
-    tags: [ 'walmart', 'modularization', 'gradle', 'architecture' ],
-    related: [ 'tech-27', 'tech-81', 'tech-125' ],
-    keyPoints: `- Layers: :app (thin shell) ← :feature-* (UI + ViewModel) → :core-* (network, db, design system, analytics)
-- api vs impl: features depend on core:cart-api (interfaces), not core:cart-impl — enables parallel teams and swappable implementations
-- Build wins: parallel Gradle execution, configuration cache, affected-module CI detection
-- Boundaries: no feature-to-feature deps; navigate via navigation contracts; enforce with convention plugins + dependency analysis
-- Dynamic feature modules for on-demand capabilities (e.g., in-store mode)
-`,
-    answer: `- Thin \`:app\` shell, \`:feature-*\` for UI and ViewModel, \`:core-*\` for network, db, design system, analytics
-- Features depend on \`api\` interfaces, not \`impl\`; dynamic feature modules handle on-demand capabilities
-- No feature→feature deps: navigate through contracts, enforced by convention plugins and dependency analysis`,
-    followUp: `**Follow-up:** How do two features communicate without depending on each other?
-> Navigation contracts plus shared core APIs — never feature-to-feature imports`,
-    redFlags: `- One god module with classpath coupling
-- Feature-to-feature imports
-- Modularization with no convention plugins (config drift)`,
+- Tests ViewModels on an emulator when a JVM test with \`runTest\` would do`,
   },
   {
     id: 'tech-146',
@@ -3639,18 +2992,18 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Performance & Security',
     title: 'Cold start is 3s and the target is under 1s — what do you actually do?',
     tags: [ 'walmart', 'performance', 'startup', 'baseline-profiles' ],
-    related: [ 'tech-34', 'tech-98', 'tech-146' ],
+    related: [ 'tech-34', 'tech-98', 'tech-114' ],
     keyPoints: `- Measure first: Perfetto/macrobenchmark traces to see startup phases (Application.onCreate, activity inflate, first frame)
 - Baseline Profiles: precompile hot paths (first-frame render, critical parsing) — usually the single biggest win
 - App Startup library to sequence lazy initializers; move non-critical SDK init off the critical path (async or post-first-frame)
 - Cut work: trim the startup DI graph, defer analytics, R8 full mode, no blocking disk/network in onCreate
 - Guard: startup benchmarks in CI to prevent regressions
 `,
-    answer: `- Measure first: Perfetto and macrobenchmark traces of startup phases up to the first frame
-- Baseline Profiles on hot first-frame paths are the biggest single win; App Startup sequences lazy init
-- Cut work: lean DI graph, deferred analytics, R8 full mode, no \`onCreate\` IO; CI benchmarks guard it`,
-    followUp: `**Follow-up:** Which is the biggest win — Baseline Profiles or lazy init?
-> Baseline Profiles (precompiled hot paths); lazy init matters when onCreate does blocking SDK work`,
+    answer: `- Spend the first day measuring — a phase-by-phase trace tells you which of the three seconds to attack first
+- Take the big structural wins first (Baseline Profile, deferred SDK init), then trim the remainder
+- Lock the result in with a CI benchmark, or the 3s comes back within a quarter`,
+    followUp: `**Follow-up:** The lab benchmark now says 900ms — how do you know real users see it?
+> Watch field data: Android Vitals startup metrics and an app-start trace (e.g. Firebase Performance) ending at \`reportFullyDrawn()\`, segmented by device tier. Lab macrobenchmarks guard against regressions; P50/P90 on low-end devices is the real target.`,
     redFlags: `- Random micro-optimizations with no trace evidence
 - Ships startup work in Application.onCreate without measuring`,
   },
@@ -3663,19 +3016,19 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Performance & Security',
     title: 'A screen shows memory growth on every rotation until it ANRs — how do you find and fix the leak?',
     tags: [ 'walmart', 'memory-leak', 'performance', 'lifecycle' ],
-    related: [ 'tech-38', 'tech-62', 'tech-114' ],
+    related: [ 'tech-164', 'tech-62', 'tech-114' ],
     keyPoints: `- Reproduce and capture a heap dump; LeakCanary on debug builds auto-dumps and shows the reference chain
 - Usual suspects: listeners/callbacks registered on the Activity, non-static inner Handler/AsyncTask, coroutine scope tied to the Activity, static View/Context refs, undisposed Rx subscriptions
 - Fix pattern: lifecycle-aware registration (viewLifecycleOwner in fragments), scope work to viewModelScope, static inner classes + WeakReference where a Handler is required
 - ANR link: leaked Activity keeps work alive; after fixing the leak, profile remaining jank separately
 `,
-    answer: `- Reproduce, then take a heap dump; LeakCanary on debug auto-dumps and prints the reference chain
-- Suspects: Activity listeners, non-static \`Handler\`/\`AsyncTask\`, static \`View\`/\`Context\`, undisposed Rx
-- The leak keeps work alive until it ANRs; bind to \`viewLifecycleOwner\` and \`viewModelScope\` to fix it`,
+    answer: `- Prove the leak before fixing it: rotate repeatedly, then read the reference chain from a heap dump
+- Fix the owner, not the symptom — tie each registration and coroutine to the lifecycle that should end it
+- Re-measure after the fix; remaining ANR time is a separate jank problem`,
     followUp: `**Follow-up:** Fragment listener registered in onViewCreated vs onAttach — which owner?
 > viewLifecycleOwner for view-scoped work; onAttach-time registration uses the fragment lifecycle and cleans up in onDestroy`,
     redFlags: `- Fixes symptoms with restart hacks
-- Cannot name a single common Android leak pattern`,
+- Calls \`System.gc()\` or bumps \`largeHeap\` to hide the growth`,
   },
   {
     id: 'tech-148',
@@ -3701,7 +3054,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** The endpoint sends no \`ETag\` — what else can you use?
 > \`Last-Modified\` with \`If-Modified-Since\` is the weaker fallback; \`stale-while-revalidate\` (supported by many CDNs) renders the cached copy and refreshes in the background`,
     redFlags: `- Claims a 304 saves latency — it is still a full round trip; only the body is saved
-- Does not know OkHttp ships a disk cache, or conflates freshness with revalidation
+- Conflates freshness with revalidation, or hand-rolls a response cache when OkHttp's disk cache would do
 - Caches authenticated writes and calls that offline-first`,
   },
   {
@@ -3713,7 +3066,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Networking & Data',
     title: 'How do you retry failed requests on a flaky mobile network without double-submitting an order?',
     tags: [ 'networking', 'okhttp', 'resilience', 'coroutines' ],
-    related: [ 'tech-18', 'tech-20', 'tech-137' ],
+    related: [ 'tech-18', 'tech-20' ],
     keyPoints: `- Classify failures first: transient (\`SocketTimeoutException\`, \`ConnectException\`, 408/429/502/503) is retryable; terminal (400/403/404) is not, and 401 belongs to the token-refresh path, not the retry loop
 - Exponential backoff with jitter — 1s, 2s, 4s plus a random offset so the whole fleet does not stampede the recovering server; honor \`Retry-After\` on 429/503
 - OkHttp \`retryOnConnectionFailure(true)\` only covers connection-level fallback (route failover, stale pooled connections) — it never retries a 500 response
@@ -3773,7 +3126,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - What single-activity buys: one window story (insets, IME, \`OnBackPressedDispatcher\`/predictive back), custom transitions, shared \`ViewModelStoreOwner\` boundaries, no activity relaunch per hop
 - What multi-activity still buys: OS-managed memory relief (back-stack activities destroyed under pressure and restored via \`onSaveInstanceState\` for free), true task/\`launchMode\`/\`taskAffinity\`/PiP semantics, hard isolation for system-integrated features (custom tabs, camera, assistant)
 - Single-activity risks: the host turns into a god object if nav plumbing is not extracted; every screen shares one crash/process window; the deep-link matrix needs explicit tests
-- Multi-module apps wire features through navigation contracts / route strings instead of direct destination-class imports — that is what lets feature modules compile independently (tech-145)
+- Multi-module apps wire features through navigation contracts / route strings instead of direct destination-class imports — that is what lets feature modules compile independently (tech-102)
 - Legacy external contracts (other apps starting \`PaymentActivity\`) survive a migration: keep those activities as thin adapters that navigate into the graph
 - Compose reality: single-activity is near-universal (\`setContent\` + \`NavHost\`); cross-screen results move from \`startActivityForResult\` to shared state or \`rememberLauncherForActivityResult\``,
     answer: `- Default to one thin host \`Activity\` + Navigation/\`NavHost\`: explicit back stack, declarative deep links, unified insets and predictive-back handling
@@ -3783,33 +3136,6 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 > The nav graph declares the parent hierarchy; the framework builds the missing back stack entries on the way to the deep destination`,
     redFlags: `- Sprinkles \`startActivity\` calls between feature screens with no graph or back-stack story
 - Picks multi-activity "because that is how it started" and cannot name what single-activity gives up`,
-  },
-  {
-    id: 'tech-152',
-    type: 'technical',
-    num: 152,
-    difficulty: 'H',
-    star: false,
-    section: 'Architecture',
-    title: 'How would you design a feature-flag / dynamic-configuration layer for a large Android client?',
-    tags: [ 'architecture', 'feature-flags', 'remote-config', 'rollout' ],
-    related: [ 'tech-45', 'tech-74', 'tech-46' ],
-    keyPoints: `- Three kinds with different lifecycles and owners: release flags (ship dark, gate unreleased code), experiment flags (A/B cohorts wired to analytics), operational kill-switches (disable a broken flow without a release)
-- Wrap the provider behind \`interface FlagRepository\` with typed keys and defaults (\`FlagKey<Boolean>\` + sealed values); Firebase Remote Config is one implementation, tests inject a fake — UI never imports the SDK
-- First-launch determinism: bake \`remote_config_defaults\`, persist the last fetched set, refresh on cold start plus a push-triggered fetch — a kill-switch needing the network on a cold cache is useless
-- Evaluate once per session/UI snapshot: live config reads scattered across layers cause tearing (half the UI on the new value, half on the old) and repeated IO
-- In Compose hoist flag reads to state and observe config-update events; gate whole destinations in the nav graph instead of \`if\` ladders inside screens
-- Check at behavior boundaries: repository/use-case lookups keep one flag consistent across layers and screens
-- Cohort assignment must derive from a stable user/session id, or A/B metrics become noise
-- Flags are debt with a due date: every key gets owner + expiry; enforce removal with a custom Lint rule and a stale-flag dashboard
-- Server-driven UI is the extreme version: payloads name component types resolved against a client registry — release-cycle independence at the cost of contract versioning and unknown-type fallback`,
-    answer: `- Separate release/experiment/kill-switch flags and wrap the provider in a typed \`FlagRepository\` with baked defaults so first launch is deterministic
-- Read a per-session snapshot hoisted to state; check flags at repository/use-case boundaries, never scattered live SDK reads
-- Flags need owner + expiry and lint-enforced deletion; server-driven UI adds a component registry, version negotiation, and unknown-type fallback`,
-    followUp: `**Follow-up:** Worst failure mode of server-driven UI?
-> Contract drift: the server starts emitting component types the installed client cannot render — you need registry version negotiation and a safe placeholder, tested against the oldest supported client`,
-    redFlags: `- \`FirebaseRemoteConfig.getBoolean("x")\` sprinkled through composables — untestable, torn, permanent
-- No baked defaults: first launch after install shows a blank or coin-flip variant`,
   },
   {
     id: 'tech-153',
@@ -3867,23 +3193,24 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Jetpack',
     title: 'What is a ViewModel and how does it survive a configuration change?',
-    tags: [ 'jetpack', 'viewmodel', 'lifecycle', 'state' ],
-    related: [ 'tech-6', 'tech-87', 'tech-135' ],
+    tags: [ 'jetpack', 'viewmodel', 'lifecycle', 'state', 'walmart' ],
+    related: [ 'tech-6', 'tech-95', 'tech-138', 'tech-82', 'tech-120' ],
     keyPoints: `- Holds UI state and in-flight work so rotation does not refetch or reseed everything in \`onCreate\`
 - Mechanism: \`ComponentActivity\` keeps a \`ViewModelStore\`; on a configuration change the Activity instance is destroyed, but the store is handed to the new instance — the ViewModel never lived inside the dying object, it lived in the retained store
 - Scope equals lifetime: resolve from the right \`ViewModelStoreOwner\` — \`by viewModels()\` (this screen), \`by activityViewModels()\` (shared across fragments), \`by navGraphViewModels()\` (a nested back stack)
-- Framework contract: never reference a \`View\` or \`Activity\` (they die and leak — tech-135); \`AndroidViewModel\` is the exception only for Application context
+- Framework contract: never reference a \`View\` or \`Activity\` — the ViewModel outlives them, so it leaks the destroyed instance and can crash emitting into it after destroy; \`AndroidViewModel\` is the exception only for Application context, otherwise inject app-scoped dependencies
+- One-shot UI events (navigate, show a snackbar) leave through a \`Channel\` or \`SharedFlow\` the UI collects — never through a callback the Activity registers on the ViewModel
 - \`onCleared()\` fires when the owner truly finishes — cancel \`viewModelScope\` work, close listeners and cursors; that coupling is what makes coroutines leak-safe here (tech-89)
-- State restoration pairs: the ViewModel keeps heavy objects across config change; \`SavedStateHandle\` keeps a small Bundle-serializable map across process death (tech-95)
+- State restoration pairs: the ViewModel keeps heavy objects across config change; \`SavedStateHandle\` keeps a small Bundle-serializable map across process death (tech-95) — nav args, query text, selection ids belong there; large lists do not (refetch them from DB/cache)
 - Factory injection (Hilt \`@HiltViewModel\`) is how you get a repository into it without a Context
 - Testability: with injected dependencies and no framework imports, a ViewModel is a plain JVM class — JUnit + Turbine, no device (tech-23)`,
-    answer: `- ViewModel keeps UI state across config changes because the owner retains the \`ViewModelStore\` and passes it to the recreated instance
-- Its lifetime is the \`ViewModelStoreOwner\` you resolve it from: activity, fragment, or nav back-stack entry
-- It does not survive process death — \`SavedStateHandle\` covers that slice`,
-    followUp: `**Follow-up:** Does the ViewModel survive process death?
-> No — the store is only retained across configuration changes; \`SavedStateHandle\` is Bundle-backed and does survive it`,
-    redFlags: `- Claims the ViewModel "survives everything" — confuses rotation with system kill
-- Stores an \`Activity\`, \`View\`, or fragment callback reference inside it`,
+    answer: `- Anything that must outlive a rotation — UI state, in-flight loads — lives in the ViewModel, never the Activity
+- Choose the owner on purpose: it decides who shares the instance and when \`onCleared()\` runs
+- Treat it as rotation insurance only; pair it with \`SavedStateHandle\` for process death`,
+    followUp: `**Follow-up:** A Fragment is replaced and pushed onto the back stack — is its ViewModel cleared?
+> No. Its view is destroyed, but the \`FragmentManager\` keeps the fragment's \`ViewModelStore\` while the entry is on the back stack; \`onCleared()\` runs only when the fragment is popped or removed for good. That is why collecting in \`viewLifecycleOwner\`, not the fragment, matters.`,
+    redFlags: `- Stores an \`Activity\`, \`View\`, or fragment callback reference inside it
+- Resolves a shared ViewModel with \`by viewModels()\` in two fragments and wonders why they don't see the same state`,
   },
   {
     id: 'tech-156',
@@ -3907,7 +3234,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** Why is \`Binds\` preferred over \`Provides\` whenever both would work?
 > Less generated code — no redundant factory — and it reads as a direct statement of intent ("this interface is satisfied by this impl"). Dagger's own style guide recommends \`Binds\` whenever the target type already has an \`@Inject\` constructor.`,
     redFlags: `- Uses \`@Provides\` to wire an interface to an impl that already has an \`@Inject\` constructor, unaware \`Binds\` exists for exactly that
-- Doesn't know \`@Binds\` methods must be abstract with no body, or tries to add logic inside one`,
+- Tries to put logic inside a \`@Binds\` method — it must be abstract with no body; logic belongs in \`@Provides\``,
   },
   {
     id: 'tech-157',
@@ -3917,22 +3244,31 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Architecture',
     title: 'MVVM vs MVI — what\'s the architectural difference?',
-    tags: [ 'architecture', 'mvvm', 'mvi', 'notion' ],
-    related: [ 'tech-151' ],
+    tags: [ 'architecture', 'mvvm', 'mvi', 'notion', 'walmart', 'state' ],
+    related: [ 'tech-151', 'tech-45', 'tech-46', 'tech-102', 'tech-132' ],
     keyPoints: `- MVVM: the View observes several independent streams exposed by the ViewModel — one \`StateFlow\`/\`LiveData\` per piece of state; the screen's overall state is implicit, assembled from N separate emissions
 - MVI: the View observes a single immutable \`State\` object per screen; every user action is modeled as an \`Intent\`, run through a pure reducer, producing the next \`State\` — strictly unidirectional
 - MVI makes the data flow explicit and enforceable in code (\`Intent -> Reducer -> State -> View\`); MVVM only conventionally encourages one-way binding, nothing stops a ViewModel method from mutating state ad hoc
 - Consistency: MVI's single state object updates atomically, so a composable recomposition always sees a coherent snapshot; MVVM's scattered observables can update at different times within one frame (tearing)
 - Debuggability: an MVI \`State\` is a plain data class you can log, diff, and replay for a bug report; MVVM state is reconstructed by hand from several sources
 - Cost: MVI adds boilerplate — sealed \`Intent\`, sealed \`State\`, a reducer function — and can feel heavy for a simple screen with two fields
-- Both are typically built on the same Kotlin/Compose primitives (\`StateFlow\`, \`collectAsStateWithLifecycle\`); MVI is best read as MVVM plus a stricter, consolidated state discipline, not a different stack`,
-    answer: `- MVVM exposes state as several independent observable streams; MVI consolidates a screen into one immutable state object driven by explicit \`Intent -> Reducer -> State\`
-- MVI buys atomic, tearing-free updates and trivial state logging/replay at the cost of more boilerplate per screen
-- Both run on the same StateFlow/Compose plumbing — MVI is a stricter discipline layered on top of MVVM's primitives, not a separate framework`,
+- Both are typically built on the same Kotlin/Compose primitives (\`StateFlow\`, \`collectAsStateWithLifecycle\`); MVI is best read as MVVM plus a stricter, consolidated state discipline, not a different stack
+- **When MVI earns its complexity** (e.g. a large retail app like Walmart's):
+  - State is highly interdependent — feed + cart badge + promo banner must never disagree
+  - You need time-travel / replay debuggability from logged states
+  - Many teams touch the same screens and need one enforced pattern
+- **When MVVM wins**: simple screens, iteration speed matters, reducer boilerplate outweighs the control`,
+    answer: `- Default to MVVM with a single \`UiState\` per screen; upgrade to full MVI only when the screen's state is interdependent
+- Pay the reducer boilerplate where consistency and replayable state are worth more than velocity
+- In interviews, frame MVI as a stricter discipline on the same primitives, not a rival framework`,
     followUp: `**Follow-up:** What is "tearing" and why does MVI avoid it?
-> When independent state fields are published as separate emissions, a recomposition can render a frame mixing an updated field with a stale one. A single immutable state object updates in one atomic emission, so every recomposition sees a fully consistent snapshot.`,
+> When independent state fields are published as separate emissions, a recomposition can render a frame mixing an updated field with a stale one. A single immutable state object updates in one atomic emission, so every recomposition sees a fully consistent snapshot.
+
+**Follow-up:** How do you migrate a ViewModel-based screen to MVI incrementally?
+> Collapse exposed streams into one UiState first (MVVM with single state), then introduce an intent/reducer layer on top — no big-bang rewrite.`,
     redFlags: `- Describes MVI as "MVVM with a different name" and can't name the reducer or the single-state contract
-- Can't explain why state is immutable in MVI, or proposes mutating the state object in place`,
+- Proposes mutating the state object in place instead of emitting a new one
+- Presents MVI as strictly better and would impose it on a two-field settings screen`,
   },
   {
     id: 'tech-158',
@@ -3980,8 +3316,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Kotlin checks this at the declaration, not just at use sites like Java wildcards; \`List\` is declared \`out\`, \`Comparable\` is declared \`in\`, and \`MutableList\` has to stay invariant since it both produces and consumes \`T\``,
     followUp: `**Follow-up:** Why can't \`MutableList<T>\` be declared \`out T\`?
 > \`add(element: T)\` uses \`T\` as a parameter — an "in" position — which a covariant declaration statically forbids. The compiler rejects it right at the class declaration, not at a call site.`,
-    redFlags: `- Mixes up which of \`out\`/\`in\` is which, or treats them as documentation only with no compiler enforcement
-- Can't explain why \`MutableList\` stays invariant while \`List\` is covariant`,
+    redFlags: `- Mixes up which of \`out\`/\`in\` is which, or treats them as documentation only with no compiler enforcement`,
   },
   {
     id: 'tech-160',
@@ -4016,8 +3351,8 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Performance & Security',
     title: 'What is R8 and how does it differ from ProGuard?',
-    tags: [ 'r8', 'proguard', 'build', 'notion' ],
-    related: [ 'tech-25' ],
+    tags: [ 'r8', 'proguard', 'build', 'notion', 'security' ],
+    related: [ 'tech-25', 'tech-37', 'tech-111' ],
     keyPoints: `- Both are whole-program optimizers that run three passes over release bytecode: shrinking (remove unreachable code/resources from declared entry points), obfuscation (rename classes/methods/fields to short symbols), optimization (inline, prune dead branches, merge classes)
 - ProGuard operates on Java bytecode as a separate, general-purpose tool; R8 is Google's replacement, built directly into Android Gradle Plugin, and it also performs desugaring and dexing in the same pass — one tool instead of ProGuard-then-dx/d8
 - R8 does whole-program static analysis across the compile unit rather than ProGuard's more file-local passes, so it finds more dead code and produces smaller, sometimes measurably faster-executing output
@@ -4025,12 +3360,12 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - R8 "full mode" (default since AGP 3.6+) goes further than ProGuard-compatible mode: more aggressive optimization, occasionally surfacing rule gaps that ProGuard-compatible mode masked, particularly around reflection (Gson/Retrofit models, \`Class.forName\`)
 - Neither tool can see into reflection: anything reached only via \`Class.forName\`, \`@Keep\`-worthy Gson model fields, or Room-generated code needs explicit \`-keep\` rules or \`@Keep\` annotations, or it gets stripped/renamed and breaks at runtime only in release builds
 - Every release build emits \`mapping.txt\` — required to \`retrace\` obfuscated stack traces or symbolicate Crashlytics reports; losing that file makes a production-only crash nearly undebuggable`,
-    answer: `- Both shrink, obfuscate, and optimize release bytecode using the same keep-rule syntax; R8 is Google's AGP-integrated successor that also desugars and dexes in one pass instead of a separate ProGuard-then-d8 pipeline
-- R8's whole-program analysis and "full mode" produce smaller output than ProGuard, at the cost of being stricter about reflection that isn't covered by explicit \`-keep\`/\`@Keep\` rules
-- Always keep \`mapping.txt\` per release build — it is the only way to retrace an obfuscated production stack trace`,
+    answer: `- On a modern Android build the question is moot: R8 is what runs, and your existing ProGuard rule files carry over
+- Budget keep-rule work when moving to full mode or a new AGP — its stricter analysis breaks reflection paths ProGuard tolerated
+- Archive \`mapping.txt\` for every release as a build artifact; without it a production crash is unreadable`,
     followUp: `**Follow-up:** A crash only reproduces in the release build, never in debug. Where do you start?
 > Assume R8 stripped or renamed something reflection-dependent — check for missing \`-keep\` rules around Gson/Retrofit models first, then retrace the obfuscated stack trace against that build's \`mapping.txt\` to see what symbol actually threw.`,
-    redFlags: `- Thinks ProGuard and R8 are interchangeable names for the same tool with no practical difference
+    redFlags: `- Treats obfuscation as a security control — it only raises the cost of reading decompiled code; API keys and secrets in the APK remain extractable
 - "Fixes" a release-only crash with \`-keep class ** { *; }\`, disabling shrinking wholesale instead of finding the missing specific rule`,
   },
   {
@@ -4049,12 +3384,12 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Diagnosis starts the same as any jank: Android Studio Profiler CPU trace or a Perfetto trace of the affected window, looking for one abnormally long main-thread slice rather than many small ones
 - \`FrameMetrics\`/\`JankStats\` (Jetpack) instrument this in production, bucketing frame durations and reporting frozen-frame rate per screen — Play Console's Android Vitals surfaces the same metric aggregated across the install base, which is often the first signal a team actually sees
 - Fix pattern mirrors jank fixes but targets the single worst offender: move the blocking call off main, defer non-critical \`onCreate\`/\`onResume\` work past first frame, or break one large synchronous unit of work into smaller chunks that yield back to the Looper`,
-    answer: `- A frozen frame is a single frame over ~700ms — worse than ordinary jank, short of a full 5s ANR — usually from one blocking main-thread call
-- Diagnose with a CPU/Perfetto trace of the affected window looking for one long slice, or \`JankStats\`/\`FrameMetrics\` and Android Vitals in production
-- Fix by moving the blocking work off main or deferring it past the first frame, same toolbox as jank, aimed at the single worst offender`,
+    answer: `- Treat frozen frames as their own bug class: one catastrophic stall, not general slowness
+- Hunt for the single longest main-thread slice in a trace and move or defer exactly that work
+- Watch the Vitals frozen-frame rate per screen so regressions are caught after release`,
     followUp: `**Follow-up:** How is a frozen frame different from an ANR in the system's eyes?
 > Both are main-thread stalls measured on a continuum — a frozen frame is a slow single frame (>700ms) that still resolves on its own, while an ANR is the process staying unresponsive to input for 5s (or a broadcast for longer), triggering the OS dialog. Frozen frames are the early-warning signal before a stall escalates into an ANR.`,
-    redFlags: `- Conflates a frozen frame with an ANR, or doesn't know Android Vitals tracks it as its own metric
+    redFlags: `- Conflates a frozen frame with an ANR, or ignores the separate Android Vitals frozen-frame metric
 - Jumps straight to a fix without a trace, guessing at the cause`,
   },
   {
@@ -4065,22 +3400,23 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Engineering',
     title: 'What are Android App Bundles and why use them over APKs?',
-    tags: [ 'app-bundle', 'build', 'play-store', 'notion' ],
-    related: [  ],
+    tags: [ 'app-bundle', 'build', 'play-store', 'notion', 'aab', 'apk', 'dynamic-delivery', 'security', 'advanced' ],
+    related: [ 'tech-84', 'tech-105', 'tech-161', 'tech-114' ],
     keyPoints: `- An \`.aab\` is a publishing format, not an installable one — it bundles every density, language, and ABI resource variant plus metadata, and is uploaded to Play instead of an APK
 - Play's backend uses it to run "dynamic delivery": it generates and signs per-device split APKs (base + density/language/ABI splits) on the fly, so a given install only downloads the resources that device actually needs
-- The typical payoff is a meaningfully smaller download than a universal APK, since a single-ABI, single-density, single-language device no longer pulls every other variant bundled together
+- The typical payoff is a meaningfully smaller download than a universal APK (Google cites ~15% on average), since a single-ABI, single-density, single-language device no longer pulls every other variant bundled together — e.g. only \`xxhdpi\` + \`arm64-v8a\` + \`en\` instead of every density, ABI and locale
 - Bundles are what unlocks Play Feature Delivery: dynamic feature modules that install on-demand, conditionally, or deferred, rather than being baked into the base install — the same modularization that powers instant experiences
-- You can't sideload an \`.aab\` directly; \`bundletool build-apks --bundle=app.aab --output=app.apks\` generates local device-matched split APKs for testing the same delivery Play would produce
+- You can't sideload an \`.aab\` directly; \`bundletool build-apks --bundle=app.aab --output=app.apks\` generates local device-matched split APKs for testing the same delivery Play would produce (add \`--connected-device\`, then \`bundletool install-apks\`, to install exactly what an attached device would get)
 - Required for any new app on Play since August 2021 — App Signing by Google Play (Play holds/rotates the signing key) is a prerequisite, since Play needs to sign the splits it generates per device
 - Trade-off: debugging split-specific issues (a resource missing on one density/ABI combination but not others) is a class of bug that a universal APK build never surfaces locally`,
-    answer: `- App Bundles are a publishing format holding every resource variant; Play's dynamic delivery generates smaller, per-device split APKs from it instead of shipping one universal APK
-- They're the prerequisite for Play Feature Delivery — on-demand or conditional dynamic feature modules
-- Required for new Play apps since August 2021; test locally with \`bundletool build-apks\` since an \`.aab\` itself isn't installable`,
-    followUp: `**Follow-up:** How do you test the exact split APKs a real device would get, without publishing to Play?
-> \`bundletool build-apks --bundle=app.aab --output=app.apks --connected-device\` builds and can install the correct device-matched splits directly onto a connected device or emulator, replicating what Play's dynamic delivery would install.`,
-    redFlags: `- Thinks an \`.aab\` can be installed directly like an APK
-- Doesn't know App Signing by Google Play is required, or that \`bundletool\` exists for local testing`,
+    answer: `- Ship AABs — for new Play apps it isn't optional, and users get smaller downloads for free
+- Enrol in Play App Signing and keep \`bundletool\` in the release checklist to reproduce what devices receive
+- Use the bundle to split rarely used features into on-demand modules once the base install size matters`,
+    followUp: `**Follow-up:** When do you still need a universal APK?
+> For distribution outside Play — QA sideloads, enterprise MDM, other stores. \`bundletool build-apks --bundle=app.aab --mode=universal\` packs every split into one APK, giving up the per-device size win.`,
+    redFlags: `- Describes an AAB as "a bigger APK" rather than an input Play turns into per-device splits
+- Tests only a universal debug APK and first discovers split-specific missing-resource bugs from production reports
+- Refuses to enrol in Play App Signing because they want to keep sole custody of the key — without it Play cannot sign the splits it generates`,
   },
   {
     id: 'tech-164',
@@ -4091,20 +3427,20 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Performance & Security',
     title: 'What is SSL pinning and how do you implement it?',
     tags: [ 'security', 'ssl-pinning', 'networking', 'notion' ],
-    related: [ 'tech-165' ],
+    related: [ 'tech-165', 'sd-9', 'tech-20', 'tech-37' ],
     keyPoints: `- Standard TLS already validates that the server's certificate chains to a trusted root — pinning adds a second, app-specific check: the app also verifies the cert (or its public key) matches a value baked into the app itself
 - Defeats attacks where a device trusts a rogue CA — a user-installed root cert (proxy tools like Charles/mitmproxy, or a compromised/malicious CA) that would otherwise let a man-in-the-middle present a "valid" chain
 - Two pinning strategies: pin the leaf certificate (breaks the moment the cert rotates) or pin the public key (\`SPKI\` hash) of an intermediate/root in the chain — public-key pinning survives cert renewal as long as the same key is reused, and is the generally recommended approach
 - OkHttp implementation: \`CertificatePinner.Builder().add("api.example.com", "sha256/AAAA...=").build()\` attached to the \`OkHttpClient\`; network security config XML (\`<pin-set>\` in \`network_security_config.xml\`) offers a manifest-driven, no-code alternative
 - Operational risk is real: pin the wrong thing, or the backend rotates certs without a coordinated app update, and every pinned client hard-fails all network calls — mitigated by pinning at least two keys (current + backup/next) and setting an \`expiration\` on the pin set so an old pin doesn't outlive its rotation plan
 - Pinning protects the transport layer; it does not replace server-side auth, and it's largely ineffective against an attacker with root on the device itself (they can hook the TLS stack or patch the app) — it's aimed specifically at network-position attackers`,
-    answer: `- SSL pinning adds an app-side check on top of normal TLS validation — the cert or public key must also match a value shipped in the app, blocking MITM via a rogue-but-trusted CA
-- Pin the public key (SPKI hash) of an intermediate, not the leaf cert, so it survives cert renewal; implement via OkHttp's \`CertificatePinner\` or \`network_security_config.xml\`
-- Always pin a backup key and set an expiration — a single stale pin with no rotation plan hard-breaks every existing install on the next cert rotation`,
+    answer: `- Pin when a network-position attacker is in your threat model (payments, health, auth) — not by reflex
+- Pin public keys with a backup and an expiry, and agree the rotation plan with the backend before shipping
+- Don't sell it as device security: it stops a proxy on the network path, not a rooted phone`,
     followUp: `**Follow-up:** What happens to existing installs if the backend rotates its certificate without warning, and the app only has the old pin?
 > Every pinned request fails closed — \`SSLPeerUnverifiedException\` — until an app update ships the new pin. That's exactly why teams pin a backup key alongside the current one and stage rotations behind a deprecation window before the old pin expires.`,
     redFlags: `- Pins the leaf certificate with no backup pin and no rotation plan
-- Thinks pinning replaces certificate validation rather than adding to it, or thinks it protects against a rooted device`,
+- Assumes HTTPS alone stops a MITM, even on a device where a user-installed proxy CA is trusted`,
   },
   {
     id: 'tech-165',
@@ -4127,8 +3463,8 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Reach for it on high-volume internal or gRPC traffic; stick with JSON for public APIs and anything that benefits from easy human debugging`,
     followUp: `**Follow-up:** How does Protobuf keep old and new clients compatible when the schema changes?
 > Every field is tagged with a permanent numeric id, not matched by name. Adding a new field is safe for old clients (they just ignore the unknown tag) as long as it's optional; the one hard rule is never reuse or repurpose a tag number, since that would corrupt data between schema versions.`,
-    redFlags: `- Doesn't know Protobuf requires a schema/codegen step, or thinks it's a drop-in JSON replacement with no build changes
-- Can't explain why reusing a field tag number is dangerous`,
+    redFlags: `- Treats Protobuf as a drop-in JSON replacement and forgets the schema/codegen step every consumer needs
+- Reuses or renumbers a field tag while "cleaning up" a \`.proto\` file, silently corrupting old clients`,
   },
   {
     id: 'tech-166',
@@ -4147,9 +3483,9 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Cross-app SSO on the same device can also go through \`AccountManager\` (shared account + auth-token caching across apps from the same publisher) or a shared backend session cookie via Custom Tabs, depending on whether the apps are first-party or third-party relative to the IdP
 - Silent re-auth: a valid refresh token lets the app renew the access token without prompting the user again; when the refresh token itself expires or is revoked, fall back to the interactive flow
 - Logout must be symmetric — clearing local tokens without also hitting the IdP's logout/session-revocation endpoint leaves a live session other apps can still ride on`,
-    answer: `- SSO is one authentication with an identity provider reused across apps, typically via OAuth 2.0 Authorization Code + PKCE
-- Run the flow through Chrome Custom Tabs (via AppAuth), not a \`WebView\` — it shares browser session/cookies and lets an existing IdP session skip the login screen
-- Store tokens in encrypted, Keystore-backed storage; use the refresh token for silent re-auth, and make logout revoke the session server-side, not just clear local tokens`,
+    answer: `- Never build your own login UI for a third-party identity provider — hand off to the system browser via AppAuth
+- Treat tokens as secrets: encrypted storage, silent refresh, server-side revocation on logout
+- Test the "already signed in elsewhere" path; it's the whole point of SSO`,
     followUp: `**Follow-up:** Why is Chrome Custom Tabs specifically important for SSO, beyond just "it's a browser"?
 > It shares Chrome's cookie jar and session state with the rest of the device. If the user is already signed into the IdP in their regular browser, Custom Tabs inherits that session and can skip the login prompt — a \`WebView\` starts from a blank, isolated cookie store every time.`,
     redFlags: `- Implements the OAuth login flow inside a \`WebView\` instead of Custom Tabs/AppAuth
@@ -4177,8 +3513,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Treat it as a symptom of a large method count, not a fix in itself — R8/ProGuard shrinking is what actually reduces size and the pre-API-21 startup cost multidex patching adds`,
     followUp: `**Follow-up:** Why does enabling Multidex sometimes make cold-start noticeably slower on old devices specifically?
 > Pre-API-21, the \`MultiDex.install()\` call happens in \`attachBaseContext\`, before anything else in the app runs — it has to read and patch in every secondary dex file synchronously at process start, which is pure added latency Dalvik devices pay that ART devices with native multidex support don't.`,
-    redFlags: `- Enables Multidex reflexively without knowing it's a symptom of the 64K method limit, or without trying R8 shrinking first
-- Doesn't know \`minSdkVersion\` ≥ 21 needs no support library at all`,
+    redFlags: `- Enables Multidex reflexively without knowing it's a symptom of the 64K method limit, or without trying R8 shrinking first`,
   },
   {
     id: 'tech-168',
@@ -4197,13 +3532,13 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Scoping (\`@Singleton\`, custom \`@Scope\` annotations) is implemented as simple \`if (cached == null) cached = create()\` double-checked-ish caching inside the generated \`Provider\`, tied to the lifetime of whichever \`@Component\` instance holds that scope — not magic, just a cache field
 - \`@Subcomponent\`s generated as nested classes hold a reference to their parent component for bindings they don't provide themselves, implementing scoped hierarchies (e.g. \`ApplicationComponent\` → \`ActivityComponent\` → \`FragmentComponent\`) as plain object composition
 - Hilt sits on top of Dagger: it generates the component hierarchy and standard Android entry-point wiring (\`@AndroidEntryPoint\`, predefined \`@InstallIn\` scopes) that teams used to hand-write themselves, so Hilt's internals are Dagger's internals plus a fixed component tree`,
-    answer: `- Dagger is compile-time codegen: annotation processing reads the \`@Module\`/\`@Component\` graph and emits plain \`Factory\` classes wired together with ordinary constructor calls — no runtime reflection
-- The generated \`DaggerXComponent\` is the graph; a missing binding or a cycle is a static compile error, caught before the app ever runs
-- Scoping is just cached fields in generated providers tied to a component instance's lifetime; \`@Subcomponent\`s chain to their parent for bindings they don't own, and Hilt is this same mechanism with a standard component hierarchy generated for you`,
-    followUp: `**Follow-up:** Why is a missing Dagger binding caught at compile time instead of at runtime like a service locator?
-> The annotation processor builds and statically validates the entire dependency graph during compilation, generating \`Factory\` code only if every binding resolves — there's no runtime lookup step for it to fail at, unlike Koin's \`get()\`, which resolves from a registry at call time and can only fail when that code path actually runs.`,
+    answer: `- Explain Dagger as "a compiler that writes the wiring code you would have written by hand"
+- When a Dagger build error appears, read it as a graph proof failure — fix the binding, don't suppress
+- Treat Hilt as Dagger with a pre-agreed component tree, not a different technology`,
+    followUp: `**Follow-up:** How do you get a value that only exists at runtime (the \`Application\`, a config object) into a Dagger graph?
+> Declare it as an \`@BindsInstance\` parameter on the component's \`@Component.Factory\` (or \`Builder\`). The instance becomes a graph node without any module or \`@Provides\` method — this is how Hilt exposes the \`Application\` and \`@ApplicationContext\`.`,
     redFlags: `- Thinks Dagger works via runtime reflection like some older DI frameworks
-- Can't explain why a missing binding is a build failure rather than a runtime \`NullPointerException\``,
+- Works around a missing-binding error by making the dependency nullable or fetching it manually`,
   },
   {
     id: 'tech-169',
@@ -4228,7 +3563,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** If \`ConcurrentHashMap\` already handles thread safety, why would you still use a \`Mutex\` around a \`HashMap\` in coroutine code?
 > \`ConcurrentHashMap\` only makes the *map itself* thread-safe for single operations — it doesn't make a multi-step sequence (read, compute, conditionally write two different keys) atomic. A \`Mutex\` around a plain map protects the whole critical section; for a single compound map operation, \`computeIfAbsent\`/\`merge\` on a \`ConcurrentHashMap\` is usually simpler and cheaper.`,
     redFlags: `- Uses \`ConcurrentHashMap\` just as a reflexive "thread safety" reflex without knowing what it actually locks (bucket-level, not global)
-- Doesn't know iteration is weakly consistent, and expects \`ConcurrentModificationException\` the way a plain \`HashMap\` would throw one`,
+- Relies on \`ConcurrentModificationException\` to detect concurrent edits, which a \`ConcurrentHashMap\` iteration never throws`,
   },
   {
     id: 'tech-170',
@@ -4253,7 +3588,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** Show the actual disambiguation syntax Kotlin forces when two interfaces supply conflicting default implementations.
 > \`class D : B, C { override fun foo() { super<B>.foo(); /* or super<C>.foo(), or custom logic */ } }\` — Kotlin refuses to compile until \`D\` explicitly overrides \`foo()\` and picks (or merges) an implementation via \`super<InterfaceName>.foo()\`.`,
     redFlags: `- Can't state what the diamond problem actually is, beyond "multiple inheritance is bad"
-- Doesn't know Kotlin/Java both permit multiple interface inheritance, or hasn't seen the \`super<Type>.method()\` disambiguation syntax`,
+- Claims Kotlin forbids implementing two interfaces with the same default method, instead of disambiguating with \`super<Type>.method()\``,
   },
   {
     id: 'tech-171',
@@ -4303,60 +3638,8 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Iterate locally with \`publishToMavenLocal\`; gate real publishes in CI behind tests plus a binary-compatibility check, triggered from a tagged release rather than every merge`,
     followUp: `**Follow-up:** How do you catch an accidental breaking change to your library's public API before it ships?
 > A binary-compatibility validator (e.g. Kotlin's \`binary-compatibility-validator\` plugin) snapshots the public API surface into a checked-in \`.api\` file and fails the build if a change to it isn't explicitly acknowledged — it catches an accidentally-widened visibility modifier or a changed signature that CI's functional tests wouldn't necessarily notice.`,
-    redFlags: `- Has never used \`publishToMavenLocal\` for local iteration and always publishes real versions to test
-- Doesn't know semantic versioning matters more for a library than an app, or ships breaking changes as patch bumps`,
-  },
-  {
-    id: 'tech-173',
-    type: 'technical',
-    num: 173,
-    difficulty: 'H',
-    star: true,
-    section: 'Networking & Data',
-    title: 'How would you build a custom, testable network library from scratch?',
-    tags: [ 'networking', 'architecture', 'testing', 'notion' ],
-    related: [ 'tech-165', 'tech-25' ],
-    keyPoints: `- Layer it: a thin transport layer (OkHttp \`Call\`/\`Interceptor\` chain) underneath, a serialization boundary (Moshi/kotlinx.serialization) in the middle, and a typed API surface (interfaces describing endpoints, not raw request builders) on top — each layer testable independently
-- Define the contract as plain suspend-function interfaces per feature (\`interface UserApi { suspend fun getUser(id: String): UserDto }\`) rather than exposing \`OkHttpClient\`/\`Retrofit\` types to callers — that's what makes the library swappable and fakeable in consumer tests
-- Cross-cutting concerns belong in \`Interceptor\`s, composed once, not scattered per call: auth-header injection, retry/backoff, request/response logging (redacting sensitive fields), and a token-refresh interceptor that transparently retries a request after a 401 refreshes the access token
-- Error modeling: don't leak \`IOException\`/\`HttpException\` to callers — map transport and HTTP-status failures into a sealed \`Result\`/\`NetworkError\` type (\`NoConnectivity\`, \`Timeout\`, \`Http(code, body)\`, \`Unknown\`) so calling code branches on domain-meaningful cases instead of catching framework exceptions
-- Testability is the actual design goal, not an afterthought: \`MockWebServer\` for integration-level tests against real HTTP semantics (headers, status codes, timing), a \`FakeUserApi\` implementing the same interface for fast unit tests of everything above the network layer, and an injectable \`Clock\`/\`Dispatcher\` so retry/backoff timing is deterministic in tests rather than relying on real delays
-- Dependency-inject the built \`OkHttpClient\`/API instances (constructor injection, not a singleton object) so tests can swap in a client pointed at \`MockWebServer\`, or a fake entirely, with zero production code changes
-- Observability: a debug-only interceptor for \`Stetho\`/Chucker-style traffic inspection, and a lightweight production-safe logging interceptor that never logs auth tokens or PII — this needs to be a deliberate decision per interceptor, not a global "log everything" flag left on
-- Cancellation and lifecycle: suspend functions built on OkHttp's \`Call\` should cancel the underlying call when the coroutine is cancelled (\`suspendCancellableCoroutine\` + \`continuation.invokeOnCancellation { call.cancel() }\`), or a screen navigating away mid-request leaks an in-flight network call`,
-    answer: `- Layer transport (OkHttp), serialization, and a typed suspend-function API surface separately, injecting the built client/API rather than exposing framework types to callers
-- Centralize auth, retry, and token-refresh as composed \`Interceptor\`s; map failures into a sealed domain error type instead of leaking \`IOException\`/\`HttpException\`
-- Design for testability from the start: \`MockWebServer\` for integration tests, fake API implementations for fast unit tests, injectable clock/dispatcher for deterministic retry timing, and cancellation wired from the coroutine into the underlying OkHttp \`Call\``,
-    followUp: `**Follow-up:** How do you make retry/backoff logic deterministic in a unit test rather than actually waiting out real delays?
-> Inject the delay mechanism (a \`Clock\`/coroutine \`TestDispatcher\`, or an abstracted \`suspend fun delay(ms)\` seam) instead of calling \`kotlinx.coroutines.delay\` directly inside the interceptor logic — tests then use \`runTest\`'s virtual time (or a fake clock) to advance through retries instantly while asserting the right number of attempts happened.`,
-    redFlags: `- Exposes \`OkHttpClient\`/\`Retrofit\`/raw exceptions directly through the library's public API instead of a typed interface and a mapped error type
-- Has no answer for testing retry/backoff or auth-refresh logic beyond "I'd test it manually against the real backend"`,
-  },
-  {
-    id: 'tech-174',
-    type: 'technical',
-    num: 174,
-    difficulty: 'M',
-    star: true,
-    section: 'Architecture',
-    title: 'Explain the SOLID principles. How do they show up in Android app code specifically?',
-    tags: [ 'architecture', 'oop', 'solid', 'notion' ],
-    related: [ 'tech-25', 'tech-46', 'tech-131' ],
-    keyPoints: `- **S — Single Responsibility:** a class has one reason to change. An Android smell: a \`ViewModel\` that does networking, DB mapping, and navigation logic all in one class — split into repository, mapper, and navigator collaborators
-- **O — Open/Closed:** open for extension, closed for modification. A \`RecyclerView.Adapter\` handling five view types via a giant \`when\` in \`onBindViewHolder\` violates this; a sealed \`ListItem\` hierarchy with one delegate adapter per type lets you add a sixth type without touching existing code
-- **L — Liskov Substitution:** a subtype must be usable anywhere its supertype is expected without breaking behavior. Classic Android violation: a \`Repository\` interface whose fake test implementation throws \`NotImplementedError\` on half its methods — callers relying on the interface contract break silently in that path
-- **I — Interface Segregation:** don't force a class to implement methods it doesn't need. A fat \`Callback\` interface with \`onSuccess\`/\`onError\`/\`onProgress\`/\`onCancelled\` forces every listener to stub three methods it ignores — split into focused single-method interfaces or use nullable lambda params
-- **D — Dependency Inversion:** depend on abstractions, not concretions. A \`ViewModel\` constructing \`Retrofit\`/\`Room\` instances directly instead of receiving a \`UserRepository\` interface via Hilt — couples the ViewModel to implementation detail and makes it untestable without a real network/DB`,
-    answer: `- SRP: one reason to change — split a do-everything ViewModel into repository/mapper/navigator collaborators
-- OCP: add new \`RecyclerView\` item types via a sealed hierarchy + delegate adapters, not a growing \`when\` in existing code
-- LSP: a fake test double must honor the same contract as the real implementation, not throw on half the interface
-- ISP: split fat multi-method callbacks into focused single-purpose ones so listeners aren't forced to stub unused methods
-- DIP: ViewModels depend on repository interfaces injected via Hilt, never construct \`Retrofit\`/\`Room\` themselves`,
-    followUp: `**Follow-up:** Which SOLID principle does Dependency Injection most directly serve?
-> Dependency Inversion — DI frameworks (Hilt, Koin) are mechanical tools for wiring abstractions to implementations at the composition root, but the principle itself is about depending on interfaces, which DI just automates`,
-    redFlags: `- Can recite the acronym but gives no Android-specific example for any letter
-- Confuses Liskov Substitution with simple inheritance ("subclasses extend behavior") rather than the behavioral-contract guarantee
-- Treats SOLID as a checklist to apply uniformly rather than a set of tensions to balance (e.g. over-applying ISP fragments a simple callback into five interfaces for no real benefit)`,
+    redFlags: `- Publishes real versions just to try a change instead of iterating with \`publishToMavenLocal\`
+- Ships breaking API changes as patch bumps`,
   },
   {
     id: 'tech-175',
@@ -4370,18 +3653,16 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     related: [ 'tech-25', 'tech-168' ],
     keyPoints: `- Core data structure: a registry (\`Map<KClass<*>, () -> Any>\`) mapping a requested type to a provider function that knows how to construct it
 - Resolution: given a type, look up its provider, recursively resolve *that provider's* constructor parameters the same way — this recursive walk is what Dagger's codegen and a reflection-based container both have to do, one at compile time and one at runtime
-- Scoping: a plain provider map gives you \`factory\` semantics (new instance every call) for free; \`single\`/\`@Singleton\` needs a second map caching already-built instances by type, checked before falling through to the provider
 - Constructor injection by hand: without codegen or reflection, register providers manually — \`register<UserRepository> { UserRepositoryImpl(get<ApiService>(), get<UserDao>()) }\` — this manual \`get<T>()\` inside a provider is precisely what Hilt's generated Factory classes and Koin's DSL both do for you
-- What Dagger specifically automates over a hand-rolled container: compile-time cycle detection (a hand-rolled container discovers a circular dependency only via \`StackOverflowError\` at runtime), compile-time missing-binding errors (vs a runtime \`NoSuchElementException\`), and it generates the resolution code as plain Java/Kotlin rather than walking a map via reflection — that's the actual reason Dagger has near-zero runtime overhead compared to a reflection-based DIY container
+- How a hand-rolled container fails: a circular dependency surfaces only as a \`StackOverflowError\` from the recursive resolve, and a missing registration as a runtime \`NoSuchElementException\` — Dagger turns both into build errors and emits the resolution code as plain generated classes (how: tech-168)
 - Multibindings (\`@IntoSet\`/\`@IntoMap\`) map to a hand-rolled container needing the registry's value type to itself be a \`MutableList\`/\`MutableMap\` that multiple \`register\` calls append to, keyed by the target type`,
-    answer: `- At its core: a type-to-provider registry, resolved recursively — look up a type's provider, then resolve that provider's own dependencies the same way
-- Scoping needs a second cache map (already-built instances) checked before the provider map for singleton semantics; factory semantics is just "always call the provider"
-- Dagger's edge over a hand-rolled version isn't the concept, it's doing the resolution walk at compile time (generated code, cycle/missing-binding errors caught at build) instead of at runtime via reflection`,
+    answer: `- Frame DI as mechanics, not magic: a registry plus recursive resolution is the whole idea
+- A hand-rolled container is fine for a small app or a test harness; its errors just arrive late
+- Reach for Dagger/Hilt when the graph is big enough that late cycle/missing-binding failures and manual registration hurt`,
     followUp: `**Follow-up:** Why does a hand-rolled reflection-based DI container tend to be slower at app startup than Dagger?
 > Reflection-based resolution (Koin's underlying mechanism before its recent compile-time mode) walks the dependency graph and does constructor lookups via reflection at first-use time — this cost is paid at runtime, often during cold start. Dagger's generated \`Factory\` classes are plain constructor calls the JIT/AOT compiler can inline, so the graph-walking cost is paid once, at compile time, not on every app launch.`,
     redFlags: `- Thinks DI frameworks are magic rather than mechanical registry + resolution
-- Can't explain how scoping (singleton vs factory) would actually be implemented with two maps instead of one
-- Doesn't connect the "compile-time vs runtime" distinction to *why* Dagger outperforms a naive reflection-based container`,
+- Builds the container as a global mutable map that tests share and never reset`,
   },
   {
     id: 'tech-176',
@@ -4392,20 +3673,19 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Architecture',
     title: 'How would you implement a minimal Observable/data-binding primitive from scratch — what LiveData and StateFlow are actually doing underneath?',
     tags: [ 'architecture', 'internals', 'observer-pattern', 'notion' ],
-    related: [ 'tech-56', 'tech-11' ],
+    related: [ 'tech-136', 'tech-138' ],
     keyPoints: `- Minimum viable shape: a value holder plus a mutable list of listener callbacks; \`setValue(x)\` stores the value and iterates the listener list invoking each with the new value
 - Subscription returns a handle (or the listener reference itself) so a caller can unsubscribe — without this you leak every subscriber for the observable's lifetime, the exact bug LiveData's lifecycle-awareness exists to prevent
 - LiveData's actual addition over this minimal version: it wraps the plain observer list with \`LifecycleOwner\` awareness — internally it keeps a \`LifecycleBoundObserver\` wrapper per subscriber that checks \`lifecycle.currentState.isAtLeast(STARTED)\` before dispatching, and auto-removes itself on \`ON_DESTROY\` via a \`LifecycleObserver\` callback, which is why LiveData never needs manual unsubscribe in an Activity/Fragment
 - StateFlow's addition: it's a \`SharedFlow\` under the hood with \`replay = 1\` and distinct-until-changed semantics baked in — a "current value" concept a bare Observer pattern doesn't have unless you add it (store \`lastValue\`, immediately invoke a new subscriber with it)
 - Thread-safety a real implementation needs that a toy one skips: the listener list itself needs to be a \`CopyOnWriteArrayList\` or synchronized structure, since \`setValue\` iterating it while another thread concurrently subscribes/unsubscribes is a \`ConcurrentModificationException\` waiting to happen`,
-    answer: `- Bare minimum: a value holder plus a listener list; \`setValue\` stores and iterates, dispatching to each listener
-- LiveData's real addition is a \`LifecycleBoundObserver\` wrapper per subscriber checking \`STARTED\`-or-later before dispatch, auto-removed on \`ON_DESTROY\` — that's the whole "no manual unsubscribe" trick
-- StateFlow is functionally a \`SharedFlow(replay=1)\` with equality-based dedup added — the "current value" behavior isn't free, it's \`replay=1\` plus a stored last-value`,
+    answer: `- Explain reactive holders as "a stored value plus a callback list" — everything else is policy on top
+- Name the policies that matter in production: lifecycle gating, main-thread dispatch, equality de-duplication, thread safety
+- Use that model to predict behaviour (missed events, duplicate emissions) instead of memorising API rules`,
     followUp: `**Follow-up:** Why does LiveData enforce main-thread-only \`setValue()\`, while \`postValue()\` exists as an escape hatch?
 > LiveData dispatches to observers synchronously on whatever thread called \`setValue()\` — since observers are typically UI code, that must be the main thread. \`postValue()\` exists for background threads: it posts the value update to the main thread via a Handler rather than dispatching immediately, and multiple rapid \`postValue()\` calls before the main thread catches up coalesce to just the last value.`,
     redFlags: `- Describes LiveData/StateFlow only by their public API, with no model of what's happening inside \`setValue\`
-- Doesn't know why observer lists need thread-safe collections in a real implementation
-- Can't explain what lifecycle-awareness is actually doing mechanically (assumes it's "magic" rather than a wrapped observer plus a lifecycle callback)`,
+- Implements the listener list with a plain \`ArrayList\` and hits \`ConcurrentModificationException\` when a listener unsubscribes during dispatch`,
   },
   {
     id: 'tech-177',
@@ -4428,9 +3708,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Right call for a few hundred-to-low-thousands entries under memory pressure; wrong call as a default replacement for HashMap in a hot, large, or insert-heavy path`,
     followUp: `**Follow-up:** Would you reach for SparseArray in a hot path processing tens of thousands of entries per frame?
 > No — the O(log n) binary-search lookup and O(n) insertion cost lose to HashMap's O(1) average case at that scale, even accounting for boxing overhead. SparseArray is a small/medium-collection memory optimization, not a general HashMap replacement; using it as a default "because it's Android-native" without measuring is the premature-optimization trap.`,
-    redFlags: `- Recommends \`SparseArray\` universally "because it's more efficient" without naming the actual tradeoff (memory vs lookup speed)
-- Doesn't know insertion is O(n), only knows lookup is O(log n)
-- Can't explain what autoboxing costs that \`SparseArray\` is specifically avoiding`,
+    redFlags: `- Recommends \`SparseArray\` universally "because it's more efficient" without naming the actual tradeoff (memory vs lookup speed)`,
   },
   {
     id: 'tech-178',
@@ -4449,16 +3727,14 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - Old-gen collection is a full concurrent mark-sweep pass — much more expensive, but happens far less often because surviving objects tend to actually stay alive (a \`Singleton\`, an \`Application\`-scoped cache)
 - ART (since Android 5.0) replaced Dalvik's JIT-only model with AOT compilation at install time (\`dex2oat\`) plus a JIT for further-optimizing hot paths at runtime — this is orthogonal to the memory model but frequently confused with it: AOT/JIT affects *execution speed*, generational GC affects *memory reclamation*
 - Since Android 8.0 (Oreo), Bitmap pixel data moved off the Java heap into native memory — this is why large bitmaps used to cause \`OutOfMemoryError\` even with heap headroom, and why native-heap leaks (not visible in a plain Java heap dump) are a distinct failure mode from tech-10's Java-object leak causes`,
-    answer: `- Stack: per-thread, holds primitives and object references plus call frames; freed on method return, no GC cost
-- Heap: shared, holds every object; GC-managed, split into young gen (frequent, cheap, most objects die here) and old gen (rare, expensive, survivors)
-- ART's AOT/JIT (dex2oat plus runtime JIT) is a separate axis from memory — it's about execution speed, not reclamation; don't conflate the two
-- Since Oreo, bitmap pixel data lives in native memory, not the Java heap — a distinct OOM failure mode that a Java-only heap dump won't show`,
+    answer: `- Keep allocation churn off hot paths (draw, bind, scroll) — young-gen GC is cheap, but not free on a 16ms budget
+- Treat long-lived caches as old-gen citizens: size them deliberately and clear them on memory pressure
+- For bitmap-heavy OOMs, profile native memory as well as the Java heap`,
     followUp: `**Follow-up:** Why can an app OOM even when \`Runtime.getRuntime().freeMemory()\` shows headroom?
 > \`freeMemory()\` reports free space within the current Java heap allocation, not the hard per-app heap ceiling (\`getMemoryClass()\`) nor native heap usage. A large native allocation (bitmap pixel data since Oreo, or a native library leak) can exhaust the process's actual memory budget while the Java heap itself still looks fine — this is exactly why bitmap-heavy OOMs need the native heap profiler, not just a Java heap dump.`,
     redFlags: `- Conflates "stack vs heap" with "AOT vs JIT" — they answer different questions (memory location vs execution strategy)
-- Thinks all objects are heap-allocated with no concept of what actually lives on the stack (primitives, references)
-- Doesn't know generational GC exists — assumes every collection scans the entire heap
-- Unaware that bitmap memory moved off the Java heap in Oreo, and diagnoses bitmap OOMs purely from a Java heap dump`,
+- Allocates objects inside \`onDraw\` or \`onBindViewHolder\` and blames "the GC" for jank
+- Diagnoses bitmap OOMs purely from a Java heap dump`,
   },
   {
     id: 'tech-179',
@@ -4469,20 +3745,20 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Architecture',
     title: 'What is EventBus (pub/sub for Android)? Why has the pattern largely fallen out of favor in modern Kotlin codebases?',
     tags: [ 'architecture', 'eventbus', 'notion' ],
-    related: [ 'tech-56', 'tech-17' ],
+    related: [ 'tech-136', 'tech-17' ],
     keyPoints: `- Core idea: a global singleton bus — components \`register()\` to receive events and \`post(event)\` to broadcast one, completely decoupling the publisher from any knowledge of who's listening (unlike a direct callback/interface reference)
 - greenrobot's \`EventBus\` (the library most commonly meant by the name) used reflection or annotation-processed \`@Subscribe\` methods to route posted events to the right handlers by event type, with configurable thread delivery (\`POSTING\`, \`MAIN\`, \`BACKGROUND\`, \`ASYNC\`)
 - Why it fell out of favor: the same total decoupling that makes it convenient makes the app's data flow untraceable — "who's listening for this event, and in what order" isn't discoverable from reading the posting site, unlike a typed \`SharedFlow<Event>\` where consumers are visible from the type's usages
 - Structured-concurrency conflict: EventBus's global bus has no relationship to Android lifecycles or coroutine scopes — the library needs its own manual \`register()\`/\`unregister()\` lifecycle calls (classic leak source if forgotten), whereas a \`SharedFlow\` collected inside \`lifecycleScope\`/\`viewModelScope\` is automatically cancelled when its scope ends
 - The modern replacement isn't "nothing," it's \`SharedFlow\`/\`Channel\` for the same pub/sub need — same decoupling, but type-safe (compile-time-checked event types vs reflection-based dispatch), lifecycle-integrated via structured concurrency, and testable without a real bus singleton
 - Legitimate remaining use case: cross-cutting concerns spanning many unrelated modules where wiring an explicit \`SharedFlow\` dependency into every consumer would be more coupling than the decoupled bus — but even then, most codebases prefer an explicit shared repository/use-case over a bus today`,
-    answer: `- A global pub/sub singleton: publishers \`post()\` without knowing who's listening, subscribers \`register()\`/\`@Subscribe\` by event type — classic greenrobot EventBus shape
-- Fell out of favor because the decoupling makes data flow untraceable, and its manual register/unregister lifecycle (no structured-concurrency integration) is a recurring leak source
-- Modern replacement: \`SharedFlow\`/\`Channel\` collected inside \`lifecycleScope\`/\`viewModelScope\` — same pub/sub decoupling, but type-safe and automatically cancelled with its scope`,
+    answer: `- Don't introduce a global event bus in new code
+- For one-off events use a scoped \`SharedFlow\`/\`Channel\`; for state use \`StateFlow\` — both have an owner you can find
+- When migrating legacy EventBus code, replace one event type at a time behind a small interface`,
     followUp: `**Follow-up:** What's the specific leak EventBus caused that \`SharedFlow\` collected in \`lifecycleScope\` avoids by construction?
 > A \`Fragment\`/\`Activity\` calling \`EventBus.getDefault().register(this)\` in \`onStart()\` but never \`unregister()\` in the matching \`onStop()\` (or crashing before reaching it) keeps that Fragment/Activity referenced by the bus's internal subscriber map for the app's lifetime — a classic static-reference leak. \`lifecycleScope.launch { flow.collect { ... } }\` ties collection to the lifecycle automatically; when the scope is cancelled, the collector — and any reference it held — is released with it, no manual unregister step to forget.`,
     redFlags: `- Recommends EventBus for new code without acknowledging the SharedFlow/Channel alternative
-- Doesn't know EventBus requires manual register/unregister and can't name the resulting leak pattern
+- Registers in \`onStart\` and unregisters in \`onDestroy\` — mismatched callbacks that deliver events to a stopped screen
 - Can't articulate why "totally decoupled" data flow is a debugging liability, not purely a feature`,
   },
   {
@@ -4507,7 +3783,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     followUp: `**Follow-up:** Your app loads a WebView pointed at a URL that came from a deep link. What's the actual attack path if you've also called \`addJavascriptInterface\`?
 > A malicious app sends a deep link with a URL pointing to an attacker-controlled page instead of your trusted domain. If that URL isn't validated against an allowlist before \`loadUrl()\`, the WebView renders the attacker's page — which now has direct JS access to whatever native methods you bridged via \`addJavascriptInterface\`, turning a URL-spoofing issue into native code execution. The fix is validating the URL's origin before load, not just trusting whatever the deep link contained.`,
     redFlags: `- Uses \`addJavascriptInterface\` without mentioning the \`@JavascriptInterface\` annotation requirement or origin validation
-- Doesn't know the pre-API-17 CVE history (reflection-based full method exposure) and why the annotation requirement exists
+- Keeps \`minSdk\` below 17 support paths with a JS bridge enabled, re-opening the reflection-based exposure
 - Enables JS/file access on a WebView "just in case" without scoping it to what the WebView actually needs to render`,
   },
   {
@@ -4528,9 +3804,9 @@ Button(onClick = onClick)  // Button can now skip if other state changes
   - Multiple representation targets (e.g. same builder produces JSON, ProtoBuf, and Room entity)
 - **Kotlin-specific alternatives:** data class with default args + \`copy()\`, or a DSL with \`apply {}\` — prefer these for simple cases; Builder remains the right tool when the construction process itself has logic
 - **Thread-safety note:** the Builder instance itself is NOT thread-safe; confine to one thread or synchronize. The built object can be immutable and thus thread-safe`,
-    answer: `- Android SDK is full of Builders: AlertDialog, NotificationCompat, Retrofit, RoomDatabase, OkHttpClient, WorkRequest
-- Use your own Builder when: 4+ optional params, complex validation, immutable result, or multiple output representations
-- Kotlin default args + apply() often replace simple Builders; keep Builder for validation logic and multi-representation builds`,
+    answer: `- In Kotlin, start with named and default arguments; reach for a Builder only when construction needs validation or staged steps
+- Keep the built object immutable and validate everything in \`build()\`
+- Recognise SDK Builders as the reason those APIs stay source-compatible as options grow`,
     complexity: `- Time: O(1) construction (design-time pattern)
 - Space: O(1) — Builder is a temporary object, discarded after build()`,
     followUp: `**Follow-up:** Why doesn’t \`AlertDialog\` just use a constructor with default arguments instead of a Builder?
@@ -4555,16 +3831,16 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - **The \`CreationExtras\` contract:** since Activity 1.5.0/Fragment 1.5.0, \`ViewModelProvider.Factory.create(Class<T>, CreationExtras)\` is the only method. \`CreationExtras\` is a key-value store containing \`SavedStateHandle\`, \`ViewModelStore\`, \`defaultArgs\` — this is how a single factory interface supports both manual injection and DI frameworks without knowing about each other
 - **Abstract Factory in Android:** \`ViewModelProvider.Factory\` is effectively an Abstract Factory — it produces a family of related objects (any \`ViewModel\` subtype) without the caller knowing the concrete classes. Hilt’s generated \`ViewModelFactory\` implements this interface
 - **When to write a custom Factory:** you have a ViewModel with non-DI constructor args (e.g. a \`userId\` passed from a previous screen) that can’t come from Hilt. Your factory pulls the DI deps from Hilt *and* adds the runtime arg: \`MyViewModelFactory @Inject constructor(private val repo: UserRepository) : ViewModelProvider.Factory { override fun create(modelClass, extras) = MyViewModel(repo, extras[USER_ID_KEY]!!) }\``,
-    answer: `- Android SDK factories: FragmentFactory, ViewModelProvider.Factory, RecyclerView.Adapter, PagerAdapter
-- ViewModelProvider.Factory isn’t just a factory function — it receives CreationExtras (SavedStateHandle, defaultArgs) so framework and DI can both inject
-- Custom Factory needed when ViewModel needs runtime args (userId) that DI can’t provide`,
+    answer: `- Use Hilt's \`@HiltViewModel\` by default; write a custom factory only for runtime arguments DI can't know
+- When you do, build on \`CreationExtras\` (or assisted injection) so \`SavedStateHandle\` keeps working
+- Use \`FragmentFactory\` whenever a Fragment needs constructor dependencies`,
     complexity: `- Time: O(1) factory lookup
 - Space: O(1) per ViewModel instance`,
     followUp: `**Follow-up:** Why can’t Hilt just inject the \`userId\` directly into the ViewModel constructor?
 > Because \`userId\` is a runtime value from a navigation argument or intent extra — it doesn’t exist at the composition root where Hilt builds the object graph. The Factory pattern lets you split: Hilt provides the long-lived dependencies (repositories, use cases) at graph-creation time, and the Factory adds the short-lived runtime args at ViewModel-creation time.`,
     redFlags: `- Implements \`ViewModelProvider.Factory\` but ignores \`CreationExtras\`, breaking SavedStateHandle and defaultArgs
 - Uses a factory function \`() -> MyViewModel\` for a VM that needs \`SavedStateHandle\` — crashes on process death/recreation
-- Doesn’t know \`FragmentFactory\` exists and still uses \`Fragment.instantiate()\` (deprecated)`,
+- Passes Fragment constructor arguments directly instead of through \`FragmentFactory\` or arguments, crashing on recreation`,
   },
   {
     id: 'tech-183',
@@ -4582,17 +3858,16 @@ Button(onClick = onClick)  // Button can now skip if other state changes
 - **\`TextView\` spans:** \`ForegroundColorSpan\`, \`BackgroundColorSpan\`, \`ClickableSpan\`, \`UnderlineSpan\` decorate a \`Spannable\` with rendering behavior — multiple spans compose on the same text
 - **When to use vs inheritance:** Decorator wins when you need to combine behaviors dynamically at runtime (e.g. a stream that’s *both* buffered *and* compressed). Inheritance locks you into a single combination at compile time
 - **Android anti-pattern:** wrapping \`Context\` just to access a single system service — prefer \`context.getSystemService()\` directly; \`ContextWrapper\` adds memory overhead and can leak if held too long`,
-    answer: `- ContextWrapper decorates Context (theming, components); streams decorate InputStream (buffering, compression); ItemDecoration adds drawing without touching Adapter; spans decorate Spannable
-- Use Decorator when behaviors combine dynamically at runtime; inheritance locks you to one combination
-- Multiple decorators stack: addItemDecoration(divider) + addItemDecoration(spacing) = both draw`,
+    answer: `- Reach for a decorator when behaviours must stack independently at runtime
+- Prefer composition (wrapping) over a subclass per combination
+- Recognise the framework's own decorators so you extend them instead of fighting them`,
     complexity: `- Time: O(1) per decorator layer (delegation is a single call)
 - Space: O(n) where n = number of stacked decorators (each holds a reference)`,
     followUp: `**Follow-up:** Why does \`ContextWrapper\` exist if it can leak and adds overhead — why not just subclass \`Context\`?
 > Because \`Context\` is an abstract class whose concrete implementation (\`ContextImpl\`) is internal to the framework. You *cannot* subclass \`ContextImpl\` — it’s package-private. \`ContextWrapper\` is the framework’s sanctioned extension point: it delegates to the real ContextImpl while letting you override only what you need. The leak risk is real — never hold a ContextWrapper longer than its wrapped Context’s lifecycle.`,
     redFlags: `- Thinks \`ContextWrapper\` is just for theming — it’s how every Activity/Service/Application gets its Context behavior
 - Uses \`ContextWrapper\` to access a single system service — \`context.getSystemService()\` is simpler and leak-free
-- Confuses \`ItemDecoration\` with a classic Decorator — it doesn’t wrap the Adapter, it draws *around* items via a callback
-- Doesn’t know spans are Decorators on \`Spannable\` text`,
+- Confuses \`ItemDecoration\` with a classic Decorator — it doesn’t wrap the Adapter, it draws *around* items via a callback`,
   },
   {
     id: 'tech-184',
@@ -4603,26 +3878,24 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Patterns & Principles',
     title: 'What is the Adapter pattern in Android — `ListAdapter`, `CursorAdapter`, `ArrayAdapter`, and `RecyclerView.Adapter`?',
     tags: [ 'design-patterns', 'structural', 'android-sdk', 'recyclerview' ],
-    related: [ 'tech-183', 'tech-185', 'tech-133' ],
+    related: [ 'tech-183', 'tech-185', 'tech-8' ],
     keyPoints: `- **\`RecyclerView.Adapter\` IS the Adapter pattern:** it adapts a data source (List, Cursor, Flow, PagingSource) to the \`RecyclerView\`’s ViewHolder protocol (\`onCreateViewHolder\`, \`onBindViewHolder\`, \`getItemCount\`). The RecyclerView doesn’t know about your data model — it only knows \`ViewHolder\` and positions
 - **\`ListAdapter\` (and \`AsyncListDiffer\`):** adapts a \`List<T>\` to \`RecyclerView.Adapter\` with built-in diffing via \`DiffUtil.ItemCallback\`. You provide the diffing logic; it handles animations and dispatch. This is an Adapter *around* your List data
 - **\`ArrayAdapter\` / \`CursorAdapter\` / \`SimpleCursorAdapter\` (legacy):** adapt \`Array\` or \`Cursor\` to \`ListView\`’s \`Adapter\` interface. \`CursorAdapter\` is a two-way adapter: it maps Cursor columns → View fields (\`bindView\`) AND handles \`Cursor\` lifecycle (\`changeCursor\`, \`swapCursor\`)
-- **\`PagerAdapter\` / \`FragmentStateAdapter\`:** adapt a collection of Fragments/Views to \`ViewPager2\`’s protocol
+- **\`PagerAdapter\` / \`FragmentStateAdapter\`:** adapt a collection of Views/Fragments to a pager — \`PagerAdapter\` for the legacy \`ViewPager\`, \`FragmentStateAdapter\` (itself a \`RecyclerView.Adapter\`) for \`ViewPager2\` — different contracts, not interchangeable
 - **Your custom Adapters:** when you write \`class MyAdapter(list: List<Item>) : RecyclerView.Adapter<MyVH>() { ... }\`, YOU are implementing the Adapter pattern — adapting your domain model to the RecyclerView’s rendering contract
 - **Object vs Class Adapter:** Android almost exclusively uses *Object Adapter* (composition — your Adapter *has a* data source). Class Adapter (inheritance) would mean \`class MyAdapter extends MyDataSource\` — never done in Android because data sources (List, Cursor, Flow) are final or not meant to be extended
 - **Common mistake:** putting business logic (filtering, sorting, network calls) inside the Adapter. Adapter’s job is *presentation mapping only* — data transformation belongs in ViewModel/Repository`,
-    answer: `- RecyclerView.Adapter adapts any data source (List, Cursor, Flow) to the ViewHolder rendering protocol — that’s the Adapter pattern
-- ListAdapter adds DiffUtil-powered animations; CursorAdapter handles Cursor lifecycle + column mapping
-- You implement the pattern every time you write a custom RecyclerView.Adapter
-- Keep Adapters dumb: presentation mapping only, no business logic`,
+    answer: `- Default to \`ListAdapter\` for list data; drop to a raw \`RecyclerView.Adapter\` only for non-List sources or custom animation control
+- Keep adapters dumb: map data to views, nothing more
+- Do filtering, sorting and fetching upstream in the ViewModel or repository`,
     complexity: `- Time: onCreateViewHolder O(1) amortized (ViewHolder pool); onBindViewHolder O(1) per item
 - Space: O(v) where v = number of visible ViewHolders (recycled pool)`,
     followUp: `**Follow-up:** \`ListAdapter\` already uses \`DiffUtil\` — why would you ever need a custom \`RecyclerView.Adapter\` instead of just \`ListAdapter\`?
 > \`ListAdapter\` assumes a single \`List<T>\` data source. If your data comes from a \`Cursor\`, a \`PagingSource\`, multiple merged lists, or a custom data structure that isn’t a List, \`ListAdapter\` doesn’t fit. Also, \`ListAdapter\` forces you into its diffing model — if you need fine-grained control over animations (e.g. predictive animations for drag-and-drop), a raw \`RecyclerView.Adapter\` with manual \`notifyItemRangeChanged\` gives you that control.`,
     redFlags: `- Puts filtering/sorting/network calls inside \`onBindViewHolder\` — Adapter is a View mapper, not a data processor
-- Doesn’t know \`ListAdapter\` exists and reimplements diffing manually
-- Confuses \`PagerAdapter\` (ViewPager) with \`RecyclerView.Adapter\` — different contracts
-- Thinks \`ArrayAdapter\` is for \`RecyclerView\` — it’s for legacy \`ListView\` only`,
+- Reimplements diffing by hand with \`notifyItemChanged\` bookkeeping when \`ListAdapter\` would do it
+- Uses \`ArrayAdapter\` or \`CursorAdapter\` in new code — they target legacy \`ListView\``,
   },
   {
     id: 'tech-185',
@@ -4633,31 +3906,29 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Patterns & Principles',
     title: 'Where do Singletons actually appear in Android, and why is DI (Hilt/Koin) preferred over rolling your own?',
     tags: [ 'design-patterns', 'creational', 'android-sdk', 'di' ],
-    related: [ 'tech-184', 'tech-186', 'tech-175' ],
+    related: [ 'tech-184', 'tech-186', 'tech-175', 'tech-99' ],
     keyPoints: `- **Framework Singletons you use daily:** \`Application\` subclass (process-global), \`ProcessLifecycleOwner.get()\`, \`WorkManager.getInstance(context)\`, \`MediaController.getInstance()\`, \`FirebaseAnalytics.getInstance()\`, \`Crashlytics.getInstance()\` — these are *true* Singletons enforced by the framework/process lifecycle
 - **Why DI replaces hand-rolled Singletons:** a \`@Singleton\` in Hilt/Koin is scoped to a component (Application, Activity, Fragment) — not truly global. This gives you:
   - Testability: swap implementations in tests via a test module
   - Lifecycle alignment: Activity-scoped singletons die with the Activity
   - No static state leakage across tests
-- **When you still see a hand-rolled Singleton:** database instances (\`Room.databaseBuilder().build()\` returns a singleton), \`OkHttpClient\` (expensive to create), \`Retrofit\` instance, \`Gson\` — these are *expensive-to-create* objects that are effectively singletons but should still be provided via DI, not a static \`getInstance()\`
+- **When you still see a hand-rolled Singleton:** database instances (\`Room.databaseBuilder().build()\` creates a *new* instance on every call, so apps wrap it in a singleton), \`OkHttpClient\` (expensive to create), \`Retrofit\` instance, \`Gson\` — these are *expensive-to-create* objects that are effectively singletons but should still be provided via DI, not a static \`getInstance()\`
 - **Kotlin \`object\` declaration:** compiles to a singleton with lazy thread-safe initialization (via \`INSTANCE\` field + static initializer). Fine for stateless utilities (\`object JsonUtils\`), dangerous for stateful things — tests can’t reset it
 - **Android-specific Singleton pitfalls:**
-  - Static \`Context\` reference in a singleton = instant memory leak (holds entire Activity/View hierarchy)
+  - A singleton that needs a \`Context\` may hold only the application context (why: tech-99)
   - Process death: a Singleton in memory doesn’t survive process kill; persisted state needs \`DataStore\`/\`SharedPreferences\`/\`Room\`
   - Multi-process apps: a Singleton in one process is NOT shared with other processes (each process has its own heap)
 - **The real rule:** if it holds state or has a lifecycle, it belongs in DI. If it’s a stateless utility, \`object\` is fine. Never write \`static getInstance()\` in Android code`,
-    answer: `- Framework Singletons: Application, ProcessLifecycleOwner, WorkManager, MediaController, FirebaseAnalytics
-- DI (Hilt/Koin) replaces hand-rolled Singletons: testable, lifecycle-scoped, no static leakage
-- Expensive objects (OkHttpClient, Retrofit, Room DB) are effectively singletons but provided via DI
-- Never put Context in a static singleton — instant leak; multi-process breaks global state`,
+    answer: `- Stateful or lifecycle-bound → provide it through DI as a scoped binding; stateless utility → a Kotlin \`object\` is fine
+- Expensive shared objects (OkHttpClient, Retrofit, the Room DB) are still one-per-process — DI just owns that decision
+- Never hand-write a \`static getInstance()\`: it hides the dependency and can't be swapped in tests`,
     complexity: `- Time: O(1) access
 - Space: O(1) single instance; but DI scopes add per-component overhead`,
-    followUp: `**Follow-up:** \`Room.databaseBuilder(context).build()\` returns a singleton — why not just call it from a static \`getDatabase()\` method?
-> Because the \`Context\` you pass determines the database’s scope. If you pass an \`Activity\` context, the database ties to that Activity’s lifecycle (leak risk). If you pass \`Application\` context, it’s process-global. DI makes this explicit: Hilt’s \`@Provides @Singleton fun provideDb(@ApplicationContext ctx: Context)\` guarantees the right context. A static \`getDatabase()\` hides the context choice and makes it trivial to accidentally pass the wrong one.`,
+    followUp: `**Follow-up:** What actually goes wrong if two parts of the app each call \`Room.databaseBuilder(...).build()\` for the same file?
+> You get two \`RoomDatabase\` instances with separate connection pools and separate invalidation trackers: a write through one does not notify \`Flow\`/\`LiveData\` queries observing the other, so the UI goes stale, and concurrent writers can hit \`SQLITE_BUSY\`. That is why the database is provided once, as a \`@Singleton\` binding in \`SingletonComponent\` — the DI graph, not a static field, guarantees one instance.`,
     redFlags: `- Writes \`class MySingleton { companion object { @Volatile private var INSTANCE: MySingleton? = null; fun getInstance() = INSTANCE ?: synchronized(this) { INSTANCE ?: MySingleton().also { INSTANCE = it } } } }\` in 2024 — just use \`object\` or DI
-- Stores \`Context\` (especially Activity) in a static singleton field
-- Assumes a Singleton survives process death — it doesn’t; use DataStore/Room for persistence
-- Doesn’t know Hilt’s \`@Singleton\` is component-scoped, not truly global`,
+- Keeps mutable state in a Kotlin \`object\` and then fights flaky tests that leak state into each other
+- Expects a singleton to be shared across the app's \`:remote\` processes`,
   },
   {
     id: 'tech-186',
@@ -4668,7 +3939,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Patterns & Principles',
     title: 'Single Responsibility Principle in Android — splitting a God ViewModel into Repository, Mapper, Navigator, and UseCase',
     tags: [ 'solid-principles', 'architecture', 'viewmodel' ],
-    related: [ 'tech-174', 'tech-187', 'tech-188' ],
+    related: [ 'tech-187', 'tech-188' ],
     keyPoints: `- **The Android SRP violation:** a \`UserProfileViewModel\` that:
   1. Calls \`Retrofit\` to fetch user data (networking)
   2. Maps DTO → domain model (mapping)
@@ -4687,9 +3958,9 @@ Button(onClick = onClick)  // Button can now skip if other state changes
   - \`Repository\` is testable with a fake; \`ViewModel\` is testable with a fake UseCase
   - Navigation in ViewModel couples it to the NavController — extract a \`Navigator\` interface
 - **Granularity guide:** if you can’t name the class without “And” or “Manager”, it’s probably doing too much. “UserRepositoryAndMapper” → split. “NetworkManager” → split into Retrofit service + Repository`,
-    answer: `- SRP violation: ViewModel doing networking + mapping + DB + navigation + Snackbars = 5 reasons to change
-- Split: Repository (data), Mapper (DTO→domain), UseCase (business logic), Navigator (navigation), ViewModel (UI state only)
-- Each piece is independently testable and swappable; ViewModel becomes a thin state holder`,
+    answer: `- Count reasons to change: if a ViewModel changes for API, schema, navigation and UX edits, split it
+- Split along those axes and leave the ViewModel as the thin state holder that wires them together
+- Stop splitting when a class has one reason to change — "Manager" or "And" in a name is the cue to look again`,
     complexity: `- Conceptual overhead: minimal — refactoring to SRP reduces bugs, doesn’t add runtime cost`,
     followUp: `**Follow-up:** Where does the \`UserMapper\` live — in the Repository, the UseCase, or its own module?
 > In its own module (or package) — the Mapper is a pure function (DTO → Domain) with no dependencies. It’s used by the Repository (when converting network response) AND by the UseCase (when converting cached DB entity). If it lives inside Repository, the UseCase can’t reuse it without depending on Repository. If it’s separate, both depend on the pure Mapper — clean dependency direction.`,
@@ -4707,7 +3978,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     section: 'Patterns & Principles',
     title: 'Open/Closed Principle in Android — sealed hierarchies for RecyclerView, plugin architectures, and feature modules',
     tags: [ 'solid-principles', 'architecture', 'recyclerview' ],
-    related: [ 'tech-174', 'tech-186', 'tech-188' ],
+    related: [ 'tech-186', 'tech-188' ],
     keyPoints: `- **The Android OCP violation:** a \`RecyclerView.Adapter\` with a giant \`when (item.viewType) { TYPE_HEADER -> ...; TYPE_USER -> ...; TYPE_AD -> ... }\` in \`onBindViewHolder\`. Adding a 4th item type means:
   1. Modify the \`when\` in \`onBindViewHolder\`
   2. Modify \`getItemViewType\`
@@ -4724,7 +3995,7 @@ sealed interface ListItem {
 
 class HeaderAdapter : ListItemAdapter<ListItem.Header> { ... }
 class UserAdapter : ListItemAdapter<ListItem.User> { ... }
-class AdAdapter : ListItem.Adapter<ListItem.Ad> { ... }
+class AdAdapter : ListItemAdapter<ListItem.Ad> { ... }
 
 class CompositeAdapter(private val delegates: List<ListItemAdapter<*>>) : RecyclerView.Adapter<Any>() { ... }
 \`\`\`
@@ -4733,18 +4004,17 @@ class CompositeAdapter(private val delegates: List<ListItemAdapter<*>>) : Recycl
 - **Plugin architecture / feature modules:** dynamic feature modules (\`dynamicFeatures = [":feature:chat", ":feature:payments"]\`) are OCP at the module level — the base app doesn’t know about the features; features register themselves via a common interface (e.g. \`FeatureModule.initialize(context)\`). Adding a feature = new module, no base app changes
 - **Hilt modules as OCP:** a library defines \`@InstallIn(SingletonComponent::class) interface AnalyticsModule { @Binds fun bindTracker(impl: FirebaseTracker): Tracker }\`. App adds a new tracker by adding a new module implementing \`Tracker\` — the library code never changes
 - **When NOT to over-apply:** a simple \`when\` with 2-3 cases that never change is fine. OCP has a cost (indirection, more files). Apply where change is *frequent* or *unpredictable*`,
-    answer: `- OCP violation: RecyclerView Adapter with giant when() — adding item type requires modifying multiple methods
-- Fix: sealed ListItem hierarchy + delegate adapters (HeaderAdapter, UserAdapter, AdAdapter) + CompositeAdapter
-- Adding a type = new sealed subclass + new delegate, ZERO existing code changes
-- Feature modules / Hilt modules are OCP at module/DI level`,
+    answer: `- Spend OCP where new variants keep arriving (list item types, features, analytics sinks) — not on a stable two-case \`when\`
+- Make the extension point additive: one sealed subtype plus one delegate per variant, existing code untouched
+- Module and DI boundaries are the same idea at a larger scale: a new feature or tracker is a new module`,
     complexity: `- Conceptual overhead: more classes/files, but each change is isolated and safe
 - Runtime: O(1) delegate lookup via map or when on sealed type`,
     followUp: `**Follow-up:** What’s the runtime cost of the delegate-adapter approach vs a single Adapter with a when()?
 > Negligible. \`CompositeAdapter\` typically uses a \`Map<Int, ListItemAdapter<*>>\` keyed by \`viewType\` — \`onBindViewHolder\` does a map lookup (O(1)) and delegates. The \`when\` in a monolithic adapter is also O(1). The difference is compile-time safety: sealed class guarantees exhaustive handling; a \`when\` on an Int viewType can miss a case silently.`,
     redFlags: `- Applies sealed hierarchy + delegates to a 2-item-type list that never changes — YAGNI
-- Doesn’t know \`ListAdapter\` with \`DiffUtil\` already encourages this pattern (each item type = separate diff callback)
 - Creates a new interface for every tiny variation instead of using sealed classes
-- Thinks OCP means “never modify any class ever” — it means “extend without modifying *the code that changes frequently*”`,
+- Thinks OCP means “never modify any class ever” — it means “extend without modifying *the code that changes frequently*”
+- Treats SOLID as a checklist to apply uniformly rather than a set of tensions to balance (e.g. over-applying ISP fragments a simple callback into five interfaces for no real benefit)`,
   },
   {
     id: 'tech-188',
@@ -4753,9 +4023,9 @@ class CompositeAdapter(private val delegates: List<ListItemAdapter<*>>) : Recycl
     difficulty: 'M',
     star: true,
     section: 'Patterns & Principles',
-    title: 'Liskov Substitution Principle in Android — Repository test doubles, sealed class exhaustiveness, and ViewModel fakes',
+    title: 'Liskov Substitution Principle in Android — Repository test doubles, behavioural contracts like main-safety, and ViewModel fakes',
     tags: [ 'solid-principles', 'architecture', 'testing' ],
-    related: [ 'tech-174', 'tech-187', 'tech-189' ],
+    related: [ 'tech-187', 'tech-189', 'tech-61' ],
     keyPoints: `- **LSP in plain terms:** if code works with a \`UserRepository\` interface, it must work identically with \`FakeUserRepository\` (test), \`OfflineUserRepository\` (offline mode), and \`RealUserRepository\` (production). No “but the fake throws on this method”
 - **Android LSP violation #1: incomplete test doubles**
 
@@ -4768,21 +4038,21 @@ class FakeUserRepository : UserRepository {
 \`\`\`
 
   A test using \`getUser\` passes; a test using \`updateProfile\` crashes. The fake is NOT substitutable
-- **Fix:** implement all methods, even if returning a default/empty result. Or use a mocking library (\`MockK\`, \`Mockito\`) that auto-implements interfaces
-- **Android LSP violation #2: sealed class exhaustiveness** — a \`when (uiState) { is Loading -> ...; is Success -> ... }\` without \`is Error\` handling. The compiler warns, but if you add \`is Error\` later, every \`when\` must be updated — that’s LSP at the type level: the sealed hierarchy guarantees all subtypes are handled
+- **Fix:** implement every method with real (in-memory) behaviour, even if simplified — and run the fake through the same contract tests as the real implementation
+- **Android LSP violation #2: a broken behavioural contract** — the signatures match, the promise doesn't. \`UserRepository\` promises its \`suspend\` functions are main-safe; an \`OfflineUserRepository\` that does blocking disk IO without \`withContext(Dispatchers.IO)\` compiles fine but ANRs when the ViewModel calls it from \`viewModelScope\` (Main). Same with \`observeUser(): Flow<User>\` documented as "re-emits on every change": an implementation that emits once and completes silently breaks every caller that expects live updates. LSP is about honouring preconditions, postconditions and invariants — not just types (sealed-\`when\` exhaustiveness, by contrast, is a compiler check, not an LSP concern)
 - **Android LSP violation #3: ViewModel fakes that don’t honor \`viewModelScope\`** — a fake ViewModel that doesn’t cancel its work when \`onCleared()\` is called breaks the contract that \`viewModelScope\` enforces
 - **Composition over inheritance:** the classic \`Bird → Ostrich\` violation. In Android, prefer \`interface Repository\` + implementations over \`abstract class BaseRepository\` — composition (DI) avoids LSP traps entirely`,
-    answer: `- LSP: if it works with the interface, it must work with ANY implementation (Fake, Offline, Real) — no “fake throws on this method”
-- Android violation: incomplete test doubles (FakeRepository missing methods), sealed class when() missing cases, ViewModel fakes ignoring viewModelScope
-- Fix: implement all interface methods in fakes; use MockK/Mockito; prefer composition (interface + DI) over inheritance`,
+    answer: `- Judge substitutability by behaviour, not by whether it compiles — threading, completion and error promises are part of the contract
+- Write the contract down once as a shared test suite and run every implementation, fakes included, through it
+- Prefer interface + DI composition over deep \`Base*\` class hierarchies; there is less inherited behaviour to break`,
     complexity: `- Conceptual: zero runtime cost — it’s a design-time contract
-- Testing: fakes must be fully implemented; mocking libraries auto-satisfy this`,
-    followUp: `**Follow-up:** Why does \`MockK\`’s \`mockk<UserRepository>()\` satisfy LSP but a hand-written \`FakeUserRepository\` often doesn’t?
-> \`mockk()\` creates a proxy that implements *every* method of the interface with a default answer (usually \`null\` or empty). You then \`every { }\` the methods your test cares about. A hand-written fake requires you to manually implement *every* method — easy to miss one, and the compiler won’t warn you if the interface grows later. \`mockk()\` guarantees LSP compliance by construction.`,
+- Testing: one abstract contract-test class, subclassed once per implementation`,
+    followUp: `**Follow-up:** Does a MockK \`mockk<UserRepository>()\` make a test double LSP-compliant for free?
+> No. A strict \`mockk<T>()\` throws \`MockKException\` on any call you haven't stubbed with \`every { }\`; only \`mockk<T>(relaxed = true)\` returns defaults (\`0\`, \`false\`, empty, or a nested relaxed mock). Neither encodes the real behavioural contract — a relaxed mock returning an empty user for every id is still not substitutable for the real repository. A hand-written fake, by contrast, stops compiling the moment the interface gains an abstract method, which is a useful forcing function.`,
     redFlags: `- Writes a \`FakeRepository\` that throws \`NotImplementedError\` on half the methods
-- Adds a new method to an interface but doesn’t update the fake — tests silently pass until they hit the missing method
+- Adds a new interface method with a default body and never checks what the fake now silently inherits
 - Uses \`abstract class BaseRepository\` with concrete methods — forces subclasses into an inheritance hierarchy that violates LSP when they override incorrectly
-- Doesn’t test the fake itself — a fake is code that needs tests too`,
+- Never runs the fake through the same contract tests as the real implementation — a fake is code that needs tests too`,
   },
   {
     id: 'tech-189',
@@ -4793,7 +4063,7 @@ class FakeUserRepository : UserRepository {
     section: 'Patterns & Principles',
     title: 'Interface Segregation Principle in Android — fat callbacks vs focused lambdas, LifecycleObserver, and callback fragmentation',
     tags: [ 'solid-principles', 'architecture', 'callbacks' ],
-    related: [ 'tech-174', 'tech-188', 'tech-190' ],
+    related: [ 'tech-188', 'tech-190' ],
     keyPoints: `- **The Android ISP violation:** a fat callback interface
 
 \`\`\`kotlin
@@ -4817,20 +4087,18 @@ typealias OnProgress = (Int) -> Unit
 \`\`\`
 
   Or nullable lambdas: \`fun fetch(onSuccess: OnSuccess<T>? = null, onError: OnError? = null, onProgress: OnProgress? = null)\`
-- **ISP fix #2: \`LifecycleObserver\` and \`DefaultLifecycleObserver\`** — instead of one giant \`LifecycleObserver\` with 7 methods (\`ON_CREATE\`, \`ON_START\`, \`ON_RESUME\`, \`ON_PAUSE\`, \`ON_STOP\`, \`ON_DESTROY\`, \`ON_ANY\`), \`DefaultLifecycleObserver\` provides empty defaults. You override ONLY the events you care about. This is ISP in the framework itself
-- **ISP fix #3: \`RecyclerView.Adapter\` callbacks** — \`onBindViewHolder\`, \`onCreateViewHolder\`, \`getItemCount\` are separate methods. A \`ListAdapter\` only requires \`onCreateViewHolder\` + \`onBindViewHolder\` + \`DiffCallback\`; \`getItemCount\` is final. You don’t implement what you don’t need
+- **ISP fix #2: \`LifecycleObserver\` and \`DefaultLifecycleObserver\`** — \`LifecycleObserver\` itself is a *marker* interface with no methods (events used to arrive via the now-deprecated \`@OnLifecycleEvent\` annotations). \`DefaultLifecycleObserver\` extends it with six callbacks — \`onCreate\`, \`onStart\`, \`onResume\`, \`onPause\`, \`onStop\`, \`onDestroy\` — each with an empty default body, so you override ONLY the events you care about. (\`LifecycleEventObserver\` is the single-method alternative: one \`onStateChanged(owner, event)\`.) This is ISP in the framework itself
+- **ISP fix #3: \`RecyclerView.Adapter\` callbacks** — \`onBindViewHolder\`, \`onCreateViewHolder\`, \`getItemCount\` are separate methods. A \`ListAdapter\` only requires \`onCreateViewHolder\` + \`onBindViewHolder\` + \`DiffCallback\`; \`getItemCount\` is already implemented from the submitted list. You don’t implement what you don’t need
 - **When NOT to over-segment:** a callback with 2-3 methods that are *always* used together (e.g. \`onResult(success: Boolean, data: T?)\`) is fine. ISP applies when callers *consistently* ignore subsets of methods`,
-    answer: `- ISP violation: fat ApiCallback with 5 methods forces every caller to stub 4 it doesn’t need
-- Fix: split into focused lambdas (OnSuccess, OnError, OnProgress) or nullable lambda params
-- Framework ISP: DefaultLifecycleObserver gives empty defaults — override only what you need
-- ListAdapter requires only onCreateViewHolder + onBindViewHolder + DiffCallback
-- Don’t over-segment: 2-3 methods always used together is fine`,
+    answer: `- Segregate when callers consistently ignore part of an interface; the empty stubs are the signal
+- In Kotlin the cheapest fix is lambdas or default method bodies — not a new interface per method
+- Keep methods that are always used together in one contract; splitting those is fragmentation`,
     complexity: `- Zero runtime cost — it’s about API surface, not execution
 - Lambda allocation: negligible (single object per call site)`,
-    followUp: `**Follow-up:** Why does \`DefaultLifecycleObserver\` use empty default methods instead of splitting \`LifecycleObserver\` into 7 separate interfaces?
-> Because a \`LifecycleOwner\` registers *one* observer that receives multiple events over its lifetime. Splitting into 7 interfaces would mean registering 7 separate observers — more boilerplate, more registration calls, and the lifecycle events are inherently related (a component that cares about \`ON_START\` usually also cares about \`ON_STOP\`). Empty defaults give you the best of both: single registration, but implement only what you need.`,
+    followUp: `**Follow-up:** Why does \`DefaultLifecycleObserver\` use six empty default methods instead of six separate one-method interfaces?
+> Because a \`LifecycleOwner\` registers *one* observer that receives multiple events over its lifetime. Splitting into six interfaces would mean registering six separate observers — more boilerplate, more registration calls, and the lifecycle events are inherently related (a component that cares about \`ON_START\` usually also cares about \`ON_STOP\`). Empty defaults give you the best of both: single registration, but implement only what you need.`,
     redFlags: `- Creates \`OnSuccessListener\`, \`OnErrorListener\`, \`OnProgressListener\` as separate interfaces but then requires all 3 in the caller anyway — that’s not segregation, that’s fragmentation
-- Doesn’t know \`DefaultLifecycleObserver\` exists and implements all 7 \`LifecycleObserver\` methods with empty bodies
+- Still writes \`@OnLifecycleEvent\`-annotated methods on a bare \`LifecycleObserver\` (deprecated, reflection/kapt-based) instead of \`DefaultLifecycleObserver\`
 - Uses a fat callback “for consistency” even when 80% of callers only use \`onSuccess\`
 - Over-segments a simple \`onResult(success, data)\` into two lambdas — adds ceremony for no benefit`,
   },
@@ -4843,7 +4111,7 @@ typealias OnProgress = (Int) -> Unit
     section: 'Patterns & Principles',
     title: 'Dependency Inversion Principle in Android — Hilt modules, Repository interfaces, and why ViewModels never construct Retrofit/Room',
     tags: [ 'solid-principles', 'architecture', 'di', 'hilt' ],
-    related: [ 'tech-174', 'tech-185', 'tech-189' ],
+    related: [ 'tech-185', 'tech-189', 'tech-45' ],
     keyPoints: `- **The Android DIP violation:** a \`UserProfileViewModel\` that does \`private val retrofit = Retrofit.Builder()...build(); private val api = retrofit.create(ApiService::class.java)\` — the ViewModel (high-level policy) depends on Retrofit/OkHttp/Room (low-level details). Changing the network lib means changing the ViewModel
 - **DIP fix: depend on abstractions, not concretions**
 
@@ -4870,18 +4138,16 @@ class UserProfileViewModel @Inject constructor(
 - **Why this enables testability:** test module binds \`UserRepository\` to \`FakeUserRepository\`. ViewModel test uses the fake — no network, no DB, deterministic
 - **Why this enables swap:** offline mode = bind \`UserRepository\` to \`OfflineUserRepository\`. Different build flavor = bind to \`MockUserRepository\`. ViewModel code unchanged
 - **The rule:** \`ViewModel\` constructor params = ONLY interfaces from the domain layer. If you see \`Retrofit\`, \`RoomDatabase\`, \`OkHttpClient\`, \`SharedPreferences\`, \`WorkManager\` in a ViewModel constructor — that’s a DIP violation. Wrap them in a Repository/UseCase interface`,
-    answer: `- DIP violation: ViewModel constructs Retrofit/Room directly — high-level depends on low-level details
-- Fix: ViewModel depends on UserRepository interface; Hilt binds interface → impl in data module
-- Enables: testability (fake repo), offline mode (offline repo), build flavors (mock repo) — ViewModel unchanged
-- Rule: ViewModel constructor = ONLY domain interfaces. No Retrofit, Room, OkHttp, SharedPreferences, WorkManager`,
+    answer: `- Review test: read a ViewModel's constructor — any framework or IO type there is a DIP violation
+- Let the consumer own the interface and the data layer implement it; the module arrows then follow Clean Architecture's inward rule (tech-45)
+- Swapping fakes, offline or flavor-specific implementations without touching the ViewModel is the payoff`,
     complexity: `- Zero runtime cost — DI resolution happens once at component creation
 - Compile-time: Hilt validates bindings at build, catches missing bindings early`,
-    followUp: `**Follow-up:** If the Repository interface is in the domain module and the implementation is in the data module, which module depends on which?
-> The *data* module depends on the *domain* module (it implements the interface). The *presentation* module (ViewModel) also depends on the *domain* module (it uses the interface). The domain module has ZERO dependencies — it’s the center. This is the classic Clean Architecture dependency rule: dependencies point inward toward the domain.`,
+    followUp: `**Follow-up:** Which SOLID principle does Dependency Injection most directly serve?
+> Dependency Inversion — DI frameworks (Hilt, Koin) are mechanical tools for wiring abstractions to implementations at the composition root, but the principle itself is about depending on interfaces, which DI just automates. You can honour DIP with hand-written constructors and no framework at all.`,
     redFlags: `- Passes \`Retrofit\`, \`RoomDatabase\`, \`OkHttpClient\`, \`SharedPreferences\` to a ViewModel constructor
 - Defines the Repository interface in the data module (backwards — interface belongs to the consumer/domain)
 - Uses \`@Inject\` constructor on ViewModel but the provided type is a concrete class, not an interface
-- Doesn’t know Hilt’s \`@Module\` \`@InstallIn(SingletonComponent::class)\` is where the inversion is wired
 - Thinks DIP = “use interfaces” — it’s “high-level modules should not depend on low-level modules; both depend on abstractions”`,
   },
 ]

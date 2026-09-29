@@ -25,21 +25,21 @@ QuestionDB.register('behavioral', [
     related: [ 'behav-1', 'behav-11' ],
     listenFor: '- Owns the miss without blame-shifting to teammates, tools, or circumstances\n- Articulates what they would do differently with the benefit of hindsight\n- Demonstrates a concrete lesson learned that changed their behavior\n- Shows accountability to stakeholders (notified them proactively, provided a revised timeline)',
     starGuide: '"What was the original deadline, what happened, and what did you personally do to address it?"',
-    redFlags: '- Blames others entirely ("the PM changed requirements", "CI was flaky")\n- Minimizes the impact ("it wasn\'t a big deal")\n- No lesson learned or behavior change after the incident\n- Claims they have never missed a deadline or shipped anything broken'
+    redFlags: '- Blames others entirely ("the PM changed requirements", "CI was flaky")\n- Minimizes the impact ("it wasn\'t a big deal")\n- Claims they have never missed a deadline or shipped anything broken'
   },
   {
     id: 'behav-3',
     type: 'behavioral',
     num: 3,
     difficulty: 'E',
-    star: false,
+    star: true,
     section: 'Ownership',
     title: 'When something went wrong in production, how did you handle it?',
-    tags: [ 'ownership', 'incident' ],
-    related: [ 'behav-1', 'behav-2' ],
+    tags: [ 'ownership', 'incident', 'incident-response', 'post-mortem' ],
+    related: [ 'behav-1', 'behav-2', 'behav-9' ],
     listenFor: '- Stays calm and prioritizes user impact over assigning blame\n- Clear triage order: contain the blast radius → communicate status → diagnose → fix → post-mortem\n- Communicates proactively with stakeholders during the incident, not just after\n- Post-mortem mindset: writes up what happened and how to prevent recurrence',
     starGuide: '"Tell me about a specific production incident. What did you do first, and what did you do after it was resolved?"',
-    redFlags: '- Panic-driven response with no prioritization\n- No communication to users or team during the incident\n- No follow-up to prevent recurrence ("we fixed it and moved on")\n- Waited for someone else to take the lead on a problem they owned'
+    redFlags: '- Panic-driven response with no prioritization\n- No communication to users or team during the incident\n- No follow-up to prevent recurrence ("we fixed it and moved on")\n- Waited for someone else to take the lead on a problem they owned\n- Blames individuals instead of the system'
   },
   {
     id: 'behav-4',
@@ -161,11 +161,11 @@ QuestionDB.register('behavioral', [
     star: false,
     section: 'Delivery',
     title: 'How do you handle competing priorities from multiple stakeholders?',
-    tags: [ 'delivery', 'communication' ],
-    related: [ 'behav-11', 'behav-5', 'behav-66' ],
-    listenFor: '- Uses an explicit prioritization framework (user impact, deadline, dependencies)\n- Communicates constraints proactively — surfaces conflicts before they become crises\n- Escalates when genuinely blocked rather than silently context-switching\n- Negotiates timelines and scope openly rather than over-promising',
+    tags: [ 'delivery', 'communication', 'walmart', 'prioritization' ],
+    related: [ 'behav-11', 'behav-5', 'behav-10', 'behav-40' ],
+    listenFor: '- Uses an explicit prioritization framework (user impact, deadline, dependencies)\n- Communicates constraints proactively — surfaces conflicts before they become crises\n- Escalates when genuinely blocked rather than silently context-switching\n- Negotiates timelines and scope openly rather than over-promising\n- Protects the team from thrash by saying no with clear reasons, and documents the decision so it isn\'t re-litigated',
     starGuide: '"Give me a specific example where you had two urgent things at once. What did you do?"',
-    redFlags: '- Tries to do everything simultaneously and burns out or delivers nothing well\n- Picks a priority without communicating the decision to the other stakeholders\n- No escalation path — just figures it out alone until something slips\n- Over-promises to both parties and misses both deadlines'
+    redFlags: '- Tries to do everything simultaneously and burns out or delivers nothing well\n- Picks a priority without communicating the decision to the other stakeholders\n- No escalation path — just figures it out alone until something slips\n- Over-promises to both parties and misses both deadlines\n- Prioritizes based on whoever pushed hardest rather than an actual framework'
   },
   {
     id: 'behav-13',
@@ -176,24 +176,10 @@ QuestionDB.register('behavioral', [
     section: 'Delivery',
     title: 'Tell me about a time you drove improvement that nobody asked for.',
     tags: [ 'initiative', 'growth' ],
-    related: [ 'behav-14', 'behav-15' ],
+    related: [ 'behav-26', 'behav-15' ],
     listenFor: '- Identified the problem themselves — not assigned or prompted by a manager\n- Made a case for why it mattered (time saved, reliability improved, toil reduced)\n- Shipped something concrete, not just filed a ticket and moved on\n- Got buy-in from others without having authority to mandate the change',
     starGuide: '"What was the problem you noticed, how did you decide it was worth fixing, and what did you actually ship?"',
     redFlags: '- Waits to be assigned everything — no examples of self-directed improvement work\n- "I thought about it but didn\'t have time" — ideas without execution\n- Made a change without coordinating with the team it affected\n- The improvement was trivial or only benefited themselves'
-  },
-  {
-    id: 'behav-14',
-    type: 'behavioral',
-    num: 14,
-    difficulty: 'M',
-    star: false,
-    section: 'Delivery',
-    title: 'Tell me about working on a project where requirements were unclear or kept changing.',
-    tags: [ 'initiative', 'ambiguity' ],
-    related: [ 'behav-13', 'behav-12', 'behav-26', 'behav-47' ],
-    listenFor: '- Drives clarity proactively — asks questions, writes down assumptions, gets explicit sign-off\n- Adapts the implementation without losing focus on the core goal\n- Keeps stakeholders aligned through the changes so there are no surprises at demo time\n- Designs for change when uncertainty is high (smaller commits, reversible decisions)',
-    starGuide: '"What made the requirements unclear, what did you do about it, and how did the project end up?"',
-    redFlags: '- Waits passively for clarity — blocked without pushing for resolution\n- Gets blocked on ambiguity and stops making progress\n- Ignores the ambiguity and builds the wrong thing ("I assumed X and nobody told me otherwise")\n- Becomes frustrated or disengaged when requirements shift'
   },
   {
     id: 'behav-15',
@@ -203,9 +189,9 @@ QuestionDB.register('behavioral', [
     star: true,
     section: 'Growth & Culture',
     title: 'What\'s a weakness or blind spot you\'re actively working on?',
-    tags: [ 'growth', 'self-awareness' ],
-    related: [ 'behav-16', 'behav-9', 'behav-64' ],
-    listenFor: '- Genuinely self-aware — names a real weakness, not a strength in disguise ("I care too much")\n- Specific behavior they are actively changing, not vague intention\n- Concrete evidence of progress (e.g., "my last three code reviews had no feedback on X")\n- Understands why the weakness matters for their effectiveness',
+    tags: [ 'growth', 'self-awareness', 'walmart', 'hr' ],
+    related: [ 'behav-16', 'behav-9', 'behav-8' ],
+    listenFor: '- Genuinely self-aware — names a real weakness, not a strength in disguise ("I care too much")\n- Specific behavior they are actively changing, not vague intention\n- Concrete evidence of progress (e.g., "my last three code reviews had no feedback on X")\n- Understands why the weakness matters for their effectiveness\n- Self-aware about its impact on others — reviews, teammates, delivery — not just on themselves\n\n**Context:** Also verified as a Walmart top-3 sourced HR question (AmbitionBox).',
     starGuide: '"What\'s something a manager or peer has pointed out more than once? What are you doing differently?"',
     redFlags: '- No real weakness — interview-polished answer with zero substance\n- Vague answer that doesn\'t name a specific behavior ("I\'m still learning")\n- Weakness that would be disqualifying for this role with no mitigation plan\n- Describes a weakness but shows no active effort to address it'
   },
@@ -287,11 +273,11 @@ QuestionDB.register('behavioral', [
     star: true,
     section: 'Leadership',
     title: 'Tell me about a time you influenced a decision without having formal authority.',
-    tags: [ 'influence', 'leadership', 'communication' ],
-    related: [ 'behav-20', 'behav-7' ],
-    listenFor: '- Built a case with evidence: benchmarks, user data, incident postmortems — not just conviction\n- Understood the stakeholders\' incentives and framed the argument in terms they cared about\n- Knew when to push harder and when to plant the seed and let it grow\n- Got buy-in from key people before the formal discussion',
+    tags: [ 'influence', 'leadership', 'communication', 'walmart' ],
+    related: [ 'behav-20', 'behav-7', 'behav-34' ],
+    listenFor: '- Built a case with evidence: benchmarks, user data, incident postmortems — not just conviction\n- Understood the stakeholders\' incentives and framed the argument in terms they cared about\n- Knew when to push harder and when to plant the seed and let it grow\n- Got buy-in from key people before the formal discussion\n- Outcome improved the system as a whole, not just a personal win',
     starGuide: '"Who did you need to persuade, what was their concern, and how did you bring them along?"',
-    redFlags: '- Relies on title or seniority to get their way\n- Gives up if the first attempt fails — no persistence\n- Can\'t explain how they read the room or adapted their approach\n- Influenced by steamrolling instead of genuine persuasion'
+    redFlags: '- Relies on title or seniority to get their way\n- Gives up if the first attempt fails — no persistence\n- Can\'t explain how they read the room or adapted their approach\n- Influenced by steamrolling instead of genuine persuasion\n- Went over heads as the first move instead of building the case\n- No empathy for the other team\'s or stakeholder\'s constraints\n- Claims credit for what was actually a committee or team outcome'
   },
   {
     id: 'behav-22',
@@ -329,11 +315,11 @@ QuestionDB.register('behavioral', [
     star: true,
     section: 'Growth & Culture',
     title: 'Tell me about a time you mentored or grew a junior engineer.',
-    tags: [ 'growth', 'mentoring', 'leadership' ],
-    related: [ 'behav-15', 'behav-9', 'behav-54' ],
-    listenFor: '- Met the mentee where they were — didn\'t just give answers, asked guiding questions\n- Made time consistently despite their own workload — shows they value others\' growth\n- Adjusted approach based on feedback from the mentee (teaching style evolves)\n- Mentee made measurable progress — shipped something, got unblocked, leveled up a skill',
+    tags: [ 'growth', 'mentoring', 'leadership', 'mentorship', 'technical' ],
+    related: [ 'behav-15', 'behav-9', 'behav-7' ],
+    listenFor: '- Met the mentee where they were — didn\'t just give answers, asked guiding questions\n- Made time consistently despite their own workload — shows they value others\' growth\n- Adjusted approach based on feedback from the mentee (teaching style evolves)\n- Mentee made measurable progress — shipped something, got unblocked, leveled up a skill\n- Delegated real ownership of the fix — the junior drove the work while the mentor reviewed and unblocked, not the reverse\n- Gave feedback that targeted the reasoning (how they debugged, how they chose the approach), not just the final code',
     starGuide: '"What was the mentee struggling with, what did you do, and how did you know it worked?"',
-    redFlags: '- Only helped when asked (reactive, not proactive mentoring)\n- Did the work for them instead of teaching\n- Can\'t articulate what the mentee learned — mentoring was just pairing\n- No follow-up to see if their help actually landed'
+    redFlags: '- Only helped when asked (reactive, not proactive mentoring)\n- Did the work for them instead of teaching\n- Can\'t articulate what the mentee learned — mentoring was just pairing\n- No follow-up to see if their help actually landed\n- No structured approach — mentoring was ad hoc rather than diagnosing the actual gap first'
   },
   {
     id: 'behav-25',
@@ -357,11 +343,11 @@ QuestionDB.register('behavioral', [
     star: true,
     section: 'Ownership',
     title: 'Tell me about a time you navigated ambiguous or unclear requirements.',
-    tags: [ 'ownership', 'ambiguity', 'communication' ],
-    related: [ 'behav-6', 'behav-23', 'behav-14' ],
-    listenFor: '- Didn\'t wait to be unblocked — proactively sought out what they needed\n- Made explicit assumptions and documented them before building\n- Built an MVP or prototype to validate direction before investing heavily\n- Looped in the right people at the right time — not too early (waste), not too late (rework)',
+    tags: [ 'ownership', 'ambiguity', 'communication', 'initiative' ],
+    related: [ 'behav-6', 'behav-23', 'behav-13', 'behav-12', 'behav-47' ],
+    listenFor: '- Didn\'t wait to be unblocked — proactively sought out what they needed\n- Made explicit assumptions and documented them before building\n- Built an MVP or prototype to validate direction before investing heavily\n- Looped in the right people at the right time — not too early (waste), not too late (rework)\n- Kept stakeholders aligned through the changes so there were no surprises at demo time\n- Designed for change when uncertainty was high — smaller commits, reversible decisions',
     starGuide: '"What was unclear, what did you do to resolve the ambiguity, and how did you decide when you had enough information to proceed?"',
-    redFlags: '- Waits for perfect requirements before starting anything\n- Builds something large based on unvalidated assumptions\n- Never writes down their assumptions — just proceeds on vibes\n- Escalates every ambiguity to their manager instead of resolving at their level'
+    redFlags: '- Waits for perfect requirements before starting anything\n- Builds something large based on unvalidated assumptions\n- Never writes down their assumptions — just proceeds on vibes\n- Escalates every ambiguity to their manager instead of resolving at their level\n- Becomes frustrated or disengaged rather than adapting when requirements shift'
   },
   {
     id: 'behav-27',
@@ -403,7 +389,7 @@ QuestionDB.register('behavioral', [
     related: [ 'behav-15', 'behav-17' ],
     listenFor: '- Has specific, recent sources: Android Developer Blog, KotlinConf, Google I/O, specific Twitter/Bluesky accounts, newsletters\n- Can name a specific recent change and explain its impact (not just "I follow Android blogs")\n- Applies what they learn — integrates new APIs or patterns into their work\n- Shares knowledge with their team — tech talks, Slack posts, lunch-and-learns',
     starGuide: '"What\'s something you learned in the last 6 months and how did it change how you work?"',
-    redFlags: '- Vague answer — "I follow Android developers on Twitter"\n- Can\'t name a specific recent change in Android or Kotlin\n- Learns but doesn\'t apply or share — knowledge stays siloed\n- Learns only through work tasks — no investment outside of assigned work'
+    redFlags: '- Learns but doesn\'t apply or share — knowledge stays siloed\n- Learns only through work tasks — no investment outside of assigned work'
   },
   {
     id: 'behav-30',
@@ -585,7 +571,7 @@ QuestionDB.register('behavioral', [
     related: [ 'behav-5', 'behav-41' ],
     listenFor: '- Engaged design early — raised feasibility concerns before the spec was finalized, not after\n- Understood what design was trying to achieve (the user outcome), not just what they drew\n- Raised technical constraints clearly and constructively: "this animation would drop frames on low-end devices — here are two alternatives that achieve the same feel"\n- Proposed alternatives when something wasn\'t implementable, rather than just saying no\n- Delivered something faithful to the intent even when some edge cases differed from the comp',
     starGuide: '"Walk me through a feature where you worked closely with design. How did you handle gaps between the spec and what was feasible?"',
-    redFlags: '- Implemented designs without questioning edge cases — left gaps for users to discover\n- "Designers don\'t understand engineering" — dismissive rather than collaborative\n- Raised feasibility concerns only after the spec was signed off\n- Shipped something visually off from the spec without looping back to design'
+    redFlags: '- Implemented designs without questioning edge cases — left gaps for users to discover\n- "Designers don\'t understand engineering" — dismissive rather than collaborative\n- Shipped something visually off from the spec without looping back to design'
   },
   {
     id: 'behav-43',
@@ -652,7 +638,7 @@ QuestionDB.register('behavioral', [
     section: 'Delivery',
     title: 'Tell me about a time requirements changed significantly mid-project. How did you manage the impact?',
     tags: [ 'delivery', 'planning', 'communication', 'scope' ],
-    related: [ 'behav-11', 'behav-40', 'behav-14' ],
+    related: [ 'behav-11', 'behav-40', 'behav-26' ],
     listenFor: '- Immediately surfaced the impact of the change: "this adds 2 weeks and removes feature X unless we cut Y"\n- Negotiated what to cut or defer rather than silently absorbing the scope change\n- Documented the change and its implications — didn\'t leave it as an informal conversation that caused conflict later\n- Didn\'t just say yes to keep everyone happy, then deliver late without warning\n- Knew when a change was minor enough to absorb and when it required a formal reset',
     starGuide: '"What changed, when did you find out, how did you respond, and how did it affect the outcome?"',
     redFlags: '- Said yes to every change without discussing timeline or scope impact\n- Delivered late without warning because they silently absorbed scope without re-estimating\n- Became rigid — treated any change as a reason to restart all planning\n- Required a formal process for even minor changes — slowed everyone down unnecessarily'
@@ -736,38 +722,10 @@ QuestionDB.register('behavioral', [
     section: 'Leadership',
     title: 'Describe a time you had to make a difficult trade-off between technical debt and shipping a feature.',
     tags: [ 'trade-off', 'technical-debt', 'delivery' ],
-    related: [ 'behav-11', 'behav-14' ],
+    related: [ 'behav-11', 'behav-26' ],
     listenFor: '- Explicit framework for deciding: user impact, risk, time to market\n- Documented the debt in a ticket with reproduction steps\n- Revisited and addressed the debt after release\n- Communication with stakeholders about the trade-off',
     starGuide: '"Open on the deadline that forced the call, and name the rule you used to choose. Finish on the payback: the ticket that carried the debt and when you cleared it."',
-    redFlags: '- No framework — just intuition\n- Never revisited the debt\n- Talks about shipping fast without mentioning tests, review, or monitoring — no quality bar when unsupervised\n- Knowingly takes shortcuts but never surfaces the debt — no ticket, no doc, no heads-up to anyone\n- Treats the trade-off as invisible: cannot describe how a deferred cost would be made trackable and visible'
-  },
-  {
-    id: 'behav-54',
-    type: 'behavioral',
-    num: 54,
-    difficulty: 'H',
-    star: true,
-    section: 'Leadership',
-    title: 'Tell me about a time you mentored a junior engineer through a technical challenge.',
-    tags: [ 'mentorship', 'growth', 'technical' ],
-    related: [ 'behav-7', 'behav-15', 'behav-24' ],
-    listenFor: '- Starts by diagnosing the mentee\'s actual gap — asks what they tried and where they got stuck before explaining anything\n- Delegates real ownership of the fix — the junior drives the work while the mentor reviews and unblocks, not the reverse\n- Gives feedback that targets the reasoning — how they debugged, how they chose the approach — not just the final code\n- Measures progress concretely: by the end the junior handles a similar challenge without help, and the candidate can cite the evidence',
-    starGuide: '"One junior, one specific technical challenge: how you diagnosed the real gap, what you made them do themselves, and the result you could point to."',
-    redFlags: '- No structured approach\n- No evidence of junior growth\n- Mentor did all the work themselves'
-  },
-  {
-    id: 'behav-55',
-    type: 'behavioral',
-    num: 55,
-    difficulty: 'M',
-    star: true,
-    section: 'Ownership',
-    title: 'Tell me about a production incident you led the response for. What was your triage process?',
-    tags: [ 'incident-response', 'ownership', 'post-mortem' ],
-    related: [ 'behav-3', 'behav-9' ],
-    listenFor: '- Clear triage order: contain blast radius → communicate status → diagnose → fix → post-mortem\n- Proactive communication with stakeholders during incident\n- Post-mortem: root cause, action items, prevention\n- No blame culture — focus on system improvements',
-    starGuide: '"Keep the outage to two sentences, then spend the story on your first ten minutes. Land the result on the post-mortem change that stopped a repeat."',
-    redFlags: '- Panic-driven response with no prioritization\n- No post-mortem or follow-up\n- Blames individuals instead of system'
+    redFlags: '- No framework — just intuition\n- Talks about shipping fast without mentioning tests, review, or monitoring — no quality bar when unsupervised\n- Knowingly takes shortcuts but never surfaces the debt — no ticket, no doc, no heads-up to anyone\n- Treats the trade-off as invisible: cannot describe how a deferred cost would be made trackable and visible'
   },
   {
     id: 'behav-56',
@@ -778,7 +736,7 @@ QuestionDB.register('behavioral', [
     section: 'Ownership',
     title: 'Describe a time you identified and prevented a potential production issue before it impacted users.',
     tags: [ 'proactive', 'monitoring', 'prevention' ],
-    related: [ 'behav-55', 'behav-3' ],
+    related: [ 'behav-3' ],
     listenFor: '- Proactive monitoring/alerting that caught the signal\n- Investigation: reproduced root cause, assessed blast radius\n- Action taken before incident escalated\n- What monitoring or process change resulted from the prevention',
     starGuide: '"No outage means nothing to count: size the result by the blast radius you avoided and the alert you left behind. Say what caught the signal — a system, not luck."',
     redFlags: '- No proactive detection\n- No process improvement after prevention\n- Relies on luck rather than systems'
@@ -847,11 +805,11 @@ QuestionDB.register('behavioral', [
     star: true,
     section: 'Ownership',
     title: 'Tell me about a production issue you handled under pressure. (Verified Walmart senior-track question)',
-    listenFor: '- Clear triage order: stabilize (mitigate/rollback) → communicate → diagnose → fix → prevent\n- Keeps stakeholders informed during the incident, not just after\n- Takes personal ownership of the fix while coordinating others\n- Post-incident: root cause, blameless post-mortem, durable prevention\n\n**Context:** Asked directly in Walmart senior-track rounds (data-platform interview, round 3 behavioral/managerial)',
+    listenFor: '- Quantifies the business impact of the incident (users affected, revenue or SLA hit) — not just "it was bad"\n- Takes personal ownership of the fix while explicitly coordinating others, rather than working solo or fully delegating\n- Can pinpoint exactly what they did in the first 10 minutes, not just the eventual outcome\n- Names the durable systemic fix (alerting, runbook, architecture change) that came out of it, not just "we hotfixed it"\n\n**Context:** Asked directly in Walmart senior-track rounds (data-platform interview, round 3 behavioral/managerial)',
     starGuide: '"Pick an incident with real business impact and a measured result. Emphasize what YOU did in the first 10 minutes. Close with the systemic fix (alerting, runbook, architecture) — not just \'we hotfixed\'."',
-    redFlags: '- Panic story with no prioritization\n- Blames another team with no self-accountability\n- No prevention after the incident',
+    redFlags: '- Cannot quantify the impact or name what changed in the first 10 minutes\n- Solo-hero narrative with no mention of coordinating others\n- Blames another team with no self-accountability',
     tags: [ 'walmart', 'ownership', 'incident', 'production' ],
-    related: [ 'behav-3', 'behav-55' ]
+    related: [ 'behav-3' ]
   },
   {
     id: 'behav-62',
@@ -882,20 +840,6 @@ QuestionDB.register('behavioral', [
     related: [ 'behav-4', 'behav-27' ]
   },
   {
-    id: 'behav-64',
-    type: 'behavioral',
-    num: 64,
-    difficulty: 'M',
-    star: true,
-    section: 'Growth & Culture',
-    title: 'What is your greatest weakness? (Verified Walmart top-3 HR question)',
-    listenFor: '- A real weakness, not a humble-brag (\'I work too hard\')\n- Self-awareness of the impact on others (reviews, teammates, delivery)\n- Concrete mitigations in practice — and evidence the weakness is shrinking\n\n**Context:** Walmart\'s #2 sourced HR question (AmbitionBox top-3)',
-    starGuide: '"Pick a trainable skill weakness (over-engineering early, written comms lagging code). Show the feedback loop: how you noticed, what you changed, the measured improvement."',
-    redFlags: '- Disguised strengths\n- Weakness with no mitigation\n- Weakness fatal to the role',
-    tags: [ 'walmart', 'self-awareness', 'hr' ],
-    related: [ 'behav-8', 'behav-16', 'behav-15' ]
-  },
-  {
     id: 'behav-65',
     type: 'behavioral',
     num: 65,
@@ -910,20 +854,6 @@ QuestionDB.register('behavioral', [
     related: [ 'behav-20', 'behav-30', 'sd-86' ]
   },
   {
-    id: 'behav-66',
-    type: 'behavioral',
-    num: 66,
-    difficulty: 'M',
-    star: false,
-    section: 'Delivery',
-    title: 'Tell me about a time you managed conflicting team priorities. (Verified Walmart senior-track question)',
-    listenFor: '- Makes trade-offs explicit: business impact vs tech debt vs deadlines\n- Aligns with stakeholders on the trade-off rather than silently picking\n- Negotiates scope or sequencing; documents decisions\n- Protects the team from thrash (says no with reasons)\n\n**Context:** Verified from Walmart data-platform senior interview (round 3, managerial)',
-    starGuide: '"Show a framework (impact/effort or RICE) applied to a real conflict, then the conversation where stakeholders aligned. End with the delivery outcome."',
-    redFlags: '- Says yes to everything\n- Prioritizes by whoever pushed hardest\n- No stakeholder communication in the resolution',
-    tags: [ 'walmart', 'prioritization', 'delivery' ],
-    related: [ 'behav-10', 'behav-40', 'behav-12' ]
-  },
-  {
     id: 'behav-67',
     type: 'behavioral',
     num: 67,
@@ -936,20 +866,6 @@ QuestionDB.register('behavioral', [
     redFlags: '- Explains implementation details to a business audience\n- One-way lecture with no comprehension check',
     tags: [ 'walmart', 'communication', 'stakeholders' ],
     related: [ 'behav-5', 'behav-22' ]
-  },
-  {
-    id: 'behav-68',
-    type: 'behavioral',
-    num: 68,
-    difficulty: 'H',
-    star: false,
-    section: 'Leadership',
-    title: 'Tell me about influencing a decision without formal authority.',
-    listenFor: '- Builds the case with evidence: data, prototypes, cost of inaction\n- Enlists allies; understands each stakeholder\'s incentives\n- Persists respectfully; knows when to concede\n- Outcome improved the system, not just a personal win\n\n**Context:** Common senior-loop expectation; flagged as likely (not directly sourced) in Walmart research — high-probability senior signal',
-    starGuide: '"Choose a cross-team decision (architecture standard, migration buy-in). Show the resistance, how you addressed the real objection, and the eventual adoption."',
-    redFlags: '- Went over heads as the first move\n- No empathy for the other team\'s constraints\n- Claims credit for a committee outcome',
-    tags: [ 'walmart', 'influence', 'leadership' ],
-    related: [ 'behav-21', 'behav-34' ]
   },
   {
     id: 'behav-69',
@@ -993,7 +909,7 @@ QuestionDB.register('behavioral', [
     starGuide: '"At what point in the rollout did you know, who made the stop call, and what did halting cost? Then: what changed so the next release gets caught earlier."',
     redFlags: '- Story ends at the rollback with no prevention follow-up\n- Uncalibrated in either direction — rolls back at the first blip, or has never rolled anything back\n- Blames the engineer whose change tripped it instead of the decision process\n- Was not the decider and cannot say what they would have done in that seat',
     tags: [ 'delivery', 'release', 'risk', 'ownership' ],
-    related: [ 'behav-3', 'behav-37', 'behav-55' ],
+    related: [ 'behav-3', 'behav-37' ],
     source: 'interview'
   },
   {

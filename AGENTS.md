@@ -2,8 +2,8 @@
 
 ## Project Overview
 
-A vanilla JavaScript single-page application for interview preparation: 408 curated questions
-across Android (154), Behaviour (74), Data Structures (68) and System Design (112), with Learn/Quiz
+A vanilla JavaScript single-page application for interview preparation: curated questions
+across Android, Behaviour, Data Structures and System Design, with Learn/Quiz
 modes, a section-derived roadmap pane, progress tracking (local SQLite API with a localStorage
 fallback), and a command palette that searches every question and every rendered answer card.
 
@@ -43,10 +43,10 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   ├── sidebar.html
 │   └── topbar.html
 ├── data/                   # Question databases (one <script> per topic)
-│   ├── android.js          #   154 tech-* (ids run to tech-155; tech-21 is absent)
-│   ├── behavioral.js       #   74 behav-*
-│   ├── data-structures.js  #   68 ds-*
-│   ├── system-design.js    #   112 sd-*
+│   ├── android.js          #   tech-* (ids have gaps where questions were merged)
+│   ├── behavioral.js       #   behav-*
+│   ├── data-structures.js  #   ds-*
+│   ├── system-design.js    #   sd-*
 │   └── roadmaps.js         #   RoadmapDB: band ORDER per topic; membership derived
 ├── scripts/
 │   └── compose-html.mjs    # Composes index.html from components (--check = staleness gate)
@@ -103,21 +103,21 @@ not fill):
 {
   keyPoints: "- ...",        // the full detail — 🔑 Key Points card
   answer: "- ...",           // short summary of it — 💡 "Expected Answer" card
-  complexity: "- Access: O(1)...", // big-O notes: 68/68 in data-structures, 0/154 in android
-  followUp: "**Follow-up:** ...\n> ...", // optional — 🧵 (190/222 filled: android 133, data-structures 57)
-  redFlags: "- ...",         // 🚩 (222/222 filled)
+  complexity: "- Access: O(1)...", // big-O notes: every data-structures question, never android
+  followUp: "**Follow-up:** ...\n> ...", // optional — 🧵
+  redFlags: "- ...",         // 🚩 required
 }
 ```
 
-All 222 technical questions carry **both** `answer` and `keyPoints`: `keyPoints` holds the detail
+Every technical question carries **both** `answer` and `keyPoints`: `keyPoints` holds the detail
 (on average ~1.8× the length of `answer`, code blocks included), `answer` holds a summary of at
 most 3 bullet lines — no question exceeds 3 today. Note the label inversion: the card headed
 💡 **Expected Answer** shows the short `answer`, and 🔑 **Key Points** shows the long body. That is
 also why `DETAIL_LAYOUT` packs `answer` and `keyPoints` into one band on android (no `complexity`
 to pair `keyPoints` with) while data-structures gives `answer` its own full-width row.
 
-Do not reintroduce `expectedAnswer` as a body field: it appears in **0** of the 222 technical
-questions and **0** of the 74 behavioural ones. What is left of it is plumbing only — the
+Do not reintroduce `expectedAnswer` as a body field: no technical or
+behavioural question uses it. What is left of it is plumbing only — the
 `fallback: 'expectedAnswer'` on the `answer` entry of `TECH_SECTIONS` and the
 `q.answer || q.expectedAnswer` in `collectDetailValues`. Keep those guards, and write new
 questions as `answer` + `keyPoints`.
@@ -126,9 +126,9 @@ questions as `answer` + `keyPoints`.
 
 ```javascript
 {
-  listenFor: "- ...",        // 👂 interviewer signal list (74/74)
-  starGuide: "- ...",        // ⭐ STAR framing hint (74/74)
-  redFlags: "- ...",         // 🚩 (74/74)
+  listenFor: "- ...",        // 👂 interviewer signal list (required)
+  starGuide: "- ...",        // ⭐ STAR framing hint (required)
+  redFlags: "- ...",         // 🚩 (required)
 }
 ```
 
@@ -139,10 +139,10 @@ questions as `answer` + `keyPoints`.
   scope: "**Clarifying Questions**\n...", // one blob → two cards (see below)
   functional: "- ...",       // functional requirements
   nfr: "- ...",              // non-functional requirements
-  capacity: "- ...",         // optional — back-of-envelope numbers (7/112: sd-75, sd-98, sd-99, sd-103, sd-106, sd-108, sd-111)
+  capacity: "- ...",         // optional — back-of-envelope numbers (rare)
   architecture: "...",       // mermaid diagram + pipeline
-  dataModel: "| Entity | ...", // optional — table (1/112: `sd-75`)
-  api: "...",                // optional — endpoints (1/112: `sd-75`)
+  dataModel: "| Entity | ...", // optional — table (rare)
+  api: "...",                // optional — endpoints (rare)
   tradeoffs: "| Decision |...", // table + "### Alternatives"
   approach: "**How to Structure the 45 Min**\n...",
   followUp: "**Follow-up:** ...\n> ...", // 🧵 Follow-ups
@@ -151,12 +151,11 @@ questions as `answer` + `keyPoints`.
 ```
 
 `capacity` / `dataModel` / `api` are optional in the strict sense that the renderer omits an absent
-field: exactly one of the 112 system-design questions (`sd-75`) fills all three today (seven carry
-`capacity` alone), and the other eight fields are filled on 112/112 — so adding them is per-question authoring, not a rendering
+field: only a few system-design questions fill them, and the other eight fields are required on every question — so adding them is per-question authoring, not a rendering
 requirement. `scope` is one blob that becomes two cards sharing the first row — **Clarifying
 Questions** (❓) and **Assumptions** (❗) — split by `SCOPE_ASSUMPTIONS_HEADING` on a bold
 `**Declared assumptions:**`-style marker anywhere in it (the wording, case and trailing colon vary,
-and it may sit inline with its first bullet); all 112 blobs carry a marker today, so the standalone
+and it may sit inline with its first bullet); every blob carries a marker today, so the standalone
 🎯 `scope` card is a live code path with no data behind it. Follow-ups are 🧵 — ❓ belongs to
 Clarifying Questions now.
 
@@ -196,7 +195,7 @@ template plus components.
 4. Check the `section` value: it *is* the roadmap matrix row. A section missing from `SECTION_ORDER`
    in `data/roadmaps.js` still reaches the path — `build()` appends it in data order — so the only
    cost is its position. Add the name there to place the row deliberately, and never hand-list
-   question ids anywhere: the derived id map this replaced covered 47 of the 146 Android ids that existed then and put
+   question ids anywhere: the derived id map this replaced covered only a fraction of the Android ids and put
    `sd-14` in two rows
 5. Run `node scripts/compose-html.mjs` if you also modified components
 6. Refresh browser to verify
@@ -298,8 +297,8 @@ template plus components.
   pane's single scroller, its `.hidden` switching and the named `detail` container; `.roadmap-head`
   is `position: sticky` in that scroller — pinned on **both** axes, since the pane also scrolls
   horizontally — and a second scroll box under it is the bug to avoid. It is a **matrix**: one row
-  per question `section` (`data/roadmaps.js` → `RoadmapDB`, 27 rows in four labelled topic blocks,
-  408/408 questions, no id in two rows) and one cell per question, ragged — columns never align
+  per question `section` (`data/roadmaps.js` → `RoadmapDB`, one row per section in four labelled topic blocks,
+  every question exactly once, no id in two rows) and one cell per question, ragged — columns never align
   across rows, so nothing may impose a fixed column count. A cell is a real `<a href="#id">`, so
   ⌘-click opens through the app's own hash routing. **Encoding: hue = difficulty only**
   (`.rm-diff-E/M/H` → `--diff-*`; the E-circle / M-rounded / H-sharp dialect is deleted, the words
@@ -347,8 +346,8 @@ static deployment.
   (`node --check data/<topic>.js`)
 - **A question seems missing from the feed** — usually section-scoping, not bad data: the feed shows
   exactly one section at a time (`getFeedQuestions`), and the sidebar lists the sections for the
-  active topic — for system design that is Mobile 14, Classic 24, Infrastructure 34,
-  Architecture 13, Frontend 14, Staff / Platform 13 (112 total; counts drop under active facets). Pick the section in
+  active topic — for system design that is Mobile, Classic, Infrastructure,
+  Architecture, Frontend and Staff / Platform (counts drop under active facets). Pick the section in
   the sidebar, or let ⌘⇧F find it: the palette searches every question across topics by title,
   section, tags, type/id/num and the text of every answer card
 - **A question is missing from the roadmap** — its `section` is not what you think it is. Hiding is
