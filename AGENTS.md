@@ -31,7 +31,7 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 ├── start-server.sh         # Static + API server starter (default port 1000)
 ├── launch.bat              # Same starter for Windows
 ├── AGENTS.md               # This file
-├── .gitignore              # `.*/ ` + `.agents/` — dot-directories are not tracked
+├── .gitignore              # `.*/ ` (covers the private `.notes/` prep folder) + `.agents/` + `.notes/`
 ├── .agents/                # Local agent scratch; gitignored and never loaded by the app
 ├── .vscode/                # launch.json + tasks.json (tracked despite the ignore rule)
 ├── components/             # HTML partials composed into index.html
@@ -47,7 +47,9 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   ├── behavioral.js       #   behav-*
 │   ├── data-structures.js  #   ds-*
 │   ├── system-design.js    #   sd-*
+│   ├── notes.js            #   NotesDB registry: concept notes → .md files
 │   └── roadmaps.js         #   RoadmapDB: band ORDER per topic; membership derived
+│   ├── notes/<topic>/<NN>-<id>.md   #   Concept notes (Markdown, fetched at runtime)
 ├── scripts/
 │   └── compose-html.mjs    # Composes index.html from components (--check = staleness gate)
 ├── server/
@@ -55,6 +57,7 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   ├── server.js           # Zero-dependency node:sqlite progress API on 1001
 │   └── package.json        # interview-prep-server, engines.node >= 22
 ├── skills/mock-interview/  # Agent skill: SKILL.md + reference/progress-api.md, roadmap.md
+├── skills/make-notes/     # Agent skill: source → concept notes; reference/format.md
 └── view/
     ├── app.js              # Main application logic (detail layout: see Architecture Notes)
     ├── style.css           # All styles (rem lengths; see Code Style)
@@ -73,6 +76,9 @@ palette keys are handled inside `view/app.js`. Ignore the `.claude/handoff.md` r
 - **New questions** go in the appropriate `/data/*.js` file following the schema below
 - **New data files** need a `<script>` tag in `index.template.html` *after* `view/app.js` (which
   defines the registry) and *before* `data/roadmaps.js` (which reads the registry), then a compose
+- **Concept notes** are Markdown in `data/notes/<topic>/<NN>-<id>.md`, registered in `data/notes.js`
+  via `NotesDB.register([...])`; its `<script>` sits after the question data and before
+  `data/roadmaps.js`
 - **UI components** are HTML partials in `/components/` composed into `index.html` by `scripts/compose-html.mjs`
 - **Main logic** in `/view/app.js` — modular IIFE pattern with `QuestionDB` / `RoadmapDB` namespaces
 
@@ -200,6 +206,15 @@ template plus components.
 5. Run `node scripts/compose-html.mjs` if you also modified components
 6. Refresh browser to verify
 
+## Adding Notes
+
+Follow `skills/make-notes/SKILL.md` (format in `skills/make-notes/reference/format.md`). One note
+per concept — a new source extends existing notes; propose the note list before writing. Register
+each file in `data/notes.js`; question ids appear only in `related` (registry or a section's
+`<!-- related: … -->`) and must exist in `QuestionDB`. Learning content only — no recruiter/HR text,
+personal stories, private links or logistics. Verify with `node --check data/notes.js` and
+`http://localhost:1000/#tab=<topic>&note=<id>`.
+
 ## Modifying UI Components
 
 1. Edit the relevant `.html` file in `/components/`
@@ -213,7 +228,28 @@ template plus components.
   both (the short form only when the id matches a real question); `initializeHashRouting` adds a
   `hashchange` listener so a link pasted into an already-open tab re-renders. A bare `#<topic>` is
   not a form. The outgoing write uses `history.replaceState`, which never fires `hashchange`, so
-  URL writes cannot re-trigger routing.
+  URL writes cannot re-trigger routing. Two note forms: `#tab=<topic>&note=<id>` opens the topic's
+  notes section with that note in the pane, and `#tab=<topic>&notes` (bare flag) opens the notes
+  section with nothing selected (`#detail-empty`). A legacy `&s=<idx>` is ignored.
+- **Concept notes** — `window.NotesDB` (register/all/byTopic/get) is defined in `view/app.js` beside
+  `QuestionDB`; `data/notes.js` fills it. Note bodies are **fetched** at runtime from the registry
+  `file`, so they need a served origin — `file://` cannot load them. Navigation mirrors a question
+  section: when the topic has notes, the sidebar ends with **one** `.sb-item` row "📚 Notes"
+  (count = notes in the topic, no progress bar; absent otherwise). It sets `state.notesSelected`,
+  and the feed then shows one `.qcard-note` per note in registry order (icon + title, the italic
+  summary line under the H1 — else the first section's text — and a section-count chip); ↑/↓ move
+  across those cards. Opening one sets `state.activeNoteId` and renders the **whole note** in
+  `#detail-note` — a third sibling `.detail-inner` of `#detail-question` and `#detail-roadmap`
+  (its own scroller is `#note-body`): the summary as a headerless lead card, then one always
+  expanded full-width `.notion-block` per H2 (`data-note-section`), with its H3s rendered inline,
+  and a "Related questions" block = registry `related` ∪ every section's `<!-- related: -->` ids,
+  deduped in order. The header's ‹ › step to the previous/next note. Notes ignore Learn/Quiz;
+  ←/→ keep their question-history meaning. Selecting a question section, opening a question
+  (feed, palette, back-link, history) or switching topic clears the notes state; opening notes
+  ends roadmap mode. Questions named in a note's effective related ids show a "📚 Notes"
+  back-link block (one row per note; it scrolls to the first section naming the id), and the
+  palette lists note sections under a "Notes" group — a section hit opens the note scrolled to
+  that card, a note-title-only hit opens it at the top.
 - **Progress has two stores** — `saveRatings` / `saveSeen` write localStorage and then mirror the
   whole set to `PUT /api/progress` on `SERVER_API_BASE` fire-and-forget (`.catch(() => {})`), while
   load prefers the API and only reads localStorage when that fails
@@ -358,6 +394,9 @@ static deployment.
 - **Command palette not opening** — the handler lives in `initializeKeyboardHandlers` in
   `view/app.js` (⌘⇧F primary, ⌘E alias) and the `#cmd-launch` button is wired in
   `index.template.html`; make sure neither is shadowed and that focus is not in another text field
+- **Notes not loading** — serve the app (`./start-server.sh`, `launch.bat` or any static server);
+  `file://` blocks the `.md` fetch. Then check the registry `file` path in `data/notes.js` matches
+  `data/notes/<topic>/<NN>-<id>.md` (Network tab shows the 404)
 - **Progress not saving** — verify LocalStorage isn't blocked (private browsing, storage full), then
   check `SERVER_API_BASE` and whether `server/server.js` is actually up (see the two-stores bullet)
 

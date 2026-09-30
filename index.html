@@ -309,6 +309,28 @@
              the only tell is the cell's aria-label plus the click that restores it. -->
         <div class="roadmap-matrix" id="roadmap-matrix"></div>
       </div>
+
+      <!-- Concept-note view. A third sibling `.detail-inner`, shown while
+           a note is open in the notes section (state.activeNoteId; renderNotePane in
+           view/app.js). The whole note: one always-expanded card per H2 in #note-body. -->
+      <div class="detail-inner hidden" id="detail-note" role="region" aria-labelledby="note-title">
+        <div class="detail-hd">
+          <div class="q-header">
+            <div class="hist-nav">
+              <button type="button" class="hist-btn" id="note-prev" onclick="stepNote(-1, false)" disabled title="Previous note" aria-label="Previous note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <button type="button" class="hist-btn" id="note-next" onclick="stepNote(1, false)" disabled title="Next note" aria-label="Next note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+            <span class="note-badge" id="note-badge"></span>
+            <span class="q-header-num" id="note-pos"></span>
+          </div>
+          <h1 class="detail-title" id="note-title"></h1>
+        </div>
+        <div class="detail-body note-body" id="note-body"></div>
+      </div>
     </main>
   </div>
 
@@ -354,6 +376,7 @@
   <script src="data/behavioral.js"></script>
   <script src="data/data-structures.js"></script>
   <script src="data/system-design.js"></script>
+  <script src="data/notes.js"></script>
   <script src="data/roadmaps.js"></script>
   <script>
     document.getElementById('cmd-launch')?.addEventListener('click', function () {

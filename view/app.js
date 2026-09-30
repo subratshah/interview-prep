@@ -14,6 +14,35 @@ window.QuestionDB = (function () {
   };
 })();
 
+// ── Concept-note registry ─────────────────────────────────────
+// data/notes.js calls NotesDB.register([...]) with one entry per Markdown file
+// under data/notes/<topic>/<NN>-<id>.md: { id, topic, title, icon, file, related }.
+// The files themselves are fetched lazily by loadNotes(); the registry only
+// knows what exists and where.
+window.NotesDB = (function () {
+  const _notes = [];
+  const _byId = new Map();
+  return {
+    register(arr) {
+      (arr || []).forEach(n => {
+        if (!n || !n.id || _byId.has(n.id)) return;
+        const note = { ...n, related: Array.isArray(n.related) ? n.related.slice() : [] };
+        _notes.push(note);
+        _byId.set(note.id, note);
+      });
+    },
+    all() {
+      return _notes.slice();
+    },
+    byTopic(topic) {
+      return _notes.filter(n => n.topic === topic);
+    },
+    get(id) {
+      return _byId.get(id) || null;
+    }
+  };
+})();
+
 // ── Constants ──────────────────────────────────────────────
 const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
 const THEME_STORAGE_KEY = 'interview-theme';
@@ -55,6 +84,8 @@ const state = {
   seen: new Set(),       // IDs of questions ever opened
   hiddenIds: new Set(),  // IDs of AI questions hidden/deleted locally
   showRoadmap: false,    // roadmap mode: the detail pane shows the path (#detail-roadmap)
+  notesSelected: false,  // the sidebar "📚 Notes" row is active: the feed lists state.activeTab's notes
+  activeNoteId: null,    // the note shown whole in #detail-note (null → #detail-empty)
   history: [],           // array of question IDs visited
   historyIdx: -1,        // current position in history
 };
@@ -599,6 +630,7 @@ function getSortedFilteredQuestions() {
 
 // ── Sidebar: section rows + progress (targets #sb-list) ───────
 function selectFeedSection(type, section) {
+  clearNotesSelection();
   state.activeFeedSection = { type, section };
   state.feedSectionPinned = true;
 
@@ -665,7 +697,10 @@ function renderSidebar() {
 
   root.dataset.diffFilter = state.diffFilter || '';
 
-  if (tabQs.length === 0) return;
+  if (tabQs.length === 0) {
+    appendSidebarNotes(root);
+    return;
+  }
 
   const facetFilter = Boolean(state.diffFilter || state.tagFilters.length);
   const sidebarQs = facetFilter
@@ -688,12 +723,13 @@ function renderSidebar() {
     }
     empty.textContent = msg;
     root.appendChild(empty);
+    appendSidebarNotes(root);
     return;
   }
 
   const groups = groupBySection(sidebarQs);
   const currentSection =
-    state.activeFeedSection && state.activeFeedSection.type === state.activeTab
+    !state.notesSelected && state.activeFeedSection && state.activeFeedSection.type === state.activeTab
       ? state.activeFeedSection.section
       : null;
 
@@ -739,6 +775,43 @@ function renderSidebar() {
   }
 
   root.appendChild(frag);
+  appendSidebarNotes(root);
+}
+
+/**
+ * The "📚 Notes" row: one section-like row under the question sections that
+ * selects the notes section of the active topic (feed = one card per note).
+ * Facets (difficulty / tags / memory) never touch it — a note has none of
+ * those properties. Absent when the topic has no registered notes.
+ */
+function appendSidebarNotes(root) {
+  const notes = NotesDB.byTopic(state.activeTab);
+  if (!notes.length) return;
+  const isCurrent = state.notesSelected;
+
+  const row = document.createElement('div');
+  row.className = 'sb-item sb-notes-row' + (isCurrent ? ' sb-item-current' : '');
+  row.dataset.notes = state.activeTab;
+  row.setAttribute('role', 'button');
+  row.setAttribute('tabindex', '0');
+  if (isCurrent) row.setAttribute('aria-current', 'true');
+  row.title = 'Show concept notes';
+  row.innerHTML = `
+    <div class="sb-item-row">
+      <span class="sb-item-label">📚 Notes</span>
+      <span class="sb-item-count">${notes.length}</span>
+    </div>
+  `;
+  const open = () => selectNotesSection();
+  row.addEventListener('click', open);
+  row.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      open();
+    }
+  });
+  root.appendChild(row);
 }
 
 /** Initialize tag filter search in the sidebar (sits above Difficulty). */
@@ -987,6 +1060,11 @@ function renderList() {
           }
         }
       });
+  }
+
+  if (state.notesSelected && renderNoteFeed(list)) {
+    renderSidebar();
+    return;
   }
 
   const typeLabel = {
@@ -1499,25 +1577,28 @@ function closeDiagramModal() {
 }
 
 function initializeDiagramModal() {
-  const detailBody = document.getElementById('detail-body');
-  if (detailBody) {
-    detailBody.addEventListener('click', e => {
-      const source = typeof e.target.closest === 'function'
-        ? e.target.closest('.mermaid-container')
-        : null;
-      if (source && detailBody.contains(source)) openDiagramModal(source);
-    });
-    detailBody.addEventListener('keydown', e => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const focused = e.target;
-      if (!focused || !focused.classList || !focused.classList.contains('mermaid-container')) return;
-      if (!detailBody.contains(focused)) return;
-      // Keep Space from also firing the global reveal shortcut / scrolling.
-      e.preventDefault();
-      e.stopPropagation();
-      openDiagramModal(focused);
-    });
-  }
+  // The question body and the concept-note view both host diagrams.
+  ['detail-body', 'detail-note'].forEach(hostId => {
+    const detailBody = document.getElementById(hostId);
+    if (detailBody) {
+      detailBody.addEventListener('click', e => {
+        const source = typeof e.target.closest === 'function'
+          ? e.target.closest('.mermaid-container')
+          : null;
+        if (source && detailBody.contains(source)) openDiagramModal(source);
+      });
+      detailBody.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const focused = e.target;
+        if (!focused || !focused.classList || !focused.classList.contains('mermaid-container')) return;
+        if (!detailBody.contains(focused)) return;
+        // Keep Space from also firing the global reveal shortcut / scrolling.
+        e.preventDefault();
+        e.stopPropagation();
+        openDiagramModal(focused);
+      });
+    }
+  });
 
   // Document-level delegation so the wiring survives late markup: the close
   // button and the backdrop both carry [data-diagram-close].
@@ -1539,12 +1620,462 @@ function initializeDiagramModal() {
   });
 }
 
+// ── Concept notes ──────────────────────────────────────────────
+// Markdown files under data/notes/<topic>/<NN>-<id>.md, registered in
+// data/notes.js. One H1 title (+ an optional italic summary line), then one
+// H2 per section; a section may open with `<!-- related: sd-45, sd-54 -->`
+// for its own related question ids.
+// The sidebar "📚 Notes" row sets state.notesSelected: the feed then lists one
+// card per note of the active topic, and state.activeNoteId (when set) shows
+// that whole note in #detail-note — one always-expanded card per H2.
+// selectQuestion, onTopicChange and selectFeedSection all clear it.
+const notesCache = new Map();        // note id → { status: 'ok' | 'error', summary, sections }
+let notesLoaded = false;
+let notesLoadPromise = Promise.resolve();
+let noteLinksByQuestion = new Map(); // question id → [{ note, sectionIdx }] (one per note)
+let cmdNoteSections = [];            // palette index: { note, section, text, lower }
+
+const NOTE_RELATED_RE = /^<!--\s*related:\s*([\s\S]*?)\s*-->\s*$/i;
+
+function parseIdList(raw) {
+  return String(raw || '').split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+}
+
+/** Split `md` on lines matching `re`, ignoring lines inside ``` / ~~~ fences. */
+function splitMarkdownOnHeading(md, re) {
+  const lines = String(md).replace(/\r\n?/g, '\n').split('\n');
+  const lead = [];
+  const parts = [];
+  let current = null;
+  let fence = null;
+  lines.forEach(line => {
+    const f = /^\s*(```|~~~)/.exec(line);
+    if (f) {
+      if (!fence) fence = f[1];
+      else if (f[1] === fence) fence = null;
+    }
+    const m = !fence && !f ? re.exec(line) : null;
+    if (m) {
+      current = { heading: m[1].trim(), lines: [] };
+      parts.push(current);
+      return;
+    }
+    (current ? current.lines : lead).push(line);
+  });
+  return { lead: lead.join('\n'), parts };
+}
+
+/** Markdown text → { summary, sections: [{ idx, title, md, related[] }] }. */
+function parseNoteMarkdown(text) {
+  const { lead, parts } = splitMarkdownOnHeading(text, /^##\s+(.+?)\s*#*\s*$/);
+  // Summary: the first paragraph after the H1 (the italic line, by convention).
+  const para = lead.replace(/^\s*#\s+.*$/m, '').trim().split(/\n\s*\n/)[0] || '';
+  const summary = para.replace(/\s+/g, ' ').trim().replace(/^[*_]+|[*_]+$/g, '').trim();
+  const sections = parts.map((part, idx) => {
+    const lines = part.lines.slice();
+    let related = [];
+    const first = lines.findIndex(l => l.trim() !== '');
+    if (first !== -1) {
+      const m = NOTE_RELATED_RE.exec(lines[first].trim());
+      if (m) {
+        related = parseIdList(m[1]);
+        lines.splice(first, 1);
+      }
+    }
+    return { idx, title: part.heading, md: lines.join('\n').trim(), related };
+  });
+  return { summary, sections };
+}
+
+/** Fetch every registered note file in parallel; a failure only marks that note. */
+function loadNotes() {
+  const notes = NotesDB.all();
+  return Promise.allSettled(notes.map(note =>
+    fetch(note.file, { cache: 'no-cache' }).then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    })
+  )).then(results => {
+    results.forEach((r, i) => {
+      const note = notes[i];
+      const parsed = r.status === 'fulfilled' ? parseNoteMarkdown(r.value) : { summary: '', sections: [] };
+      notesCache.set(note.id, parsed.sections.length
+        ? { status: 'ok', summary: parsed.summary, sections: parsed.sections }
+        : { status: 'error', summary: '', sections: [] });
+    });
+    notesLoaded = true;
+    buildNoteIndexes();
+  });
+}
+
+/**
+ * A note's effective related ids: the registry list, then every section's
+ * `<!-- related: -->` ids, deduped in first-seen order.
+ */
+function noteRelatedIds(note) {
+  const seen = new Set();
+  const out = [];
+  const add = id => { if (!seen.has(id)) { seen.add(id); out.push(id); } };
+  (note.related || []).forEach(add);
+  noteSections(note.id).forEach(section => (section.related || []).forEach(add));
+  return out;
+}
+
+function buildNoteIndexes() {
+  noteLinksByQuestion = new Map();
+  cmdNoteSections = [];
+  NotesDB.all().forEach(note => {
+    const sections = noteSections(note.id);
+    noteRelatedIds(note).forEach(qid => {
+      // Scroll target for the back-link: the first section naming this id.
+      const hit = sections.find(section => (section.related || []).includes(qid));
+      let list = noteLinksByQuestion.get(qid);
+      if (!list) { list = []; noteLinksByQuestion.set(qid, list); }
+      list.push({ note, sectionIdx: hit ? hit.idx : null });
+    });
+    sections.forEach(section => {
+      const text = cmdCleanBodyText(section.md);
+      cmdNoteSections.push({ note, section, text, lower: text.toLowerCase(), sectionLabel: section.title });
+    });
+  });
+}
+
+/** Runs once after init() has rendered and the note files have settled. */
+function onNotesLoaded() {
+  renderApp();
+}
+
+function noteSections(id) {
+  const entry = notesCache.get(id);
+  return entry && entry.status === 'ok' ? entry.sections : [];
+}
+
+function noteLinksForQuestion(qid) {
+  return noteLinksByQuestion.get(qid) || [];
+}
+
+function clearNotesSelection() {
+  state.notesSelected = false;
+  state.activeNoteId = null;
+}
+
+function switchTabForNotes(topic) {
+  if (!VALID_TABS.includes(topic) || topic === state.activeTab) return;
+  state.activeTab = topic;
+  const sel = document.getElementById('topic-select');
+  if (sel) sel.value = topic;
+  syncTopicTabsActive(topic);
+}
+
+/** Sidebar "📚 Notes": the feed lists the topic's notes, nothing is open. */
+function selectNotesSection() {
+  if (setRoadmapMode(false)) hideRoadmapTooltip();
+  state.notesSelected = true;
+  state.activeNoteId = null;
+  pushURLState();
+  renderList();
+  renderMainPanel();
+}
+
+/**
+ * Open a whole note. `sectionIdx` (optional) scrolls that H2 card into view —
+ * palette hits and question back-links pass it; plain opens land at the top.
+ */
+function openNote(id, sectionIdx) {
+  const note = NotesDB.get(id);
+  if (!note) return;
+  if (setRoadmapMode(false)) hideRoadmapTooltip();
+  const changed = state.activeNoteId !== id;
+  switchTabForNotes(note.topic);
+  state.notesSelected = true;
+  state.activeNoteId = id;
+  pushURLState();
+  renderList();
+  renderMainPanel();
+  const pane = document.getElementById('note-body'); // the note's own scroller
+  const target = sectionIdx === null || sectionIdx === undefined
+    ? null
+    : document.querySelector(`#note-body [data-note-section="${Number(sectionIdx)}"]`);
+  if (target) {
+    target.scrollIntoView({ block: 'start' });
+    // Mermaid renders asynchronously and grows the cards above the target;
+    // keep the target pinned while that settles, unless the reader scrolls.
+    const cards = pane && pane.querySelector('.detail-cards');
+    if (cards && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => {
+        if (target.isConnected) target.scrollIntoView({ block: 'start' });
+      });
+      const stop = () => {
+        ro.disconnect();
+        pane.removeEventListener('wheel', stop);
+        pane.removeEventListener('touchstart', stop);
+      };
+      ro.observe(cards);
+      pane.addEventListener('wheel', stop, { passive: true });
+      pane.addEventListener('touchstart', stop, { passive: true });
+      setTimeout(stop, 2000);
+    }
+  } else if (pane && changed) pane.scrollTop = 0;
+  const card = document.querySelector('.qcard-note.selected');
+  if (card) card.scrollIntoView({ block: 'nearest' });
+}
+
+/** Move across the active topic's notes. `wrap` is the feed's ↑/↓ behaviour. */
+function stepNote(delta, wrap) {
+  if (!state.notesSelected) return;
+  const notes = NotesDB.byTopic(state.activeTab);
+  if (!notes.length) return;
+  let idx = notes.findIndex(n => n.id === state.activeNoteId);
+  if (idx === -1) idx = delta > 0 ? 0 : notes.length - 1;
+  else {
+    idx += delta;
+    if (wrap) idx = (idx + notes.length) % notes.length;
+  }
+  if (idx < 0 || idx >= notes.length) return;
+  openNote(notes[idx].id);
+}
+
+function noteSnippet(md, max) {
+  const text = cmdCleanBodyText(md);
+  return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
+}
+
+/** Feed for the notes section: one .qcard-note per note of the topic. False = no notes. */
+function renderNoteFeed(list) {
+  const notes = NotesDB.byTopic(state.activeTab);
+  if (!notes.length) {
+    clearNotesSelection();
+    return false;
+  }
+
+  const feedTitle = document.getElementById('feed-title');
+  if (feedTitle) feedTitle.textContent = '📚 Notes';
+  const diffBadge = document.getElementById('feed-diff-badge');
+  if (diffBadge) diffBadge.hidden = true;
+  const feedEl = document.querySelector('.feed');
+  if (feedEl) feedEl.classList.remove('feed--diff-filtered');
+  const total = document.getElementById('feed-count-total');
+  if (total) total.textContent = `${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`;
+  const important = document.getElementById('feed-count-important');
+  if (important) important.style.display = 'none';
+
+  if (list) {
+    list.innerHTML = '';
+    notes.forEach(note => {
+      const entry = notesCache.get(note.id);
+      const failed = Boolean(entry && entry.status === 'error');
+      const sections = noteSections(note.id);
+      const summary = entry
+        ? (failed ? "Couldn't load this note." : noteSnippet(entry.summary || (sections[0] && sections[0].md) || '', 160))
+        : 'Loading…';
+      const meta = entry && !failed
+        ? `${sections.length} ${sections.length === 1 ? 'section' : 'sections'}`
+        : '';
+      const card = document.createElement('div');
+      card.className = 'qcard qcard-note'
+        + (note.id === state.activeNoteId ? ' selected' : '')
+        + (failed ? ' qcard-note-failed' : '');
+      card.dataset.note = note.id;
+      card.innerHTML = `
+        <div class="qcard-body">
+          <div class="qcard-note-head">
+            <span class="qcard-note-icon" aria-hidden="true">${escapeHtml(note.icon || '📄')}</span>
+            <div class="qcard-title">${escapeHtml(note.title)}</div>
+          </div>
+          <div class="qcard-note-snippet">${escapeHtml(summary)}</div>
+          ${meta ? `<div class="qcard-note-foot"><span class="qcard-note-chip">${escapeHtml(meta)}</span></div>` : ''}
+        </div>
+      `;
+      card.addEventListener('click', () => openNote(note.id));
+      list.appendChild(card);
+    });
+  }
+  return true;
+}
+
+/**
+ * A non-collapsible bottom block in the .detail-related visual pattern.
+ * items: [{ text, onClick }].
+ */
+function buildLinkBlock(extraClass, icon, label, items) {
+  const block = document.createElement('div');
+  block.className = `detail-related ${extraClass}`;
+  block.innerHTML = `
+    <div class="notion-block-header">
+      <span class="notion-icon">${icon}</span>
+      <span class="notion-label">${escapeHtml(label)}</span>
+    </div>
+    <div class="notion-block-body"></div>
+  `;
+  const body = block.querySelector('.notion-block-body');
+  items.forEach(item => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'related-item';
+    row.innerHTML = `<span class="related-title">${escapeHtml(item.text)}</span>`;
+    row.addEventListener('click', item.onClick);
+    body.appendChild(row);
+  });
+  return block;
+}
+
+/** One always-expanded full-width card in createDetailCard's markup. */
+function createNoteCard(icon, label, md) {
+  const block = document.createElement('div');
+  block.className = 'notion-block db-full note-card' + (label ? '' : ' note-lead');
+  if (label) {
+    const head = document.createElement('div');
+    head.className = 'notion-block-header';
+    head.innerHTML = `${icon ? `<span class="notion-icon">${escapeHtml(icon)}</span>` : ''}<span class="notion-label">${escapeHtml(label)}</span>`;
+    block.appendChild(head);
+  }
+  const body = document.createElement('div');
+  body.className = 'notion-block-body';
+  body.innerHTML = typeof marked !== 'undefined'
+    ? marked.parse(String(md))
+    : `<p>${escapeHtml(String(md))}</p>`;
+  // Wide tables pan inside their own box instead of stretching the card.
+  body.querySelectorAll('table').forEach(table => {
+    const wrap = document.createElement('div');
+    wrap.className = 'note-table-wrap';
+    table.replaceWith(wrap);
+    wrap.appendChild(table);
+  });
+  block.appendChild(body);
+  return { block, body };
+}
+
+const NOTE_LEADING_EMOJI_RE = /^((?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:️|‍(?:\p{Extended_Pictographic})|\p{Emoji_Modifier})*)\s*/u;
+
+/** The whole note: one card per H2 (its H3s render inline), then related questions. */
+function renderNotePane(note) {
+  const badge = document.getElementById('note-badge');
+  const titleEl = document.getElementById('note-title');
+  const pos = document.getElementById('note-pos');
+  const prevBtn = document.getElementById('note-prev');
+  const nextBtn = document.getElementById('note-next');
+  const body = document.getElementById('note-body');
+  if (!note || !body) return;
+
+  const topicNotes = NotesDB.byTopic(note.topic);
+  const nIdx = topicNotes.findIndex(n => n.id === note.id);
+  const entry = notesCache.get(note.id);
+  const sections = noteSections(note.id);
+
+  if (badge) badge.textContent = '📚 Note';
+  if (pos) pos.textContent = nIdx >= 0 ? `${nIdx + 1} / ${topicNotes.length}` : '';
+  if (prevBtn) prevBtn.disabled = nIdx <= 0;
+  if (nextBtn) nextBtn.disabled = nIdx === -1 || nIdx >= topicNotes.length - 1;
+  if (titleEl) titleEl.textContent = `${note.icon || '📄'} ${note.title}`;
+
+  body.innerHTML = '';
+  if (!sections.length) {
+    const msg = document.createElement('div');
+    msg.className = 'empty-list';
+    msg.textContent = entry ? "Couldn't load this note." : 'Loading note…';
+    body.appendChild(msg);
+    return;
+  }
+
+  const cards = document.createElement('div');
+  cards.className = 'detail-cards';
+  body.appendChild(cards);
+  if (entry.summary) {
+    const lead = createNoteCard('', '', `*${entry.summary}*`);
+    cards.appendChild(lead.block);
+  }
+  sections.forEach(section => {
+    const m = NOTE_LEADING_EMOJI_RE.exec(section.title);
+    const icon = m ? m[1] : '';
+    const label = (m ? section.title.slice(m[0].length) : section.title) || section.title;
+    const card = createNoteCard(icon, label, section.md);
+    card.block.dataset.noteSection = String(section.idx);
+    cards.appendChild(card.block);
+    runMermaidInContainer(card.body);
+  });
+  // Reference links in notes open outside the app so the reader keeps their place.
+  body.querySelectorAll('a[href^="http"]').forEach(a => {
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.classList.add('note-ext-link');
+  });
+
+  const related = noteRelatedIds(note).map(getQuestionById).filter(Boolean);
+  if (related.length) {
+    body.appendChild(buildLinkBlock('note-related', '🔗', 'Related questions', related.map(rel => ({
+      text: `#${rel.num} — ${rel.title}`,
+      onClick: () => selectQuestion(rel.id),
+    }))));
+  }
+}
+
+/** Palette: note sections scored like question titles (title words) or body hits. */
+function cmdNoteMatches(freeText, terms) {
+  const direct = [];
+  const body = [];
+  cmdNoteSections.forEach(item => {
+    const title = cmdFuzzyScore(item.section.title, freeText);
+    const noteTitle = cmdFuzzyScore(item.note.title, freeText);
+    if (title || noteTitle) {
+      direct.push({
+        note: item.note,
+        // A note-title-only hit opens the note at its top.
+        sectionIdx: title ? item.section.idx : null,
+        direct: true,
+        score: 3 * (title ? title.score : 0) + 2 * (noteTitle ? noteTitle.score : 0),
+        titleHtml: cmdHighlightHtml(item.section.title, title ? title.positions : null),
+        snippetHtml: escapeHtml(noteSnippet(item.section.md, CMD_SNIPPET_WINDOW)),
+        groupLabel: null,
+      });
+      return;
+    }
+    if (!terms.length) return;
+    // Whole-word hits, like cmdPostings: every term must be a word here.
+    let min = Infinity;
+    let max = -1;
+    for (const term of terms) {
+      const re = new RegExp(`(^|[^a-z0-9])${term}(?![a-z0-9])`);
+      const m = re.exec(item.lower);
+      if (!m) return;
+      const at = m.index + m[1].length;
+      if (at < min) min = at;
+      if (at > max) max = at;
+    }
+    body.push({
+      note: item.note,
+      sectionIdx: item.section.idx,
+      direct: false,
+      score: 25 + (terms.length > 1 && max - min < 80 ? 12 : 0),
+      titleHtml: escapeHtml(item.section.title),
+      snippetHtml: cmdSnippetInnerHtml(item, min, terms),
+      groupLabel: null,
+    });
+  });
+  direct.sort((a, b) => b.score - a.score);
+  body.sort((a, b) => b.score - a.score);
+  return direct.concat(body);
+}
+
+/** Palette row for a note entry: 📚 badge, note › section, snippet. */
+function createCmdNoteRow(entry) {
+  const row = document.createElement('div');
+  row.className = 'qcard qcard-note cmd-result-item cmd-note-row';
+  row.innerHTML = `
+    <div class="qcard-body">
+      <div class="qcard-title"><span class="cmd-note-badge" aria-hidden="true">📚</span><span class="cmd-note-path">${escapeHtml(entry.note.title)} ›</span> ${entry.titleHtml}</div>
+      ${entry.snippetHtml ? `<div class="cmd-snippet">${entry.snippetHtml}</div>` : ''}
+    </div>
+  `;
+  return row;
+}
+
 // ── Select a question ──────────────────────────────────────────
 function selectQuestion(id) {
   // Opening a question is the pane saying "show me this answer", so roadmap mode
   // ends here — every path into a question (feed card, arrow keys, palette, roadmap
   // cell, ghost un-hide, hash link) funnels through this function.
   setRoadmapMode(false);
+  clearNotesSelection();
 
   // Push to history (only if not navigating via history buttons)
   if (!state._historyNav) {
@@ -1585,6 +2116,7 @@ function renderMainPanel() {
   const emptyState = document.getElementById('detail-empty');
   const questionView = document.getElementById('detail-question');
   const roadmapView = document.getElementById('detail-roadmap');
+  const noteView = document.getElementById('detail-note');
 
   // Roadmap mode owns the pane. Hiding #detail-question takes the per-question
   // header (num / star / difficulty / rating slider) and the Tags/Related
@@ -1593,12 +2125,24 @@ function renderMainPanel() {
   if (state.showRoadmap) {
     if (emptyState) emptyState.classList.add('hidden');
     if (questionView) questionView.classList.add('hidden');
+    if (noteView) noteView.classList.add('hidden');
     renderRoadmapPane();
     return;
   }
 
   if (roadmapView) roadmapView.classList.add('hidden');
   hideRoadmapTooltip();
+
+  // A concept note owns the pane next (see renderNotePane).
+  if (state.notesSelected) {
+    if (questionView) questionView.classList.add('hidden');
+    const note = state.activeNoteId ? NotesDB.get(state.activeNoteId) : null;
+    if (emptyState) emptyState.classList.toggle('hidden', Boolean(note));
+    if (noteView) noteView.classList.toggle('hidden', !note);
+    if (note) renderNotePane(note);
+    return;
+  }
+  if (noteView) noteView.classList.add('hidden');
 
   if (!state.selectedId) {
     if (emptyState) emptyState.classList.remove('hidden');
@@ -1724,6 +2268,15 @@ function renderMainPanel() {
       const header = relatedSection.querySelector('.notion-block-header');
       const chevron = header.querySelector('.notion-chevron');
       if (chevron) chevron.style.display = 'none';
+    }
+
+    // Question → concept-note back-links (every topic, system design included).
+    const noteLinks = noteLinksForQuestion(q.id);
+    if (noteLinks.length) {
+      detailBody.appendChild(buildLinkBlock('detail-notes-links', '📚', 'Notes', noteLinks.map(link => ({
+        text: `${link.note.icon || '📄'} ${link.note.title}`,
+        onClick: () => openNote(link.note.id, link.sectionIdx),
+      }))));
     }
   }
 
@@ -2607,6 +3160,10 @@ function applyDetailMemoryRange(id, rawValue) {
 
 // ── Navigation ─────────────────────────────────────────────────
 function navigateList(direction) {
+  if (state.notesSelected) {
+    stepNote(direction, true);
+    return;
+  }
   const filtered = getSortedFilteredQuestions();
   if (filtered.length === 0) return;
   let idx = filtered.findIndex(q => q.id === state.selectedId);
@@ -2620,6 +3177,7 @@ function navigateList(direction) {
 
 function onTopicChange(value) {
   state.activeTab = value;
+  clearNotesSelection();
   
   state.activeFeedSection = null;
   clearFeedSectionPin();
@@ -2638,8 +3196,14 @@ function onTopicChange(value) {
 function pushURLState() {
   const params = new URLSearchParams();
   params.set('tab', state.activeTab);
-  if (state.selectedId) params.set('q', state.selectedId);
-  const qs = params.toString();
+  if (state.notesSelected) {
+    if (state.activeNoteId) params.set('note', state.activeNoteId);
+    else params.set('notes', '');
+  } else if (state.selectedId) {
+    params.set('q', state.selectedId);
+  }
+  // `notes` is a bare flag: `#tab=<topic>&notes`, not `notes=`.
+  const qs = params.toString().replace(/(^|&)notes=(?=&|$)/, '$1notes');
   history.replaceState(null, '', qs ? '#' + qs : location.pathname);
 }
 
@@ -2654,7 +3218,24 @@ function initializeHashRouting() {
   window.addEventListener('hashchange', () => {
     const prevTab = state.activeTab;
     const prevSelected = state.selectedId;
+    const prevNotes = state.notesSelected;
+    const prevNoteId = state.activeNoteId;
     restoreStateFromURL();
+
+    if (state.notesSelected) {
+      const id = state.activeNoteId;
+      if (prevNotes && prevNoteId === id && state.activeTab === prevTab) return;
+      if (id) openNote(id);
+      else selectNotesSection();
+      return;
+    }
+    if (prevNotes) {
+      // Leaving a note for a question / topic hash.
+      const target = state.selectedId ? getQuestionById(state.selectedId) : null;
+      if (target) selectQuestion(target.id);
+      else onTopicChange(state.activeTab);
+      return;
+    }
 
     const target = state.selectedId ? getQuestionById(state.selectedId) : null;
     if (target) {
@@ -2710,6 +3291,7 @@ const CMD_RESULT_LIMIT = 20;
 const CMD_RECENT_LIMIT = 5;
 const CMD_MAX_POSTINGS_PER_TERM = 400;
 const CMD_SNIPPET_WINDOW = 100;
+const CMD_NOTE_LIMIT = 5;
 
 function cmdIsMacPlatform() {
   const nav = typeof navigator !== 'undefined' ? navigator : null;
@@ -3184,6 +3766,13 @@ function getCmdPaletteMatches(query) {
   const terms = (freeText.toLowerCase().match(/[a-z0-9]+/g) || []).slice(0, 6);
   const bodyHits = cmdBodyMatches(terms, q => !directIds.has(q.id) && accept(q));
   bodyHits.sort((a, b) => b.score - a.score || compareQuestionsImportanceDifficulty(a.q, b.q));
+  // Concept-note sections: no tags or sections of their own, so any #/@
+  // operator excludes them. They take up to CMD_NOTE_LIMIT rows after the
+  // direct question hits and before the body-only question hits.
+  const noteEntries = parsed.tags.length || parsed.section
+    ? []
+    : cmdNoteMatches(freeText, terms).slice(0, CMD_NOTE_LIMIT);
+  if (noteEntries.length) noteEntries[0].groupLabel = 'Notes';
   const bodyEntries = bodyHits
     .slice(0, CMD_RESULT_LIMIT)
     .map((hit, i) => ({
@@ -3194,7 +3783,9 @@ function getCmdPaletteMatches(query) {
       snippetHtml: cmdSnippetInnerHtml(hit.entry, hit.centerOffset, terms),
       groupLabel: i === 0 ? 'In answers' : null,
     }));
-  return direct.slice(0, CMD_RESULT_LIMIT).concat(bodyEntries).slice(0, CMD_RESULT_LIMIT);
+  return direct.slice(0, CMD_RESULT_LIMIT - noteEntries.length)
+    .concat(noteEntries, bodyEntries)
+    .slice(0, CMD_RESULT_LIMIT);
 }
 
 function renderCmdResults() {
@@ -3240,6 +3831,16 @@ function renderCmdResults() {
       btn.appendChild(count);
       frag.appendChild(btn);
       cmdRowEls.push(btn);
+      return;
+    }
+    if (entry.note) {
+      const noteRow = createCmdNoteRow(entry);
+      noteRow.id = `cmd-opt-${i}`;
+      noteRow.dataset.cmdIndex = String(i);
+      noteRow.setAttribute('role', 'option');
+      noteRow.setAttribute('aria-selected', 'false');
+      frag.appendChild(noteRow);
+      cmdRowEls.push(noteRow);
       return;
     }
     const card = createFeedQuestionCard(entry.q);
@@ -3412,6 +4013,11 @@ function toggleCmdPalette() {
 function confirmCmdSelection() {
   if (!cmdPaletteOpen || !cmdResultsList.length) return;
   const entry = cmdResultsList[cmdSelectedIdx];
+  if (entry && entry.note) {
+    closeCmdPalette();
+    openNote(entry.note.id, entry.sectionIdx);
+    return;
+  }
   if (!entry || entry.suggest || !entry.q) return;
   closeCmdPalette();
   selectQuestion(entry.q.id);
@@ -3626,6 +4232,9 @@ async function initializeApp() {
   loadHiddenIds();
   loadRoadmapMode();
   buildCmdSearchStructures();
+  // Concept notes load in the background: the first render never waits on
+  // them (init() re-renders once they land — see onNotesLoaded).
+  notesLoadPromise = loadNotes();
   // Load progress from server with localStorage fallback and one-time import
   const serverAvailable = await loadProgressWithServerFallback();
   if (!serverAvailable) {
@@ -3641,6 +4250,27 @@ function restoreStateFromURL() {
   const urlParams = new URLSearchParams(raw);
   const urlTab = urlParams.get('tab');
   let urlQuestion = urlParams.get('q');
+
+  // Concept-note forms: `#tab=<topic>&note=<id>` (notes section, that note
+  // open) and `#tab=<topic>&notes` (notes section, nothing selected). The old
+  // `&s=<idx>` section param is ignored. Validated against the registry only:
+  // the file may still be loading, in which case renderNotePane shows a
+  // loading state and onNotesLoaded re-renders once it lands.
+  const urlNote = urlParams.get('note');
+  const note = urlNote ? NotesDB.get(urlNote) : null;
+  if (note) {
+    state.notesSelected = true;
+    state.activeNoteId = note.id;
+    if (VALID_TABS.includes(note.topic)) state.activeTab = note.topic;
+    return;
+  }
+  if (urlParams.has('notes') && urlTab && VALID_TABS.includes(urlTab) && NotesDB.byTopic(urlTab).length) {
+    state.notesSelected = true;
+    state.activeNoteId = null;
+    state.activeTab = urlTab;
+    return;
+  }
+  clearNotesSelection();
 
   // Documented short form `#sd-75`: a bare question id, no key=value pairs.
   if (!urlQuestion && raw && raw.indexOf('=') === -1 && questions.some(item => item.id === raw)) {
@@ -3854,6 +4484,12 @@ function handleMainKeyboardShortcuts(e) {
   // never gets here — the dispatcher hands it the key first.
   const consumed = e.defaultPrevented;
 
+  // A concept note has nothing to reveal or rate. ↑/↓ move across note cards
+  // (navigateList); ←/→ keep their question-history meaning.
+  if (state.notesSelected && !state.showRoadmap) {
+    if (e.key === ' ' || e.key === '1' || e.key === '2' || e.key === '3') return;
+  }
+
   const shortcuts = {
     'ArrowDown': () => navigateList(1),
     'ArrowUp': () => navigateList(-1),
@@ -3933,6 +4569,7 @@ async function init() {
   syncCmdKbdHint();
   renderApp();
   pushURLState();
+  notesLoadPromise.then(onNotesLoaded);
 }
 
 // ── Utility ────────────────────────────────────────────────────

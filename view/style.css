@@ -4609,3 +4609,203 @@ input.memory-range:focus-visible::-moz-range-thumb {
   line-height: 1.45;
   color: var(--muted);
 }
+
+/* ── Concept notes ──────────────────────────────────────────────
+   Notes reuse the question vocabulary (.sb-item, .qcard, .detail-hd,
+   .notion-block, .detail-related); these rules only add what a note has and a
+   question does not — an icon, a section number, a badge — and strip what a
+   note lacks (stripe, memory dot, star). Colours are existing tokens only. */
+
+/* The sidebar "📚 Notes" row: a section row (.sb-item) set off below the
+   question sections. It has no progress bar, so it pads the bottom instead. */
+.sb-notes-row {
+  margin-top: 0.625rem;
+  padding-bottom: 0.5rem;
+  position: relative;
+}
+
+.sb-notes-row::before {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  top: calc(-0.3125rem - 1px);
+  border-top: 1px solid var(--border);
+}
+
+/* Feed card for a note: no stripe, no memory dot, no star. */
+.qcard-note .qcard-body {
+  padding: 0.625rem 0.875rem 0.6875rem;
+  gap: 0.3125rem;
+}
+
+.qcard-note-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.qcard-note-icon {
+  flex-shrink: 0;
+  width: 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.qcard-note-snippet {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.qcard-note-foot {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.qcard-note-chip {
+  padding: 1px 0.375rem;
+  border-radius: 0.3125rem;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--dim);
+  font-size: 0.625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.qcard-note.selected .qcard-note-chip {
+  background: var(--accent-bg-strong);
+  border-color: var(--accent-border);
+  color: var(--accent-soft);
+}
+
+.qcard-note-failed {
+  opacity: 0.5;
+}
+
+/* Detail header badge: "📚 <note title>", the accent twin of .meta-sec. */
+.note-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.1875rem 0.5625rem;
+  border-radius: 0.3125rem;
+  background: var(--accent-bg);
+  color: var(--accent-soft);
+  border: 1px solid var(--accent-border-soft);
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Note cards are always expanded and not toggles: no pointer, no hover. */
+#detail-note .notion-block-header {
+  cursor: default;
+}
+
+#detail-note .notion-block-header:hover {
+  background: var(--surface2);
+}
+
+#detail-note .detail-cards > .notion-block {
+  margin-bottom: 0;
+}
+
+/* Jump targets (palette hit, question back-link) land with a little air. */
+#detail-note [data-note-section] {
+  scroll-margin-top: 0.75rem;
+}
+
+/* Inline reference links (LeetCode, docs, videos) open in a new tab; the arrow says so. */
+#detail-note .note-ext-link::after {
+  content: '↗';
+  margin-left: 0.125rem;
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
+/* The untitled lead card (the note's summary line) has no header, so its
+   body loses the header divider. */
+#detail-note .note-lead > .notion-block-body {
+  border-top: none;
+}
+
+#detail-note .notion-block-body :is(h4, h5, h6) {
+  margin: 0.875rem 0 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+#detail-note .notion-block-body blockquote {
+  margin: 0.625rem 0;
+  padding: 0.375rem 0.75rem;
+  border-left: 2px solid var(--accent-border);
+  background: var(--surface);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+/* A wide table pans inside its own box; the card itself never widens. */
+.note-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0.625rem 0;
+}
+
+.note-table-wrap > table {
+  margin: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 60rem;
+}
+
+/* Bottom link blocks: note → questions and question → notes. They sit after
+   the cards in the .detail-body flex column, like the related block. */
+.note-related,
+.detail-notes-links {
+  margin-top: 0.25rem;
+}
+
+:is(.note-related, .detail-notes-links) > .notion-block-header {
+  cursor: default;
+  background: transparent;
+}
+
+:is(.note-related, .detail-notes-links) > .notion-block-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+}
+
+:is(.note-related, .detail-notes-links) .related-item {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Palette row for a note section: a qcard with a 📚 badge instead of a stripe. */
+.cmd-results .cmd-note-row .qcard-body {
+  padding: 0.625rem 1rem;
+  gap: 0.25rem;
+}
+
+.cmd-note-badge {
+  margin-right: 0.375rem;
+  font-size: 0.75rem;
+}
+
+.cmd-note-path {
+  color: var(--dim);
+  font-weight: 500;
+}
