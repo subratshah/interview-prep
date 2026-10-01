@@ -3,10 +3,10 @@
     <div class="topbar-left">
       <div class="logo"><span class="logo-first">Interview</span><span>Prep</span></div>
       <nav id="topic-tabs" class="topic-tabs" aria-label="Question topics">
-        <button type="button" class="topic-tab" data-tab="android">Android</button>
-        <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
         <button type="button" class="topic-tab" data-tab="data-structures">Data Structures</button>
+        <button type="button" class="topic-tab" data-tab="android">Android</button>
         <button type="button" class="topic-tab" data-tab="system-design">System Design</button>
+        <button type="button" class="topic-tab" data-tab="behavioral">Behaviour</button>
       </nav>
     </div>
     <div class="topbar-center">
@@ -18,10 +18,10 @@
     <div class="topbar-right">
       <label class="sr-only" for="topic-select">Topic (sync)</label>
       <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
-        <option value="android">Android</option>
-        <option value="behavioral">Behaviour</option>
         <option value="data-structures">Data Structures</option>
+        <option value="android">Android</option>
         <option value="system-design">System Design</option>
+        <option value="behavioral">Behaviour</option>
       </select>
       <div class="mode-controls">
         <!-- A real switch, same contract as #mode-toggle / #theme-toggle: the

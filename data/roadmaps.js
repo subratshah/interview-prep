@@ -10,7 +10,7 @@
 // section is on the path, and `getQuestionIds(topic)` is the topic's full id set.
 const RoadmapDB = (() => {
   // Band order per topic, verified against this branch's data. Question counts
-  // per band at the time of writing: android 14,29,21,16,12,11,25,18 = 146;
+  // per band at the time of writing: android 18,26,19,18,13,15,11,25,18,1 = 164;
   // behavioral 12,9,13,17,17 = 68; data-structures 7,4,4,6,6,11,7,1 = 46;
   // system-design 12,24,34,9,10,8 = 97.
   //
@@ -26,9 +26,10 @@ const RoadmapDB = (() => {
       'Concurrency',
       'Networking & Data',
       'Architecture',
+      'Patterns & Principles',
       'Performance & Security',
       'Engineering',
-      'Patterns & Principles',
+      'AI & Tooling',
     ],
     behavioral: [
       'Ownership',

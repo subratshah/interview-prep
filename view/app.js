@@ -44,7 +44,7 @@ window.NotesDB = (function () {
 })();
 
 // ── Constants ──────────────────────────────────────────────
-const VALID_TABS = ['android', 'behavioral', 'data-structures', 'system-design'];
+const VALID_TABS = ['data-structures', 'android', 'system-design', 'behavioral'];
 const THEME_STORAGE_KEY = 'interview-theme';
 const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
 const ZOOM_MIGRATION_KEY = 'interview-ui-zoom-v2';
@@ -545,7 +545,32 @@ function getFilteredQuestions() {
   });
 }
 
-/** Group questions within the active topic tab preserving first-seen section order (sidebar). */
+/**
+ * Rank of a section inside its topic's roadmap band order (`data/roadmaps.js`).
+ * Sections the roadmap does not know (or an empty registry) rank after the listed ones.
+ */
+function sectionRankFor(type) {
+  const bands = typeof RoadmapDB !== 'undefined' ? RoadmapDB.getRoadmap(type) : [];
+  const index = new Map(bands.map((band, i) => [band.milestone, i]));
+  return section => (index.has(section) ? index.get(section) : index.size);
+}
+
+/** Stable sort of section groups by roadmap band order; topics keep their first-seen order. */
+function sortGroupsByRoadmapOrder(groups) {
+  const typeOf = g => g.type || (g.items[0] && g.items[0].type);
+  const types = [];
+  groups.forEach(g => { if (!types.includes(typeOf(g))) types.push(typeOf(g)); });
+  const rank = {};
+  types.forEach(t => { rank[t] = sectionRankFor(t); });
+  return groups
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => types.indexOf(typeOf(a.g)) - types.indexOf(typeOf(b.g))
+      || rank[typeOf(a.g)](a.g.section) - rank[typeOf(b.g)](b.g.section)
+      || a.i - b.i)
+    .map(x => x.g);
+}
+
+/** Group questions within the active topic tab in roadmap band order, unlisted sections in data order (sidebar). */
 function groupBySection(tabQuestions) {
   const groups = {};
   const order = [];
@@ -557,7 +582,7 @@ function groupBySection(tabQuestions) {
     }
     groups[key].items.push(q);
   });
-  return order.map(key => groups[key]);
+  return sortGroupsByRoadmapOrder(order.map(key => groups[key]));
 }
 
 /** Preserve first-seen order; group key is topic + section (needed when search spans types). */
@@ -593,7 +618,7 @@ function getAllTagsForCurrentTab() {
 
 /** After filters, ensure `activeFeedSection` points at a section with visible questions. */
 function syncActiveFeedSection(filteredQs) {
-  const groups = sortSectionGroups(groupByTopicSection(filteredQs));
+  const groups = sortSectionGroups(sortGroupsByRoadmapOrder(groupByTopicSection(filteredQs)));
   const cur = state.activeFeedSection;
 
   if (groups.length === 0) {
@@ -2441,8 +2466,8 @@ const ROADMAP_ROW_KEY_SEP = '\u0000'; // separator for the (topic, section) row 
 const ROADMAP_MARK_CURRENT = true; // gate the open question's `rm-cur` outline.
 // The user is still choosing between "no mark" and a 1px outline in the mock, so
 // flipping this one constant adds or drops it without touching the builders.
-const ROADMAP_MATRIX_TOPICS = ['android', 'data-structures', 'system-design', 'behavioral'];
-// Matrix block order is FIXED and deliberately NOT the VALID_TABS tab order.
+const ROADMAP_MATRIX_TOPICS = ['data-structures', 'android', 'system-design', 'behavioral'];
+// Matrix block order is FIXED; it matches the VALID_TABS tab order (DSA, Android, System Design, Behaviour).
 // Geometry read from getBoundingClientRect is px, so the two gaps that are really
 // sheet lengths are declared in rem and converted through the live root font size
 // (the same reading runMermaidInContainer uses): at ladder 70% they shrink with

@@ -58,6 +58,7 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   └── package.json        # interview-prep-server, engines.node >= 22
 ├── skills/mock-interview/  # Agent skill: SKILL.md + reference/progress-api.md, roadmap.md
 ├── skills/make-notes/     # Agent skill: source → concept notes; reference/format.md
+├── skills/solve-step-by-step/ # Agent skill: question → stepwise solution ending in Kotlin
 └── view/
     ├── app.js              # Main application logic (detail layout: see Architecture Notes)
     ├── style.css           # All styles (rem lengths; see Code Style)
@@ -200,7 +201,7 @@ template plus components.
 3. Follow the schema above — unique `id` (next unused suffix for the topic) and `num` equal to that suffix
 4. Check the `section` value: it *is* the roadmap matrix row. A section missing from `SECTION_ORDER`
    in `data/roadmaps.js` still reaches the path — `build()` appends it in data order — so the only
-   cost is its position. Add the name there to place the row deliberately, and never hand-list
+   cost is its position, which the sidebar shares (`groupBySection` sorts by the same bands). Add the name there to place the row deliberately, and never hand-list
    question ids anywhere: the derived id map this replaced covered only a fraction of the Android ids and put
    `sd-14` in two rows
 5. Run `node scripts/compose-html.mjs` if you also modified components
@@ -382,7 +383,7 @@ static deployment.
   (`node --check data/<topic>.js`)
 - **A question seems missing from the feed** — usually section-scoping, not bad data: the feed shows
   exactly one section at a time (`getFeedQuestions`), and the sidebar lists the sections for the
-  active topic — for system design that is Mobile, Classic, Infrastructure,
+  active topic in `SECTION_ORDER` order (unlisted sections last, in data order) — for system design that is Mobile, Classic, Infrastructure,
   Architecture, Frontend and Staff / Platform (counts drop under active facets). Pick the section in
   the sidebar, or let ⌘⇧F find it: the palette searches every question across topics by title,
   section, tags, type/id/num and the text of every answer card
