@@ -58,7 +58,7 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   └── package.json        # interview-prep-server, engines.node >= 22
 ├── skills/mock-interview/  # Agent skill: SKILL.md + reference/progress-api.md, roadmap.md
 ├── skills/make-notes/     # Agent skill: source → concept notes; reference/format.md
-├── skills/solve-step-by-step/ # Agent skill: question → stepwise solution ending in Kotlin
+├── skills/solve-step-by-step/ # Agent skill: router for DSA / system design / Android concepts → verified, stepwise solution ending in Kotlin; reference/{dsa,system-design,android-concepts,worked-example}.md
 └── view/
     ├── app.js              # Main application logic (detail layout: see Architecture Notes)
     ├── style.css           # All styles (rem lengths; see Code Style)
