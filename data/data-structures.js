@@ -615,7 +615,7 @@ QuestionDB.register('data-structures', [
     star: true,
     section: 'Sorting & Searching',
     title: 'Minimum number of platforms for a railway station (Walmart SDE-III greedy round).',
-    tags: [ 'walmart', 'greedy', 'sorting', 'prefix-sum' ],
+    tags: [ 'walmart', 'greedy', 'sorting', 'prefix-sum', 'palo-alto' ],
     related: [ 'ds-27', 'ds-19' ],
     complexity: 'Time: O(n log n), Space: O(1)',
     followUp: '**Follow-up:** What if a train arrives exactly when another departs?\n> Clarify tie-breaking — the usual convention needs an extra platform on equality',

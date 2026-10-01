@@ -74,9 +74,9 @@ user?.let { sendEmail(it.email) }
     star: false,
     section: 'Kotlin',
     title: 'Explain sealed classes. How are they different from enums?',
-    tags: [ 'kotlin', 'classes', 'state' ],
+    tags: [ 'kotlin', 'classes', 'state', 'palo-alto' ],
     related: [ 'tech-2', 'tech-138' ],
-    keyPoints: `- \`sealed class\` = closed type hierarchy, subclasses defined in same package/file
+    keyPoints: `- \`sealed class\` = closed type hierarchy; direct subclasses must be in the same package and module (Kotlin 1.5+; earlier, the same file)
 - Each subclass can hold **different data**; enum instances all have the same shape
 - Used for: UI state (\`Loading\`, \`Success(data)\`, \`Error(message)\`), Result types, navigation events`,
     answer: `- Pick a sealed type when variants carry different data; an enum when they are just labelled constants
@@ -264,7 +264,7 @@ Detection:
     star: true,
     section: 'Concurrency',
     title: '`Dispatchers.IO` vs `Dispatchers.Default` vs `Dispatchers.Main` — when do you use each?',
-    tags: [ 'coroutines', 'threading' ],
+    tags: [ 'coroutines', 'threading', 'palo-alto' ],
     related: [ 'tech-14', 'tech-16' ],
     keyPoints: `- \`Main\`: UI updates, observing state
 - \`IO\`: network, database, file I/O (optimized for blocking, large thread pool)
@@ -284,7 +284,7 @@ Detection:
     star: false,
     section: 'Concurrency',
     title: '`launch` vs `async` — what\'s the difference?',
-    tags: [ 'coroutines', 'concurrency' ],
+    tags: [ 'coroutines', 'concurrency', 'palo-alto' ],
     related: [ 'tech-14', 'tech-17' ],
     keyPoints: `- \`launch\`: fire-and-forget, returns \`Job\`
 - \`async\`: returns \`Deferred<T>\`, call \`.await()\` to get result
@@ -310,7 +310,7 @@ val feed = b.await()
     star: false,
     section: 'Concurrency',
     title: 'What is structured concurrency?',
-    tags: [ 'coroutines', 'concurrency' ],
+    tags: [ 'coroutines', 'concurrency', 'palo-alto' ],
     related: [ 'tech-14', 'tech-16' ],
     keyPoints: `- Coroutines are scoped — child coroutines inherit parent scope
 - If parent is cancelled, all children are cancelled
@@ -353,7 +353,7 @@ val feed = b.await()
     star: false,
     section: 'Networking & Data',
     title: 'When would you use Room vs DataStore vs SharedPreferences?',
-    tags: [ 'storage', 'data' ],
+    tags: [ 'storage', 'data', 'palo-alto' ],
     related: [ 'tech-18', 'tech-100' ],
     keyPoints: `- \`SharedPreferences\`: simple key-value, small amount of data, but synchronous and not type-safe
 - \`DataStore\` (Proto or Preferences): async, coroutines-based, type-safe, replaces SharedPreferences
@@ -567,12 +567,13 @@ fun \`shows error state when fetch fails\`() = runTest {
     star: true,
     section: 'Jetpack',
     title: 'WorkManager vs Service vs JobScheduler — when do you use each?',
-    tags: [ 'background', 'workmanager' ],
+    tags: [ 'background', 'workmanager', 'palo-alto' ],
     related: [ 'sd-18', 'tech-31', 'tech-32' ],
     keyPoints: `- \`WorkManager\`: deferrable, guaranteed execution even after app restart or reboot. Best for: sync, upload, cleanup
 - \`Service\` (Foreground): user-visible long-running work (music playback, location tracking)
 - \`JobScheduler\`: system-level job scheduling (API 21+); WorkManager wraps it internally
-- Coroutines/threads: for work that only needs to run while app is alive`,
+- Coroutines/threads: for work that only needs to run while app is alive
+- Periodic work (\`PeriodicWorkRequest\`) has a **15-minute minimum interval** and runs when constraints and the system allow, so timing is never exact; use \`AlarmManager\` when a precise time matters`,
     answer: `- Must finish even if the app dies → WorkManager
 - User is watching it happen right now → foreground Service
 - Only matters while the screen is alive → a coroutine in the right scope; call JobScheduler directly almost never`,
@@ -589,7 +590,7 @@ fun \`shows error state when fetch fails\`() = runTest {
     star: false,
     section: 'Jetpack',
     title: 'How do you chain work in WorkManager?',
-    tags: [ 'background', 'workmanager' ],
+    tags: [ 'background', 'workmanager', 'palo-alto' ],
     related: [ 'tech-30' ],
     keyPoints: `\`\`\`kotlin
 WorkManager.getInstance(context)
@@ -599,7 +600,8 @@ WorkManager.getInstance(context)
 \`\`\`
 - \`beginWith\` + \`then\` creates sequential chain
 - \`beginWith(listOf(...))\` runs multiple workers in parallel then joins
-- Output of one worker can be passed as input to the next via \`Data\``,
+- Output of one worker can be passed as input to the next via \`Data\`
+- Only one-time work chains: \`PeriodicWorkRequest\` cannot be part of a chain, and its minimum interval is 15 minutes`,
     answer: `- Sequence steps with \`beginWith(worker).then(next)\`, then \`enqueue()\`
 - \`beginWith(listOf(...))\` fans several workers out in parallel and joins them before the next step
 - A worker returns output \`Data\`, which becomes the input of the worker after it`,
@@ -635,7 +637,7 @@ WorkManager.getInstance(context)
     star: false,
     section: 'Android Core',
     title: 'What is a BroadcastReceiver? What are the two ways to register one?',
-    tags: [ 'broadcast', 'android-components' ],
+    tags: [ 'broadcast', 'android-components', 'palo-alto' ],
     related: [ 'tech-32', 'tech-70' ],
     keyPoints: `- \`BroadcastReceiver\`: responds to system-wide or app-level broadcast events (network change, boot completed, battery low)
 - **Manifest registration**: receives broadcasts even when app is not running (limited by Android 8+ background restrictions)
@@ -698,7 +700,7 @@ WorkManager.getInstance(context)
     star: false,
     section: 'Performance & Security',
     title: 'How do you securely store sensitive data on Android?',
-    tags: [ 'security', 'storage' ],
+    tags: [ 'security', 'storage', 'palo-alto', 'encryption', 'keystore' ],
     related: [ 'tech-164', 'tech-161' ],
     keyPoints: `- **Keystore**: store cryptographic keys, never extracted from hardware-backed storage
 - **Jetpack Security (EncryptedSharedPreferences / EncryptedFile) is deprecated — no longer the primary recommendation**: use a Keystore-backed master key with app-level AES-GCM (or a maintained community replacement) to encrypt values at rest
@@ -708,7 +710,7 @@ WorkManager.getInstance(context)
 - \`EncryptedSharedPreferences\`/\`EncryptedFile\` (Jetpack Security) is deprecated — legacy, not the default
 - Encrypt at rest with Keystore-backed AES-GCM; no plaintext tokens in prefs, no secrets in source`,
     followUp: `**Follow-up:** What's wrong with storing auth tokens in SharedPreferences?
-> Unencrypted on rooted devices. On Android 6+, use EncryptedSharedPreferences or Keystore-backed storage.`,
+> Unencrypted on rooted devices and copied by backups. Encrypt the token with a Keystore-backed AES-GCM key before storing it (Jetpack Security's \`EncryptedSharedPreferences\` is deprecated), and keep the token short-lived.`,
     redFlags: `- Stores tokens in plain SharedPreferences or hardcoded strings`,
   },
   {
@@ -798,7 +800,7 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Architecture',
     title: 'What is Clean Architecture and how do you apply it to Android?',
-    tags: [ 'architecture', 'clean-architecture', 'mvvm' ],
+    tags: [ 'architecture', 'clean-architecture', 'mvvm', 'palo-alto' ],
     related: [ 'tech-75', 'tech-102' ],
     keyPoints: `- Three layers: Presentation (ViewModel + UI), Domain (UseCases + entities, pure Kotlin, no Android deps), Data (Repositories, API, DB)
 - Dependency rule: outer layers depend on inner layers, never the reverse
@@ -893,7 +895,7 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Concurrency',
     title: 'Explain Flow operators: `map`, `flatMapLatest`, `combine`, `zip`, `debounce`. When do you use each?',
-    tags: [ 'coroutines', 'flow', 'advanced' ],
+    tags: [ 'coroutines', 'flow', 'advanced', 'palo-alto' ],
     related: [ 'tech-14', 'tech-136', 'tech-16' ],
     keyPoints: `- \`map\`: transforms each emission
 - \`flatMapLatest\`: cancels previous inner flow on new emission (great for search-as-you-type)
@@ -961,7 +963,7 @@ WorkManager.getInstance(context)
     star: false,
     section: 'Kotlin',
     title: 'Explain Kotlin coroutine `Flow` cold vs hot streams.',
-    tags: [ 'coroutines', 'flow', 'advanced', 'kotlin' ],
+    tags: [ 'coroutines', 'flow', 'advanced', 'kotlin', 'palo-alto' ],
     related: [ 'tech-14', 'tech-44', 'tech-136' ],
     keyPoints: `- Cold flow: starts executing when collected; each collector gets its own independent stream. Created with \`flow { }\` builder.
 - Hot flow: exists independently of collectors; emits whether or not someone is listening. \`StateFlow\` and \`SharedFlow\` are hot.
@@ -982,7 +984,7 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Performance & Security',
     title: 'How do you implement biometric authentication on Android?',
-    tags: [ 'security', 'biometric', 'android-components' ],
+    tags: [ 'security', 'biometric', 'android-components', 'palo-alto', 'encryption', 'keystore' ],
     related: [ 'tech-37', 'tech-164', 'tech-9' ],
     keyPoints: `- Use \`BiometricPrompt\` (AndroidX) — unified API for fingerprint, face, iris
 - \`BiometricManager.canAuthenticate(authenticators)\` — check device capability before showing prompt
@@ -1073,7 +1075,7 @@ WorkManager.getInstance(context)
     star: false,
     section: 'Performance & Security',
     title: 'How does the Android Keystore work? What guarantees does it provide?',
-    tags: [ 'security', 'keystore', 'biometric', 'advanced' ],
+    tags: [ 'security', 'keystore', 'biometric', 'advanced', 'palo-alto', 'encryption' ],
     related: [ 'tech-37', 'tech-164', 'tech-58' ],
     keyPoints: `- Android Keystore stores cryptographic keys in a secure hardware enclave (TEE or StrongBox) — keys never leave hardware in plaintext
 - Generate a key: \`KeyPairGenerator\` or \`KeyGenerator\` with \`KeyStore.getInstance("AndroidKeyStore")\`
@@ -1210,7 +1212,7 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Android Core',
     title: 'What is the difference between Explicit and Implicit Intents?',
-    tags: [ 'intents', 'android-components' ],
+    tags: [ 'intents', 'android-components', 'palo-alto' ],
     related: [ 'tech-70', 'tech-32', 'tech-33' ],
     keyPoints: `- **Explicit Intent**: specifies the exact component class to start — used for in-app navigation (\`Intent(this, DetailActivity::class.java)\`)
 - **Implicit Intent**: specifies an action and lets Android find a matching app — used for system actions (\`Intent(Intent.ACTION_VIEW, uri)\`)
@@ -1280,7 +1282,7 @@ WorkManager.getInstance(context)
     star: true,
     section: 'Networking & Data',
     title: 'Explain Room\'s key components: `@Entity`, `@Dao`, `@Database`, `@TypeConverter`. How do you handle schema migrations?',
-    tags: [ 'storage', 'room', 'data' ],
+    tags: [ 'storage', 'room', 'data', 'palo-alto', 'migration' ],
     related: [ 'sd-8', 'tech-19', 'sd-18' ],
     keyPoints: `- \`@Entity\`: maps a Kotlin class to a DB table. Fields map to columns; use \`@PrimaryKey\`, \`@ColumnInfo\`, \`@Embedded\`, \`@Relation\`.
 - \`@Dao\`: interface with \`@Query\`, \`@Insert\`, \`@Update\`, \`@Delete\` — Room generates the implementation. Can return \`Flow<T>\` for reactive queries.
@@ -1354,7 +1356,7 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
     star: true,
     section: 'Architecture',
     title: 'Compare MVC, MVP, and MVVM architecture patterns in Android — what are the key differences and when to use each?',
-    tags: [ 'architecture', 'mvc', 'mvp', 'mvvm', 'viewmodel' ],
+    tags: [ 'architecture', 'mvc', 'mvp', 'mvvm', 'viewmodel', 'palo-alto' ],
     related: [ 'tech-46', 'tech-45', 'ds-1', 'tech-6' ],
     keyPoints: `- **MVC (Model-View-Controller)**:
   - Controller handles user input and updates Model
@@ -1414,7 +1416,7 @@ override fun onDestroyView() { super.onDestroyView(); _binding = null }
     star: true,
     section: 'Concurrency',
     title: 'How does exception handling differ between `launch` and `async`? What is `CoroutineExceptionHandler`?',
-    tags: [ 'coroutines', 'concurrency', 'advanced' ],
+    tags: [ 'coroutines', 'concurrency', 'advanced', 'palo-alto' ],
     related: [ 'tech-14', 'tech-16', 'tech-17' ],
     keyPoints: `- \`launch\`: uncaught exceptions propagate immediately to the parent scope — crash the app or trigger \`CoroutineExceptionHandler\`
 - \`async\`: exceptions are stored inside the \`Deferred\`, only rethrown when \`.await()\` is called. Must wrap \`.await()\` in try/catch.
@@ -1690,7 +1692,7 @@ lifecycleScope.launch {
     star: true,
     section: 'Kotlin',
     title: 'What is the difference between `StateFlow` and `SharedFlow`?',
-    tags: [ 'flow', 'stateflow', 'sharedflow', 'coroutines' ],
+    tags: [ 'flow', 'stateflow', 'sharedflow', 'coroutines', 'palo-alto' ],
     related: [ 'tech-136', 'tech-91' ],
     keyPoints: `- **StateFlow**: always has a current value. New collectors immediately receive the latest value (hot, stateful). Equality-checked — same value won't re-emit. Created with \`MutableStateFlow(initialValue)\`.
   - Use for: UI state, latest known value (isLoading, list items)
@@ -1718,7 +1720,7 @@ lifecycleScope.launch {
     star: false,
     section: 'Kotlin',
     title: 'Explain key Flow operators: `flatMapLatest`, `combine`, `zip`, `buffer`, and `conflate`.',
-    tags: [ 'flow', 'operators', 'coroutines', 'advanced' ],
+    tags: [ 'flow', 'operators', 'coroutines', 'advanced', 'palo-alto' ],
     related: [ 'tech-136', 'tech-52', 'tech-90' ],
     keyPoints: `- **\`flatMapLatest\`**: maps each emission to a new Flow, cancels the previous inner Flow when a new emission arrives. Classic use: search queries — new keystroke cancels the in-flight API call.
 - **\`combine\`**: collects the latest value from N Flows and emits whenever any of them emits. All Flows must have emitted at least once.
@@ -2005,7 +2007,7 @@ AsyncImage(
     star: true,
     section: 'Networking & Data',
     title: 'What is Jetpack DataStore? How does Preferences DataStore differ from Proto DataStore?',
-    tags: [ 'datastore', 'preferences', 'storage', 'coroutines' ],
+    tags: [ 'datastore', 'preferences', 'storage', 'coroutines', 'palo-alto' ],
     related: [ 'tech-19', 'tech-22' ],
     keyPoints: `- DataStore: Jetpack replacement for \`SharedPreferences\`. Two variants:
   - **Preferences DataStore**: schema-less key-value store using typed \`Preferences.Key<T>\`. Similar to SharedPreferences but fully async.
@@ -2338,7 +2340,7 @@ Install → JIT (collect profile) → background dex2oat → AOT compiled method
     star: true,
     section: 'Performance & Security',
     title: 'How does R8 shrink and obfuscate code? What are keep rules and how do you debug release-only crashes?',
-    tags: [ 'r8', 'proguard', 'obfuscation', 'shrinking', 'build', 'security' ],
+    tags: [ 'r8', 'proguard', 'obfuscation', 'shrinking', 'build', 'security', 'palo-alto' ],
     related: [ 'tech-161', 'tech-84' ],
     keyPoints: `- **R8** (replaced ProGuard, enabled by default since AGP 3.4): runs on release builds, performs three passes:
   1. **Shrinking** (tree-shaking): removes unreachable classes, methods, fields. Starts from entry points declared in the manifest (Activities, Services, etc.).
@@ -2773,7 +2775,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Architecture',
     title: 'Is the domain layer (use cases) in Clean Architecture worth it on Android? Argue both sides.',
-    tags: [ 'walmart', 'architecture', 'clean-architecture' ],
+    tags: [ 'walmart', 'architecture', 'clean-architecture', 'palo-alto' ],
     related: [ 'tech-46', 'tech-74', 'tech-157' ],
     keyPoints: `- For: beyond the textbook reuse/testability case (tech-45), a domain layer decouples ViewModels from repository shape — repositories can be split, merged or re-cached without touching presentation code
 - Against: boilerplate (one class per operation), pass-through mappers, slows simple CRUD screens
@@ -2873,7 +2875,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Concurrency',
     title: 'Explain structured concurrency and coroutine exception handling. What are supervisorScope vs coroutineScope?',
-    tags: [ 'walmart', 'coroutines', 'concurrency', 'kotlin' ],
+    tags: [ 'walmart', 'coroutines', 'concurrency', 'kotlin', 'palo-alto' ],
     related: [ 'tech-14', 'tech-52', 'tech-88', 'ds-46' ],
     keyPoints: `- Structured concurrency: coroutines form a scope hierarchy; cancellation propagates down, failure propagates up per Job semantics
 - coroutineScope: any child failure cancels the parent and siblings (fail-fast)
@@ -2897,7 +2899,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Concurrency',
     title: 'Cold vs hot Flows — what do stateIn/ShareIn actually solve, and what are the SharingStarted trade-offs?',
-    tags: [ 'walmart', 'flow', 'coroutines', 'kotlin' ],
+    tags: [ 'walmart', 'flow', 'coroutines', 'kotlin', 'palo-alto' ],
     related: [ 'tech-15', 'tech-136' ],
     keyPoints: `- Cold: each collector re-runs the builder (flow { }, Retrofit-generated flows) — one upstream per collector
 - Hot: shared upstream, multi-cast (StateFlow, SharedFlow)
@@ -2921,7 +2923,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Networking & Data',
     title: 'How do you ship a Room schema migration safely? Destructive vs auto vs manual.',
-    tags: [ 'walmart', 'room', 'database', 'testing' ],
+    tags: [ 'walmart', 'room', 'database', 'testing', 'palo-alto', 'migration' ],
     related: [ 'tech-19', 'tech-72', 'sd-18' ],
     keyPoints: `- Versioned migrations with Migration objects; @AutoMigration for simple adds/renames with exportSchema=true
 - Manual SQL for data transforms; test with MigrationTestHelper against exported schemas in CI
@@ -3244,7 +3246,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Architecture',
     title: 'MVVM vs MVI — what\'s the architectural difference?',
-    tags: [ 'architecture', 'mvvm', 'mvi', 'notion', 'walmart', 'state' ],
+    tags: [ 'architecture', 'mvvm', 'mvi', 'notion', 'walmart', 'state', 'palo-alto' ],
     related: [ 'tech-151', 'tech-45', 'tech-46', 'tech-102', 'tech-132' ],
     keyPoints: `- MVVM: the View observes several independent streams exposed by the ViewModel — one \`StateFlow\`/\`LiveData\` per piece of state; the screen's overall state is implicit, assembled from N separate emissions
 - MVI: the View observes a single immutable \`State\` object per screen; every user action is modeled as an \`Intent\`, run through a pure reducer, producing the next \`State\` — strictly unidirectional
@@ -3278,7 +3280,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Concurrency',
     title: 'What is `SupervisorScope` and how does it differ from structured concurrency\'s default failure propagation?',
-    tags: [ 'coroutines', 'concurrency', 'supervisorscope', 'notion' ],
+    tags: [ 'coroutines', 'concurrency', 'supervisorscope', 'notion', 'palo-alto' ],
     related: [ 'tech-17' ],
     keyPoints: `- Default structured concurrency uses a regular \`Job\`: any child's unhandled exception cancels its parent, and a cancelled parent cancels every other child — one failure takes the whole subtree down
 - \`supervisorScope { ... }\` (or a coroutine with a \`SupervisorJob\`) breaks upward propagation: a child failing does not cancel the supervisor or its siblings, so each direct child fails independently
@@ -3351,7 +3353,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Performance & Security',
     title: 'What is R8 and how does it differ from ProGuard?',
-    tags: [ 'r8', 'proguard', 'build', 'notion', 'security' ],
+    tags: [ 'r8', 'proguard', 'build', 'notion', 'security', 'palo-alto', 'obfuscation' ],
     related: [ 'tech-25', 'tech-37', 'tech-111' ],
     keyPoints: `- Both are whole-program optimizers that run three passes over release bytecode: shrinking (remove unreachable code/resources from declared entry points), obfuscation (rename classes/methods/fields to short symbols), optimization (inline, prune dead branches, merge classes)
 - ProGuard operates on Java bytecode as a separate, general-purpose tool; R8 is Google's replacement, built directly into Android Gradle Plugin, and it also performs desugaring and dexing in the same pass — one tool instead of ProGuard-then-dx/d8
@@ -3400,7 +3402,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Engineering',
     title: 'What are Android App Bundles and why use them over APKs?',
-    tags: [ 'app-bundle', 'build', 'play-store', 'notion', 'aab', 'apk', 'dynamic-delivery', 'security', 'advanced' ],
+    tags: [ 'app-bundle', 'build', 'play-store', 'notion', 'aab', 'apk', 'dynamic-delivery', 'security', 'advanced', 'palo-alto' ],
     related: [ 'tech-84', 'tech-105', 'tech-161', 'tech-114' ],
     keyPoints: `- An \`.aab\` is a publishing format, not an installable one — it bundles every density, language, and ABI resource variant plus metadata, and is uploaded to Play instead of an APK
 - Play's backend uses it to run "dynamic delivery": it generates and signs per-device split APKs (base + density/language/ABI splits) on the fly, so a given install only downloads the resources that device actually needs
@@ -3573,7 +3575,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: false,
     section: 'Kotlin',
     title: 'Why is multiple inheritance not supported in Kotlin/Java, and what is the diamond problem?',
-    tags: [ 'kotlin', 'inheritance', 'oop', 'notion' ],
+    tags: [ 'kotlin', 'inheritance', 'oop', 'notion', 'palo-alto' ],
     related: [  ],
     keyPoints: `- The diamond problem: class \`D\` inherits from both \`B\` and \`C\`, which both inherit from \`A\` and both override the same method from \`A\` differently — if \`D\` inherited both implementations directly, the compiler/runtime has no unambiguous rule for which one \`D\` should get
 - Kotlin and Java both forbid multiple *class* inheritance for exactly this reason — \`class D : B, C\` isn't legal syntax at all — sidestepping the ambiguity by construction rather than defining a resolution rule for it
@@ -3794,7 +3796,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Patterns & Principles',
     title: 'How does the Builder pattern show up in Android SDK classes, and when would you write your own?',
-    tags: [ 'design-patterns', 'creational', 'android-sdk' ],
+    tags: [ 'design-patterns', 'creational', 'android-sdk', 'palo-alto' ],
     related: [ 'tech-182', 'tech-183', 'tech-184' ],
     keyPoints: `- **Android SDK Builders you use daily:** \`AlertDialog.Builder\`, \`NotificationCompat.Builder\`, \`Retrofit.Builder\`, \`RoomDatabase.Builder\`, \`OkHttpClient.Builder\`, \`WorkRequest.Builder\` — all share the same fluent API shape: optional setters return \`this\`, required params go in the constructor or a \`build()\` method
 - **Why Android uses it:** construction with many optional configs (priority, channel, timeout, retry policy, interceptors) without telescoping constructors; validation happens in \`build()\` so invalid combos fail fast
@@ -3824,7 +3826,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Patterns & Principles',
     title: 'Where does the Factory pattern appear in Android, and how does `ViewModelProvider.Factory` differ from a simple factory function?',
-    tags: [ 'design-patterns', 'creational', 'android-sdk', 'viewmodel' ],
+    tags: [ 'design-patterns', 'creational', 'android-sdk', 'viewmodel', 'palo-alto' ],
     related: [ 'tech-181', 'tech-183', 'tech-25' ],
     keyPoints: `- **Android SDK factories you interact with:** \`Fragment.instantiate()\` (legacy), \`FragmentFactory\` (since API 28), \`ViewModelProvider.Factory\`, \`RecyclerView.Adapter\` (creates \`ViewHolder\`s), \`ContentProvider\` (creates \`Cursor\`s), \`PagerAdapter\` (creates pages)
 - **\`ViewModelProvider.Factory\` vs simple factory function:** a factory function \`() -> ViewModel\` works for parameterless VMs. \`Factory\` exists because ViewModels often need constructor args (\`SavedStateHandle\`, repository, use case) — \`Factory.create(modelClass, extras)\` receives the \`CreationExtras\` (which includes \`SavedStateHandle\`) so Hilt/Koin can inject dependencies *and* the framework can pass framework-provided args
@@ -3850,7 +3852,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Patterns & Principles',
     title: 'How does the Decorator pattern appear in Android — `ContextWrapper`, streams, and `RecyclerView.ItemDecoration`?',
-    tags: [ 'design-patterns', 'structural', 'android-sdk' ],
+    tags: [ 'design-patterns', 'structural', 'android-sdk', 'palo-alto' ],
     related: [ 'tech-182', 'tech-184', 'tech-185' ],
     keyPoints: `- **\`ContextWrapper\` (the classic Decorator):** wraps a base \`Context\` and delegates all calls to it, allowing you to override specific behaviors (\`getResources()\`, \`getTheme()\`, \`getPackageName()\`) without subclassing \`ContextImpl\`. Used by \`ContextThemeWrapper\` (theming), \`Activity\` (adds window/token), \`Service\`, \`Application\` — every Android component is a decorated Context
 - **Java/Kotlin streams:** \`BufferedInputStream\`, \`GZIPInputStream\`, \`CipherInputStream\`, \`DataInputStream\` all wrap an \`InputStream\` and add behavior (buffering, compression, encryption, typed reads) — this is the textbook Decorator pattern, and Android uses it heavily for network/disk I/O
@@ -3905,8 +3907,8 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     star: true,
     section: 'Patterns & Principles',
     title: 'Where do Singletons actually appear in Android, and why is DI (Hilt/Koin) preferred over rolling your own?',
-    tags: [ 'design-patterns', 'creational', 'android-sdk', 'di' ],
-    related: [ 'tech-184', 'tech-186', 'tech-175', 'tech-99' ],
+    tags: [ 'design-patterns', 'creational', 'android-sdk', 'di', 'palo-alto', 'thread-safety' ],
+    related: [ 'tech-184', 'tech-186', 'tech-175', 'tech-99', 'ds-47' ],
     keyPoints: `- **Framework Singletons you use daily:** \`Application\` subclass (process-global), \`ProcessLifecycleOwner.get()\`, \`WorkManager.getInstance(context)\`, \`MediaController.getInstance()\`, \`FirebaseAnalytics.getInstance()\`, \`Crashlytics.getInstance()\` — these are *true* Singletons enforced by the framework/process lifecycle
 - **Why DI replaces hand-rolled Singletons:** a \`@Singleton\` in Hilt/Koin is scoped to a component (Application, Activity, Fragment) — not truly global. This gives you:
   - Testability: swap implementations in tests via a test module
@@ -3914,6 +3916,7 @@ Button(onClick = onClick)  // Button can now skip if other state changes
   - No static state leakage across tests
 - **When you still see a hand-rolled Singleton:** database instances (\`Room.databaseBuilder().build()\` creates a *new* instance on every call, so apps wrap it in a singleton), \`OkHttpClient\` (expensive to create), \`Retrofit\` instance, \`Gson\` — these are *expensive-to-create* objects that are effectively singletons but should still be provided via DI, not a static \`getInstance()\`
 - **Kotlin \`object\` declaration:** compiles to a singleton with lazy thread-safe initialization (via \`INSTANCE\` field + static initializer). Fine for stateless utilities (\`object JsonUtils\`), dangerous for stateful things — tests can’t reset it
+- **Writing one by hand (Java interviews ask this):** the naive \`if (instance == null) instance = new X()\` is not thread-safe: two threads can both see null and build two instances. Safe options: (1) initialization-on-demand holder, a private static nested class holding \`static final X INSTANCE\` (class loading is lazy and thread-safe, no \`synchronized\`); (2) double-checked locking, which only works when the field is \`volatile\` (see ds-47: otherwise another thread can see a half-constructed object); (3) an eager \`static final\` field or a single-element \`enum\`. Always make the constructor private. Kotlin's \`object\` gives the holder guarantees, and \`by lazy\` defaults to \`SYNCHRONIZED\`
 - **Android-specific Singleton pitfalls:**
   - A singleton that needs a \`Context\` may hold only the application context (why: tech-99)
   - Process death: a Singleton in memory doesn’t survive process kill; persisted state needs \`DataStore\`/\`SharedPreferences\`/\`Room\`
@@ -3925,10 +3928,14 @@ Button(onClick = onClick)  // Button can now skip if other state changes
     complexity: `- Time: O(1) access
 - Space: O(1) single instance; but DI scopes add per-component overhead`,
     followUp: `**Follow-up:** What actually goes wrong if two parts of the app each call \`Room.databaseBuilder(...).build()\` for the same file?
-> You get two \`RoomDatabase\` instances with separate connection pools and separate invalidation trackers: a write through one does not notify \`Flow\`/\`LiveData\` queries observing the other, so the UI goes stale, and concurrent writers can hit \`SQLITE_BUSY\`. That is why the database is provided once, as a \`@Singleton\` binding in \`SingletonComponent\` — the DI graph, not a static field, guarantees one instance.`,
+> You get two \`RoomDatabase\` instances with separate connection pools and separate invalidation trackers: a write through one does not notify \`Flow\`/\`LiveData\` queries observing the other, so the UI goes stale, and concurrent writers can hit \`SQLITE_BUSY\`. That is why the database is provided once, as a \`@Singleton\` binding in \`SingletonComponent\` — the DI graph, not a static field, guarantees one instance.
+
+**Follow-up:** Write a thread-safe singleton in Java.
+> Private constructor plus the holder idiom: \`private static class Holder { static final Foo INSTANCE = new Foo(); } public static Foo getInstance() { return Holder.INSTANCE; }\`. The JVM initialises \`Holder\` lazily on first use and under a class-loading lock, so it is lazy and thread-safe with no \`synchronized\`. Double-checked locking also works, but only with a \`volatile\` field. In Kotlin, write \`object Foo\`.`,
     redFlags: `- Writes \`class MySingleton { companion object { @Volatile private var INSTANCE: MySingleton? = null; fun getInstance() = INSTANCE ?: synchronized(this) { INSTANCE ?: MySingleton().also { INSTANCE = it } } } }\` in 2024 — just use \`object\` or DI
 - Keeps mutable state in a Kotlin \`object\` and then fights flaky tests that leak state into each other
-- Expects a singleton to be shared across the app's \`:remote\` processes`,
+- Expects a singleton to be shared across the app's \`:remote\` processes
+- Answers the Java question with a bare null-check \`getInstance()\` and no synchronisation, or with double-checked locking on a non-\`volatile\` field`,
   },
   {
     id: 'tech-186',
@@ -4149,6 +4156,167 @@ class UserProfileViewModel @Inject constructor(
 - Defines the Repository interface in the data module (backwards — interface belongs to the consumer/domain)
 - Uses \`@Inject\` constructor on ViewModel but the provided type is a concrete class, not an interface
 - Thinks DIP = “use interfaces” — it’s “high-level modules should not depend on low-level modules; both depend on abstractions”`,
+  },
+  {
+    id: 'tech-191',
+    type: 'technical',
+    num: 191,
+    difficulty: 'E',
+    star: false,
+    section: 'Kotlin',
+    title: 'What is the difference between a static member and an instance member? Can a "static class" be inherited, and how does Kotlin express static?',
+    tags: [ 'oop', 'static', 'companion-object', 'kotlin', 'java', 'palo-alto' ],
+    related: [ 'tech-170', 'tech-185', 'tech-10' ],
+    keyPoints: `- **Instance member**: one copy per object, reached through an instance (\`user.name\`); every object has its own value
+- **Static member (Java)**: one copy per class, shared by all instances and reached through the class name (\`Counter.total\`). It has no \`this\`, so it cannot read instance fields without being handed an object. Java static methods are hidden, not overridden
+- **Kotlin has no \`static\` keyword**: use top-level functions and properties, an \`object\` declaration, or a \`companion object\`. Add \`@JvmStatic\` / \`@JvmField\` when Java callers need a real static
+- **"Static class" depends on the language**: in Java only a *nested* class can be \`static\` (no hidden reference to the outer instance), and it can be extended unless it is \`final\`. In C# a \`static class\` is implicitly sealed and cannot be inherited. A Kotlin nested class (no \`inner\`) behaves like a Java static nested class; \`inner\` keeps an outer reference
+- **Kotlin classes are \`final\` by default**: to inherit from a class (nested or not) it must be \`open\`, \`abstract\` or \`sealed\`
+- **Pitfalls**: static or companion state is shared mutable state, so it needs thread-safety and leaks between tests (tech-185); an \`inner\` class (or a non-static Java inner class) holds its outer instance and can leak an Activity (tech-10)`,
+    answer: `- Instance member: one copy per object. Static member: one copy per class, shared and reached through the class name, with no \`this\`
+- Kotlin has no \`static\`: use a \`companion object\` or \`object\` (\`@JvmStatic\` for Java callers)
+- Whether a "static class" can be inherited depends on the language: yes for a Java static nested class unless \`final\`, no for a C# \`static class\`; in Kotlin the parent must be \`open\``,
+    followUp: `**Follow-up:** Why can a static method not use instance fields?
+> It is called on the class, so there is no object (no \`this\`) whose fields it could read. It would need an instance passed in as a parameter.`,
+    redFlags: `- Says static just means "accessible without an object" and never mentions the single shared copy
+- Answers "can a static class be inherited" without asking which language
+- Keeps mutable state in a \`companion object\` and ignores thread-safety and test leakage`,
+  },
+  {
+    id: 'tech-192',
+    type: 'technical',
+    num: 192,
+    difficulty: 'M',
+    star: false,
+    section: 'Kotlin',
+    title: 'Abstract class vs interface in Kotlin, and what is a "virtual" method? What happens if a subclass does not implement every abstract member?',
+    tags: [ 'oop', 'abstract-class', 'interface', 'dynamic-dispatch', 'kotlin', 'palo-alto' ],
+    related: [ 'tech-170', 'tech-189', 'tech-193', 'tech-187' ],
+    keyPoints: `- **Abstract class**: can hold state (fields, constructors) and mix implemented members with \`abstract\` ones; it cannot be instantiated and a class extends only one. It is not required to declare any abstract member
+- **Interface**: a contract. Since Java 8 and in Kotlin it can carry default method bodies, but it has no backing state; a class can implement many
+- **Choose**: an abstract class for a shared base with state and partial behaviour (an "is-a" family); an interface for a capability unrelated types share ("can-do"), and because it is the only way to get several supertypes (tech-170)
+- **Virtual method** (C++ / C# term): the implementation is chosen by the object's *runtime* type, so an override runs even through a base-type reference. In Java every non-\`final\`, non-\`static\`, non-\`private\` method is virtual. In Kotlin members are \`final\` by default: mark them \`open\`, \`abstract\` or \`override\` (which stays open unless marked \`final\`)
+- **Subclass that skips abstract members**: compile error unless that subclass is also \`abstract\`, which passes the obligation down; nothing can be instantiated until a concrete subclass implements every abstract member
+- **Workarounds when you need only some**: give the base members default bodies (\`open\`), split the contract into smaller interfaces so each class implements only what it uses (Interface Segregation, tech-189), or delegate with \`by\``,
+    answer: `- Abstract class: shared state plus partial behaviour, single inheritance. Interface: a capability contract with optional default bodies, many per class
+- "Virtual" means the override is picked by runtime type; Kotlin members are final unless marked \`open\`, \`abstract\` or \`override\`
+- A concrete subclass must implement every abstract member; otherwise it must be declared \`abstract\` too`,
+    followUp: `**Follow-up:** My base class has four abstract functions and I only need two. What are my options?
+> Give the base members \`open\` default bodies, split the contract into smaller interfaces so each class implements only its own, or delegate with \`by\`. Leaving members unimplemented only compiles if the subclass is itself \`abstract\`.`,
+    redFlags: `- Says an abstract class must have at least one abstract method
+- Says interfaces cannot contain any implementation (true only before Java 8, and for state)
+- Does not know Kotlin classes and members are \`final\` by default
+- Has not heard of "virtual" and cannot describe dynamic dispatch in other words`,
+  },
+  {
+    id: 'tech-193',
+    type: 'technical',
+    num: 193,
+    difficulty: 'E',
+    star: false,
+    section: 'Kotlin',
+    title: 'What is polymorphism and how is it achieved? What is constructor overloading, and how does Kotlin reduce the need for it?',
+    tags: [ 'oop', 'polymorphism', 'constructors', 'kotlin', 'palo-alto' ],
+    related: [ 'tech-192', 'tech-187', 'tech-181', 'tech-170' ],
+    keyPoints: `- **Polymorphism**: one call, different behaviour depending on the object. **Subtype (runtime) polymorphism**: a \`Animal\` reference calls \`talk()\` and the \`Dog\` or \`Cat\` override runs, chosen by the object's actual type (dynamic dispatch). **Compile-time polymorphism**: overloading, where the compiler picks among same-named functions by their parameter types
+- **How in Kotlin**: an \`open\` / \`abstract\` member or an interface method, plus \`override\` in each subtype. Callers depend only on the base type, so adding a subtype needs no caller change (Open/Closed, tech-187)
+- **Constructor overloading**: several constructors with different parameter lists, selected at compile time by the arguments
+- **Kotlin**: default and named arguments replace most overloads (\`class User(val name: String, val age: Int = 0)\`); secondary constructors delegate with \`this(...)\` for the rest; \`@JvmOverloads\` generates the overloads Java callers need
+- **Pitfalls**: overload resolution uses the *declared* type, not the runtime type, so overloading is not polymorphism; a pile of overloads hides intent, so prefer default arguments, a factory function or a Builder (tech-181)`,
+    answer: `- Polymorphism: the same call runs different code per object; subtype polymorphism picks the override by runtime type (dynamic dispatch), overloading is resolved at compile time
+- Achieve it with an \`open\` / \`abstract\` member or interface and \`override\` in each subtype
+- Constructor overloading is several constructors with different parameters; in Kotlin prefer default and named arguments, with \`@JvmOverloads\` for Java callers`,
+    followUp: `**Follow-up:** Both \`speak(a: Animal)\` and \`speak(d: Dog)\` exist. Which one runs for \`speak(animal)\` when \`animal\` is declared as \`Animal\` but holds a \`Dog\`?
+> The \`Animal\` overload. Overload resolution uses the declared type at compile time; only overridden members dispatch on the runtime type.`,
+    redFlags: `- Defines polymorphism only as "same name, different behaviour" with no runtime vs compile-time split
+- Mixes up overloading and overriding
+- Writes five overloaded constructors in Kotlin instead of default arguments`,
+  },
+  {
+    id: 'tech-194',
+    type: 'technical',
+    num: 194,
+    difficulty: 'M',
+    star: true,
+    section: 'Patterns & Principles',
+    title: 'What is the Strategy pattern, which category is it, and where does it appear in Android?',
+    tags: [ 'design-patterns', 'behavioral', 'strategy', 'kotlin', 'palo-alto' ],
+    related: [ 'tech-185', 'tech-187', 'tech-181', 'tech-182', 'tech-183' ],
+    keyPoints: `- **Strategy** is a **behavioural** pattern (not creational): define a family of interchangeable algorithms behind one interface, hold one in a context object, and swap it at runtime without changing the context
+- **Shape**: \`interface SortStrategy { fun sort(items: List<Int>): List<Int> }\`, concrete strategies (\`QuickSort\`, \`MergeSort\`), and a context (\`class Sorter(private var strategy: SortStrategy)\`) that delegates to the current one
+- **Kotlin shortcut**: when a strategy is one function, pass a lambda or function type (\`(Int, Int) -> Int\`); use a full interface only when strategies carry state or several methods
+- **Android examples**: a \`Comparator\` passed to \`sortedWith\`, \`RecyclerView.LayoutManager\` (linear vs grid), \`Interpolator\` for animations, a \`CoroutineDispatcher\` or \`Executor\` choosing where work runs, a payment method chosen at checkout
+- **Why it beats an \`if\` / \`when\` on a type flag**: adding an algorithm is a new class, not an edit to the context (Open/Closed, tech-187), and each strategy is testable alone
+- **Strategy vs State vs Factory**: State also swaps behaviour, but the object changes it itself as it moves between states; a Factory only creates objects (creational) and is often what *selects* the strategy`,
+    answer: `- Strategy (behavioural): put interchangeable algorithms behind one interface and let the context hold and swap one at runtime
+- In Kotlin a function type or lambda is often enough; use an interface when strategies have state
+- Android examples: \`Comparator\`, \`LayoutManager\`, \`Interpolator\`, \`CoroutineDispatcher\``,
+    followUp: `**Follow-up:** How is Strategy different from State?
+> Both delegate to an interchangeable object. With Strategy the client picks the algorithm and it usually stays fixed; with State the object swaps its own behaviour as its state changes, and the states usually know the transitions between them.`,
+    redFlags: `- Calls Strategy a creational pattern
+- Replaces the pattern with a growing \`when (type)\` inside the context
+- Builds an interface and three classes for something one lambda would express`,
+  },
+  {
+    id: 'tech-195',
+    type: 'technical',
+    num: 195,
+    difficulty: 'M',
+    star: true,
+    section: 'Android Core',
+    title: 'What is the difference between an Intent and a PendingIntent? What do FLAG_IMMUTABLE and FLAG_MUTABLE change?',
+    tags: [ 'intents', 'pendingintent', 'security', 'android-components', 'palo-alto' ],
+    related: [ 'tech-69', 'tech-70', 'tech-33' ],
+    keyPoints: `- **Intent**: a message describing an operation (action, data, target component) that *you* run now with \`startActivity\`, \`startService\` or \`sendBroadcast\`
+- **PendingIntent**: a token held by the system that wraps an Intent plus the right to run it. You hand it to another process (NotificationManager, AlarmManager, an app-widget host, geofencing, media controls) and it fires the Intent later **as your app**, with your identity and permissions, even if your process is gone
+- **Created with** \`PendingIntent.getActivity\`, \`getService\`, \`getForegroundService\` or \`getBroadcast\`. The request code keeps separate PendingIntents apart for otherwise equal Intents (Intent equality ignores extras)
+- **Flags**: \`FLAG_IMMUTABLE\` means the receiver cannot fill in or change unset Intent fields (the default choice); \`FLAG_MUTABLE\` is needed only when the receiver must add data, such as inline reply or bubbles. Apps targeting Android 12 (API 31) must specify one of them
+- **Reuse flags**: \`FLAG_UPDATE_CURRENT\` keeps the token and replaces extras, \`FLAG_CANCEL_CURRENT\` replaces the token, \`FLAG_ONE_SHOT\` allows a single send
+- **Security**: a mutable PendingIntent wrapping an *implicit* or empty Intent lets another app fill in the target and send it with your privileges (PendingIntent hijacking). Use explicit Intents and \`FLAG_IMMUTABLE\`
+- **It is not a result mechanism**: getting a result back from an Activity is the Activity Result API on a normal Intent; a PendingIntent means "run this later on my behalf"
+
+\`\`\`kotlin
+val pi = PendingIntent.getActivity(
+    context, 0, Intent(context, DetailActivity::class.java),
+    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+)
+NotificationCompat.Builder(context, CHANNEL_ID).setContentIntent(pi)
+\`\`\``,
+    answer: `- An Intent is a request you run now; a PendingIntent wraps one so another process (notification, alarm, widget) can run it later with your app's identity
+- Default to \`FLAG_IMMUTABLE\` and explicit Intents; use \`FLAG_MUTABLE\` only when the receiver must add data (inline reply)
+- It is not about getting a result back; that is the Activity Result API`,
+    followUp: `**Follow-up:** Why did Android 12 force you to choose a mutability flag?
+> A mutable PendingIntent built from an implicit or empty Intent can be completed by any app that receives it, and that app then runs it with your permissions. Forcing the choice makes immutable the deliberate default.`,
+    redFlags: `- Says a PendingIntent "waits for a response", or confuses it with \`startActivityForResult\`
+- Creates mutable PendingIntents that wrap implicit Intents
+- Does not know it runs with the creating app's permissions
+- Reuses one request code and wonders why the extras do not update`,
+  },
+  {
+    id: 'tech-196',
+    type: 'technical',
+    num: 196,
+    difficulty: 'M',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'What is MCP (Model Context Protocol), and how does it let AI applications use external tools and data?',
+    tags: [ 'ai', 'mcp', 'palo-alto' ],
+    related: [  ],
+    keyPoints: `- **MCP = Model Context Protocol**: an open protocol, introduced by Anthropic, that standardises how an AI application gets tools and context from external systems, so each tool does not need a custom integration per AI app
+- **Participants**: an **MCP host** (the AI application, e.g. an IDE or desktop assistant) creates one **MCP client** per **MCP server**; each client keeps a dedicated connection to its server. A server is any program that provides context, running locally or remotely
+- **Server primitives**: **tools** (functions the model can call, such as a database query), **resources** (data for context, such as file contents), **prompts** (reusable templates). Clients discover them with \`*/list\` calls (\`tools/list\`) and use them with \`tools/call\` and friends
+- **Messages**: JSON-RPC 2.0 requests, responses and notifications, so a server can tell clients when its tool list changes
+- **Transports**: **stdio** for local servers started as a process on the same machine, and **Streamable HTTP** for remote servers, which supports standard HTTP authentication and recommends OAuth
+- **Why it matters**: tools describe themselves with a name, description and JSON-schema input, so an agent knows exactly what it can ask a tool and how, instead of scraping or guessing; it is a structured, discoverable layer, not a replacement for the tool's own API
+- **Risks to name**: a connected server can read data and perform actions, so scope its permissions, authenticate remote servers, and treat tool output as untrusted input (prompt injection)`,
+    answer: `- MCP (Model Context Protocol) is an open protocol from Anthropic for connecting AI applications to external tools and data in a standard, discoverable way
+- A host creates one client per server; servers expose tools, resources and prompts over JSON-RPC, via stdio (local) or Streamable HTTP (remote)
+- Agents learn what a tool can do from its schema instead of guessing; scope permissions and treat tool output as untrusted`,
+    followUp: `**Follow-up:** How is an MCP tool different from just calling a REST API from the model?
+> The REST API is the underlying capability. An MCP server wraps it with a self-describing contract (name, description, input schema) and a uniform way to list and call it, so any MCP client can discover and use it without bespoke glue code. The protocol standardises the access, not the capability.`,
+    redFlags: `- Expands MCP wrongly (for example "module context protocol")
+- Describes it as a new model or an LLM feature rather than a protocol between an app and tool servers
+- Ignores security: a connected server can act with the user's data and permissions`,
   },
 ]
 );

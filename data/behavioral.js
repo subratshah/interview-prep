@@ -850,7 +850,7 @@ QuestionDB.register('behavioral', [
     listenFor: '- End-to-end ownership narrative: problem, constraints, decisions, trade-offs, outcome with numbers\n- Honest critique of own design — specific improvements, not generic \'better tests\'\n- Scaling reasoning tied to real bottlenecks (data volume, team growth, release cadence)\n- Comfort being challenged — updates position when pressed with new constraints\n\n**Context:** The Walmart hiring-manager round consistently walks your current project with improve/scale follow-ups (both GfG SDE-III reports)',
     starGuide: '"Prepare one project in depth: architecture diagram from memory, three key decisions with rejected alternatives, metrics before/after. Have the \'scale it 10x\' answer ready: what breaks first and why."',
     redFlags: '- Cannot explain own system beyond the happy path\n- Defensive when probed on trade-offs\n- Improvements are vague (\'add caching\') with no bottleneck reasoning',
-    tags: [ 'walmart', 'leadership', 'hiring-manager', 'system-design' ],
+    tags: [ 'walmart', 'leadership', 'hiring-manager', 'system-design', 'palo-alto' ],
     related: [ 'behav-20', 'behav-30', 'sd-86' ]
   },
   {
