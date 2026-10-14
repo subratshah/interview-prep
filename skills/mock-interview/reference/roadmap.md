@@ -1,30 +1,53 @@
 # Interview Prep Roadmaps
 
-Use these roadmaps to choose a sequence of questions. Each roadmap is also available as `data/roadmaps.js` for the application.
+The roadmap is **derived, not hand-listed**: each question's `section` in `data/*.js` is its band,
+and `SECTION_ORDER` in `data/roadmaps.js` only fixes the band order per topic. A section missing
+from that list is appended after the listed ones in data order, and a listed section with no
+questions is dropped. Never keep a separate list of question ids for a path; read the sections from
+the data at session time.
 
-## Android
+Band order (from `SECTION_ORDER` at the time of writing; re-read that file if it may have changed):
 
-1. **Foundations:** Kotlin basics, lifecycle, threading, coroutines, Flow
-2. **UI and state:** Compose, navigation, ViewModel, state hoisting, testing
-3. **Architecture and performance:** MVVM, dependency injection, caching, profiling, offline behavior
-4. **Advanced Android:** security, background work, modularization, SDK design
+## Android (`data/android.js`, `tech-*`)
 
-## Behavioral
+1. Kotlin
+2. Android Core
+3. Jetpack
+4. Concurrency
+5. Networking & Data
+6. Architecture
+7. Patterns & Principles
+8. Performance & Security
+9. Engineering
+10. AI & Tooling
 
-1. **Ownership and delivery:** incidents, missed deadlines, trade-offs
-2. **Collaboration:** code review, cross-team work, conflict, pushback
-3. **Growth:** feedback, learning, mentoring, technical communication
-4. **Leadership:** technical direction, migrations, stakeholder alignment
+## Behavioral (`data/behavioral.js`, `behav-*`)
 
-## Data Structures and Algorithms
+1. Ownership
+2. Delivery
+3. Collaboration
+4. Growth & Culture
+5. Leadership
 
-1. **Basics:** arrays, strings, hashing, two pointers
-2. **Intermediate:** stacks, queues, linked lists, trees, graphs
-3. **Advanced:** dynamic programming, greedy, backtracking, system-level data modeling
+## Data Structures and Algorithms (`data/data-structures.js`, `ds-*`)
 
-## System Design
+1. Arrays & Strings
+2. Hash Maps
+3. Linked Lists
+4. Stacks & Queues
+5. Sorting & Searching
+6. Trees & Graphs
+7. Dynamic Programming
+8. Concurrency
 
-1. **Core foundations:** APIs, databases, caching, queues, consistency
-2. **Distributed systems:** scaling, replication, sharding, failure handling
-3. **Mobile-specific:** offline-first, sync, push, media, performance
-4. **Platform/staff:** modularization, SDKs, CI/CD, analytics, observability
+## System Design (`data/system-design.js`, `sd-*`)
+
+1. Mobile
+2. Classic
+3. Infrastructure
+4. Architecture
+5. Frontend
+6. Staff / Platform
+
+The app's roadmap pane orders cells within a band starred-first, then E -> M -> H
+(`roadmapColumnOrder` in `view/app.js`); follow the same order when picking the next question.

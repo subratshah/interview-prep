@@ -6,7 +6,7 @@
 |---|---|---|
 | Title | line 1: `# <emoji> <Title>` then a 1–2 line *italic* summary | note header |
 | Section | `## <emoji> <title>` | one card in the detail pane (the note itself is one feed card) |
-| Section related ids | `<!-- related: sd-45, sd-54 -->` directly under the H2 | chips; else registry `related` |
+| Section related ids | `<!-- related: sd-45, sd-54 -->` as the first non-blank line under the H2 (anywhere else it is ignored) | merged with the registry `related` into the note's closing "Related questions" block; each named question gets a "📚 Notes" back-link that scrolls to the first section naming it |
 | Subsection | `### <emoji> <subtitle>` | heading inside its section card |
 | Flow | ```` ```mermaid ```` block | diagram (click to enlarge) |
 | Comparison | Markdown table | table |
@@ -18,7 +18,7 @@ Registry entry (`data/notes.js`):
 ```javascript
 NotesDB.register([
   { id: 'caching', topic: 'system-design', title: 'Caching', icon: '⚡',
-    file: 'data/notes/system-design/08-caching.md', related: ['sd-12'] },
+    file: 'data/notes/system-design/08-caching.md', related: ['sd-55', 'sd-7'] },
 ]);
 ```
 
@@ -26,13 +26,16 @@ Ids are kebab-case and unique across all topics. Files are `<NN>-<id>.md`: `NN` 
 
 ## Example note
 
+The first paragraph after the H1 (the italic summary) is shown on the note's feed card and as the
+note's lead card.
+
 ````markdown
 # ⚡ Caching
 
-*Keep hot data close to the reader. Covers where caches sit and how they stay correct.* (This summary line is shown on the note's feed card.)
+*Keep hot data close to the reader. Covers where caches sit and how they stay correct.*
 
 ## 🧭 Cache placement
-<!-- related: sd-12, sd-30 -->
+<!-- related: sd-7, sd-54 -->
 
 ### 🗺️ Layers
 

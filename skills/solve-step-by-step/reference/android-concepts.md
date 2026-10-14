@@ -17,7 +17,7 @@ For "how does X work", "X vs Y", "what happens when…", and security, storage, 
 - Quote API levels, deprecations and version numbers only when sure; otherwise say "check against the current docs" and name the page. Prefer fetching the official page over memory when the answer depends on it.
 - Distinguish **guarantee** from **best effort** (for example WorkManager guarantees execution, not timing; periodic work has a 15-minute minimum).
 - For security questions state the threat model first (stolen device, rooted device, backup extraction, malware, shoulder-surfing), then the control, then what it does not protect against.
-- Separate what the platform does for you from what the app must do (Keystore holds keys but the app chooses what to encrypt; `BiometricPrompt` alone returns a boolean, a `CryptoObject` ties authentication to a key use).
+- Separate what the platform does for you from what the app must do (Keystore holds keys but the app chooses what to encrypt; `BiometricPrompt` without a `CryptoObject` only delivers a success callback the app must trust; a `CryptoObject` ties authentication to a Keystore key use).
 - If the repo already has a row for the question (search `data/*.js` by title), use it as ground truth and flag any disagreement instead of silently contradicting it.
 
 ## Common concept areas and the angle interviewers probe

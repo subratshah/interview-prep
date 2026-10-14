@@ -25,7 +25,7 @@ This file is the router and the shared rules; each question type has its own ref
 
 ## 2. Input
 
-- A pasted question, or a bank id (`tech-N`, `ds-N`, `sd-N`, `behav-N`). For an id, read its row in `data/*.js` and use `title`, `keyPoints`, `answer`, `complexity` and `redFlags` as ground truth. Do not contradict them silently; flag a disagreement.
+- A pasted question, or a bank id (`tech-N`, `ds-N`, `sd-N`, `behav-N`). For an id, read its row in the topic file (`tech-*` in `data/android.js`, `ds-*` in `data/data-structures.js`, `sd-*` in `data/system-design.js`, `behav-*` in `data/behavioral.js`) and use its content fields as ground truth: `title`, `answer`, `keyPoints`, `redFlags` (plus `complexity` for `ds-*`); for `sd-*` the `scope` … `pitfalls` fields; for `behav-*` `listenFor`, `starGuide`, `redFlags`. Do not contradict them silently; flag a disagreement.
 - If the question is ambiguous in a way that changes the solution, state the assumption inline and what changes if it is wrong. Do not stop to ask.
 
 ## 3. Shared rules (apply to every type)

@@ -37,8 +37,11 @@ One note per **concept**, not per source: a new source extends existing notes be
    `data/*.js` without approval.
 7. **Validate**
    - `node --check data/notes.js`
-   - every `related` id exists in `QuestionDB` (grep `id: "<id>"` in `data/*.js`)
-   - every registry `file` exists; each note has one H1 and at least one H2
+   - `node scripts/validate-data.mjs` — must report 0 errors. It fails on any registry or
+     `<!-- related: -->` id missing from `QuestionDB` and on a registry `file` that does not exist,
+     and warns on a mis-shaped path or an unregistered `.md` file. For a quick manual check, data
+     files quote ids with single quotes: grep `id: '<id>'` in `data/*.js`
+   - each note has exactly one H1 (the validator warns otherwise) and at least one H2
    - mermaid blocks are closed and parse-plausible (one diagram type line, no stray backticks)
    - no personal markers: recruiter/HR text, names, personal stories, private links, company logistics
    - `node scripts/compose-html.mjs --check` (only relevant if the template changed)
