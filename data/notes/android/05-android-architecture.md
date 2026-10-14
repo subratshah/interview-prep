@@ -66,12 +66,20 @@ flowchart LR
 - 📖 [Design Patterns](https://www.geeksforgeeks.org/system-design/software-design-patterns/) · [Cheat Sheet](https://www.geeksforgeeks.org/system-design/design-patterns-cheat-sheet-when-to-use-which-design-pattern/) — when to use which.
 
 ## 💉 DI and modularization
-<!-- related: tech-25, tech-65, tech-102, tech-151 -->
+<!-- related: tech-25, tech-65, tech-102, tech-151, tech-204, tech-203 -->
 
 - **DI** ([Dependency Injection](https://www.geeksforgeeks.org/system-design/dependency-injectiondi-design-pattern/)) — dependencies passed in (constructor injection) → swappable fakes in tests. Hilt (compile-time, Dagger) vs Koin (runtime service locator).
 - **Modules**: `:app` → `:feature:*` → `:core:*` (network, db, design system). Features never depend on each other.
 - Benefits: parallel/incremental builds, ownership, enforced boundaries, dynamic delivery.
 - Split when build time or team ownership hurts — not on day one.
 - Single-Activity + [Navigation](https://www.geeksforgeeks.org/kotlin/overview-of-navigation-in-android-architecture-components/) for most apps; the host owns navigation, features expose routes.
+- Shared build setup belongs in **convention plugins** (`build-logic`) and a version catalog, not copy-pasted `build.gradle.kts` blocks.
+
+### 🌐 Kotlin Multiplatform
+- Share **logic, not UI by default**: domain models, use cases, repositories, networking (Ktor), persistence (SQLDelight / Room KMP), validation. UI stays native (Compose, SwiftUI), or Compose Multiplatform if the team accepts it.
+- `expect` / `actual`: common code declares an API, each platform implements it (`expect fun currentTimeMillis(): Long`); prefer interfaces injected by DI for anything larger.
+- iOS consumes shared code as a framework through Objective-C headers — sealed classes, suspend functions and Flows need care (tools such as SKIE improve the Swift side).
+- It fits the clean-architecture split: the domain and data layers become the shared module, the presentation layer stays per platform.
+- Costs: iOS developers must build and debug Kotlin, slower builds, and a team that owns the shared module. Start with one feature's logic before committing the app.
 
 > 📝 Practice: MVVM + Room repository for a user profile with a single-source-of-truth ViewModel.

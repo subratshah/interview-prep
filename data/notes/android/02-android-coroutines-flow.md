@@ -43,7 +43,7 @@ suspend fun loadProfile(id: String) = coroutineScope {
 ```
 
 ## 🌳 Structured concurrency & exceptions
-<!-- related: tech-17, tech-77, tech-139, tech-158, tech-112 -->
+<!-- related: tech-17, tech-77, tech-158, tech-112 -->
 
 ```mermaid
 flowchart TD
@@ -62,7 +62,7 @@ flowchart TD
 > 🔑 `supervisorScope` when siblings are independent (three widgets); plain scope when they form one unit.
 
 ## 🔥 Cold vs hot streams
-<!-- related: tech-57, tech-90, tech-136, tech-140 -->
+<!-- related: tech-140, tech-136, tech-209 -->
 
 | Type | Starts | Subscribers see | Typical use |
 |---|---|---|---|
@@ -79,12 +79,36 @@ val uiState = repo.items()
 
 - `WhileSubscribed(5000)` rides out rotation without restarting the upstream.
 
+### 🪣 Buffers and overflow
+
+| | Buffer | No collector | Overflow |
+|---|---|---|---|
+| `StateFlow` | One value, always conflated | Keeps the latest; a new collector gets it | Never suspends — older value replaced; equal values dropped |
+| `MutableSharedFlow(replay, extraBufferCapacity)` | `replay` + extra slots | `replay = 0` → emission **lost** | `onBufferOverflow`: `SUSPEND` (default), `DROP_OLDEST`, `DROP_LATEST`; with no buffer `tryEmit` returns `false` |
+| `Channel(capacity)` + `receiveAsFlow()` | `RENDEZVOUS`, `BUFFERED`, `CONFLATED`, `UNLIMITED` | Waits in the buffer until received | Same overflow choices; each element goes to **one** collector |
+
+### 📣 One-off UI events
+- `StateFlow` re-delivers a raw event after rotation; `SharedFlow(replay = 0)` drops events while the UI is stopped; `Channel` buffers until one collector receives (collect on `Main.immediate`).
+- Preferred by the architecture guide: model the event as **state** (`userMessage: String?`) that the UI clears after handling — survives rotation and process death.
+
 ## 🧰 Operators and backpressure
-<!-- related: tech-52, tech-91, tech-117, tech-122 -->
+<!-- related: tech-91, tech-117, tech-112 -->
 
 - `flatMapLatest` — cancel the previous inner flow (search-as-you-type).
-- `combine` — latest of each input; `zip` — pair in lockstep.
+- `flatMapMerge` — run inner flows concurrently (`concurrency` limit); `flatMapConcat` — one after another, in order.
+- `combine` — latest of each input whenever any emits; `zip` — pair in lockstep, waits for both; `merge` — interleave several flows of the same type.
 - `debounce` — wait for quiet; `distinctUntilChanged` — drop repeats.
+
+```kotlin
+// Search box: wait for typing to settle, skip repeats, cancel stale requests
+val results = queryFlow
+  .debounce(300)
+  .map { it.trim() }
+  .distinctUntilChanged()
+  .flatMapLatest { q -> if (q.isEmpty()) flowOf(emptyList()) else repo.search(q) }
+  .catch { emit(emptyList()) }
+```
+
 - Backpressure: a cold Flow suspends the emitter until the collector is ready. `buffer()` decouples, `conflate()` keeps the latest, `collectLatest` cancels slow work.
 - `flowOn(Dispatchers.IO)` changes the **upstream** context only.
 

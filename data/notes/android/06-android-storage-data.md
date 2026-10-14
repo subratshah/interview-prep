@@ -35,6 +35,24 @@
 }
 ```
 
+## 📜 Paging large collections
+<!-- related: tech-101, tech-72 -->
+
+```mermaid
+flowchart LR
+  API["Network API"] --> RM["RemoteMediator"] -->|"writes pages"| DB[("Room")]
+  DB -->|"PagingSource"| P["Pager + cachedIn(viewModelScope)"]
+  P -->|"Flow of PagingData"| UI["LazyColumn via collectAsLazyPagingItems"]
+```
+
+- **`PagingSource<Key, Value>`** loads one page (`LoadResult.Page` / `Error`); `getRefreshKey` keeps the user's position on refresh. A Room DAO can return one and invalidates it when the table changes.
+- **`Pager(PagingConfig(pageSize = 20)) { source }`** exposes `Flow<PagingData<T>>`; the factory must return a **new** source each time.
+- **`cachedIn(viewModelScope)`** keeps loaded pages across rotation and shares them between collectors — apply `map` / `filter` before it.
+- **`RemoteMediator`** (offline-first): network pages are written to Room and the UI reads only Room; persist **remote keys** so APPEND knows the next network page after process death.
+- UI: `items(count = items.itemCount, key = items.itemKey { it.id })`; render `loadState.refresh` / `append` (loading, error + `retry()`).
+
+> 🔑 The database is the source of truth; the network only fills it.
+
 ## 📁 Files and scoped storage
 
 | Location | Visibility | Survives uninstall | Permission |

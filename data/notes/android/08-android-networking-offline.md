@@ -39,7 +39,7 @@ flowchart LR
 - Check connectivity with `ConnectivityManager.NetworkCallback`, but treat it as a hint — the request is the truth.
 
 ## 📴 Offline-first
-<!-- related: tech-101, tech-22 -->
+<!-- related: tech-101 -->
 
 ```mermaid
 flowchart TD

@@ -3,7 +3,7 @@
 *Which API runs your work when the user isn't looking. Covers service types, WorkManager, alarms and the OS limits (Doze, standby, background restrictions).*
 
 ## 🧩 Service types
-<!-- related: tech-32, tech-30 -->
+<!-- related: tech-32, tech-30, tech-201 -->
 
 | Type | Started by | Lives until | Use |
 |---|---|---|---|
@@ -18,6 +18,20 @@
 - `onStartCommand` returns `START_STICKY` / `START_NOT_STICKY` / `START_REDELIVER_INTENT` — the restart policy after a kill.
 - A service runs on the **main thread** — offload the work yourself.
 - [Foreground services](https://www.geeksforgeeks.org/android/foreground-service-in-android/) need a visible notification and (Android 14+) a declared `foregroundServiceType`.
+
+### 🏷️ Typed foreground services (targetSdk 34+)
+- Declare `android:foregroundServiceType` in the manifest **and** pass the type to `startForeground()`; missing → `MissingForegroundServiceTypeException`.
+- Each type needs its own permission (`FOREGROUND_SERVICE_LOCATION`, `FOREGROUND_SERVICE_DATA_SYNC`, …) plus runtime prerequisites — `location` needs a granted location permission, `camera` / `microphone` theirs — else `SecurityException`.
+- **Time limits**: `shortService` ≈ 3 minutes, then `onTimeout()` — stop promptly or the app gets an ANR. Android 15 caps `dataSync` (and `mediaProcessing`) at 6 hours per 24 h, signalled through `onTimeout(startId, fgsType)`.
+- `specialUse` needs a manifest property explaining why and is reviewed by Play; declare types and justification in Play Console.
+- Often the better answer: WorkManager (expedited or `setForeground`), a user-initiated data transfer job (14+) for user-started transfers, `MediaSessionService` for playback.
+
+```kotlin
+// <service android:name=".TrackingService" android:foregroundServiceType="location" />
+ServiceCompat.startForeground(
+  this, NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+)
+```
 
 ## 🗓️ Choosing the API
 <!-- related: tech-30, tech-82 -->

@@ -14,7 +14,7 @@
 > 🔑 The cheapest request is the one you batch, cache or never make.
 
 ## 🧠 Memory
-<!-- related: tech-10, tech-119, tech-98, tech-178, tech-147 -->
+<!-- related: tech-119, tech-98, tech-178, tech-147, tech-210 -->
 
 ### 🕳️ Leak sources
 - Static/singleton holding an Activity or View; non-static inner classes, Handlers, anonymous listeners.
@@ -32,6 +32,12 @@ val cache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() 
 
 - Avoid allocation in hot paths (`onDraw`, `onBindViewHolder`) → GC pauses → jank.
 - Tools: **LeakCanary** (debug), Android Studio Memory Profiler, heap dumps.
+
+### 📄 16 KB memory pages
+- Android 15 supports devices with **16 KB** kernel pages (was 4 KB): fewer page-table entries, faster launch and lower launch power on those devices.
+- Only apps that ship **native `.so` libraries** (yours or an SDK's) are affected; Play requires 16 KB support for apps targeting Android 15+ since 1 Nov 2025.
+- Fix: 16 KB-aligned ELF segments (NDK r28+ by default, or link with `-Wl,-z,max-page-size=16384`), 16 KB zip alignment of uncompressed libs (AGP 8.5.1+), no hard-coded `4096` page size in native code.
+- Verify: APK Analyzer alignment warnings, `zipalign -c -P 16 -v 4 app.apk`, a 16 KB emulator image.
 
 ## 🎞️ Jank and rendering
 <!-- related: tech-35, tech-54, tech-34, tech-162, tech-8 -->
@@ -56,6 +62,14 @@ val cache = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() 
 - **Baseline Profiles** — AOT-compile hot startup paths; typical 20–30% win.
 - Show real content fast: cached data first, then refresh.
 - Measure with Macrobenchmark (`StartupTimingMetric`), not a stopwatch — see [Performance Optimization](https://www.geeksforgeeks.org/android/improve-android-app-performance-with-benchmarking/) with benchmarking.
+
+### 📊 Baseline Profiles + Macrobenchmark workflow
+1. Add a `:baselineprofile` module (Baseline Profile Gradle plugin) with a `BaselineProfileRule` test that drives the critical user journeys: launch, first scroll, open detail.
+2. Generate on a device or Gradle Managed Device; the profile ships in the app (`baseline-prof.txt`) and ART AOT-compiles those methods at install, before the first run.
+3. Benchmark with a `MacrobenchmarkRule`: `StartupTimingMetric` for time to initial / full display (call `reportFullyDrawn()`), `FrameTimingMetric` for jank while scrolling.
+4. Compare `CompilationMode.None()` vs `CompilationMode.Partial(BaselineProfileMode.Require)` to prove the gain; keep the benchmark in CI so regressions show up.
+
+> 🔑 Microbenchmark measures a function in a loop; Macrobenchmark measures the real app from the outside — startup and jank need Macrobenchmark.
 
 ## 🔍 Diagnose, don't guess
 
