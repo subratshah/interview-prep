@@ -3,7 +3,7 @@
 *Most behavioural prompts fall into a handful of families. Each has a hidden question underneath and a shape the answer should take.*
 
 ## 💥 Failure & mistakes
-<!-- related: behav-2, behav-3, behav-16, behav-40 -->
+<!-- related: behav-2, behav-3, behav-16, behav-40, behav-79 -->
 
 ### 🎯 Hidden question
 - Do you own outcomes, find root cause, and change behaviour?
@@ -17,7 +17,7 @@
 > 🔑 Blame-free for others, accountable for yourself.
 
 ## ⚔️ Conflict & disagreement
-<!-- related: behav-4, behav-5, behav-20, behav-22 -->
+<!-- related: behav-4, behav-5, behav-6, behav-20, behav-22, behav-49 -->
 
 ### 🎯 Hidden question
 - Can you disagree productively and keep the relationship?
@@ -34,7 +34,7 @@ flowchart LR
 - "Disagree and commit" is a valid ending if you then fully committed.
 
 ## 🌫️ Ambiguity & pressure
-<!-- related: behav-26, behav-11, behav-28 -->
+<!-- related: behav-26, behav-81, behav-11, behav-47 -->
 
 ### 🎯 Hidden question
 - Can you make progress without a clear spec?
@@ -45,7 +45,7 @@ flowchart LR
 - How you course-corrected when new facts arrived.
 
 ## 🧑‍🤝‍🧑 Leadership & influence without authority
-<!-- related: behav-21, behav-30, behav-31, behav-35 -->
+<!-- related: behav-21, behav-30, behav-31, behav-35, behav-75 -->
 
 ### 🎯 Hidden question
 - Can you move people who don't report to you?
@@ -57,7 +57,7 @@ flowchart LR
 - Show how it **stuck** (docs, standards, owners), not just that it launched.
 
 ## 🔁 Feedback — giving & receiving
-<!-- related: behav-9, behav-25, behav-38, behav-24 -->
+<!-- related: behav-9, behav-38, behav-24, behav-80 -->
 
 ### 🎯 Hidden question
 - Are you coachable, and can you coach?
@@ -67,8 +67,22 @@ flowchart LR
 - **Giving**: private, specific, behaviour-not-person, with a suggested next step; follow up.
 - Include feedback from juniors too — it signals humility.
 
+## 🤝 Cross-functional partners
+<!-- related: behav-58, behav-77, behav-78, behav-76, behav-42, behav-73 -->
+
+### 🎯 Hidden question
+- Can you ship through other teams — backend, iOS, design, product — without them feeling steamrolled?
+
+### 🧱 Shape
+- Name the partner's constraint before your own ask (their roadmap, other consumers, platform limits).
+- Show the shared artefact that settled it: an API contract, a joint spec, a design-system rule.
+- Split "must match" (behaviour, events, business rules) from "should differ" (platform UI, navigation).
+- Mobile specifics land well: old app versions in the field, store review lead time, launching behind a server flag.
+
+> 🔑 The win is a reusable agreement, not a one-off favour.
+
 ## 📈 Impact, priorities & users
-<!-- related: behav-12, behav-17, behav-19, behav-23 -->
+<!-- related: behav-12, behav-17, behav-19, behav-6, behav-53 -->
 
 ### 🎯 Hidden question
 - Do you choose the right work and measure it?

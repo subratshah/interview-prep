@@ -21,7 +21,7 @@ flowchart LR
 > 🔑 Time-box to 3–4 minutes, then invite direction: "Which part should I go deeper on?"
 
 ## 🗂️ Scenario types
-<!-- related: behav-11, behav-28, behav-40 -->
+<!-- related: behav-11, behav-39, behav-40 -->
 
 ### 🎉 Planning an event or initiative
 - Objective + success measure → audience → stakeholders → logistics → risks → timeline.

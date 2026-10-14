@@ -21,7 +21,7 @@
 > 🔑 Answers are scored against a rubric; a vague story scores "no evidence", not "bad".
 
 ## 🌐 Culture & values signals
-<!-- related: behav-9, behav-13, behav-19, behav-26 -->
+<!-- related: behav-9, behav-13, behav-19, behav-26, behav-76 -->
 
 | Signal | What it means |
 |---|---|
@@ -33,7 +33,7 @@
 | Team trust | Building psychological safety and inclusion |
 
 ## 🚩 Leadership signals
-<!-- related: behav-12, behav-21, behav-24, behav-30 -->
+<!-- related: behav-12, behav-21, behav-24, behav-30, behav-75, behav-80 -->
 
 | Signal | What it means |
 |---|---|
@@ -45,7 +45,7 @@
 | Tool / AI fluency | Using modern tooling to multiply output responsibly |
 
 ## 🗺️ Signal → likely question
-<!-- related: behav-6, behav-25, behav-26 -->
+<!-- related: behav-6, behav-9, behav-26, behav-81 -->
 
 | Signal | Typical prompt |
 |---|---|

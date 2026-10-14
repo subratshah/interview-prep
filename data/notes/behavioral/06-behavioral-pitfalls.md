@@ -3,7 +3,7 @@
 *Interviewers probe past the prepared story. Expect follow-ups, avoid the classic failure modes, and use the last minutes for good questions.*
 
 ## 🔍 Handling follow-ups
-<!-- related: behav-16, behav-36, behav-37 -->
+<!-- related: behav-16, behav-36, behav-37, behav-65 -->
 
 ### 🎯 Common probes
 - "What would you do differently?"

@@ -3,7 +3,7 @@
 *Prepare 8–12 reusable stories, tag each with the signals it proves, and cover every competency at least twice. Know the flow, not a script.*
 
 ## 🏗️ Choosing stories
-<!-- related: behav-1, behav-16 -->
+<!-- related: behav-1, behav-16, behav-31, behav-75 -->
 
 ### 🔎 Where to mine
 - Big projects: launches, migrations, redesigns.
@@ -12,6 +12,8 @@
 - Failures: missed deadline, wrong technical call, bad estimate.
 - People moments: mentoring, giving/receiving hard feedback, onboarding.
 - Unasked-for improvements: process, tooling, quality.
+- Cross-functional friction: a backend API that didn't fit mobile, an iOS parity dispute, design vs platform conventions.
+- Senior-scope moments: an RFC you drove to a decision, a migration across teams, a launch that missed its metric, hiring.
 
 ### ✅ A good story has
 - A real **stake** (users, money, time, trust).
@@ -23,7 +25,7 @@
 > 💡 Recent (last 2–3 years) and level-appropriate beats dramatic but old.
 
 ## 🗂️ Coverage matrix
-<!-- related: behav-2, behav-9, behav-26 -->
+<!-- related: behav-2, behav-9, behav-26, behav-79 -->
 
 ### 📊 Tag stories against signals
 
