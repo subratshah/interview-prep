@@ -4707,12 +4707,13 @@ input.memory-range:focus-visible::-moz-range-thumb {
   white-space: nowrap;
 }
 
-/* Note cards are always expanded and not toggles: no pointer, no hover. */
-#detail-note .notion-block-header {
+/* Note section cards toggle like question cards; the closing "Related
+   questions" block is a plain list, not a toggle: no pointer, no hover. */
+#detail-note .note-related > .notion-block-header {
   cursor: default;
 }
 
-#detail-note .notion-block-header:hover {
+#detail-note .note-related > .notion-block-header:hover {
   background: var(--surface2);
 }
 

@@ -4,7 +4,7 @@
       <div class="empty-state" id="detail-empty">
         <div class="empty-icon">📋</div>
         <h3 class="empty-title">Select a question</h3>
-        <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill">⌘E</kbd> to search everything.</p>
+        <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill" data-cmd-kbd>⌘⇧F</kbd> to search everything.</p>
         <div class="kbd-hint">
           <div class="kbd-hint-item"><kbd>↑</kbd> / <kbd>↓</kbd> Navigate</div>
           <div class="kbd-hint-item"><kbd>Space</kbd> Reveal</div>
@@ -52,33 +52,6 @@
         </button>
 
         <div class="detail-body" id="detail-body"></div>
-
-        <div class="detail-related pinned" id="detail-related" hidden>
-          <div class="related-label">Related Questions</div>
-          <div class="related-list" id="related-list"></div>
-        </div>
-
-        <div class="flashcard legacy-flashcard hidden" id="flashcard" aria-hidden="true">
-          <div class="card-hidden" id="card-hidden-face">
-            <div class="card-reveal-icon">🃏</div>
-            <div class="card-reveal-text">Reveal</div>
-          </div>
-          <div class="card-content hidden" id="card-revealed-face">
-            <div class="answer-content" id="answer-content"></div>
-            <div id="detail-sections"></div>
-          </div>
-        </div>
-
-        <div class="meta-section hidden" id="meta-section" aria-hidden="true">
-          <div class="meta-row">
-            <span class="meta-label">Tags</span>
-            <div class="meta-chips" id="meta-tags"></div>
-          </div>
-          <div class="meta-row">
-            <span class="meta-label">Related</span>
-            <div class="related-list" id="meta-related"></div>
-          </div>
-        </div>
       </div>
 
       <!-- Roadmap mode. A sibling `.detail-inner`, so it inherits the pane's
@@ -110,9 +83,7 @@
         </div>
         <!-- The matrix host. `roadmapMatrixHost()` prefers this node and appends
              one only if it is missing, so this static is the real thing, not a
-             placeholder. Rows and cells are built by view/app.js. Hidden questions
-             carry no separate key: the matrix draws them like any other cell, and
-             the only tell is the cell's aria-label plus the click that restores it. -->
+             placeholder. Rows and cells are built by view/app.js. -->
         <div class="roadmap-matrix" id="roadmap-matrix"></div>
       </div>
 

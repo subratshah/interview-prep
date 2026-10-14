@@ -16,13 +16,6 @@
       </button>
     </div>
     <div class="topbar-right">
-      <label class="sr-only" for="topic-select">Topic (sync)</label>
-      <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
-        <option value="data-structures">Data Structures</option>
-        <option value="android">Android</option>
-        <option value="system-design">System Design</option>
-        <option value="behavioral">Behaviour</option>
-      </select>
       <div class="mode-controls">
         <!-- A real switch, same contract as #mode-toggle / #theme-toggle: the
              `.minimal-text` word is absolutely centred so it costs no width, and
@@ -54,7 +47,7 @@
           </button>
         </div>
         <div class="toggle-wrapper">
-          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
+          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="false">
             <div class="minimal-track">
               <span class="minimal-text theme-text">Light</span>
               <div class="minimal-knob">

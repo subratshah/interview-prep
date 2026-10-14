@@ -49,6 +49,11 @@ const THEME_STORAGE_KEY = 'interview-theme';
 const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
 const ZOOM_MIGRATION_KEY = 'interview-ui-zoom-v2';
 const ROADMAP_STORAGE_KEY = 'interview-roadmap-mode';
+const LEARNING_MODE_STORAGE_KEY = 'interview-learning-mode'; // '1' Learn, '0' Quiz
+// Set while a progress change has not yet reached the API (the PUT is pending or
+// failed). Only then is localStorage an unsynced delta worth merging at boot —
+// localStorage is always written first, so its mere presence proves nothing.
+const PROGRESS_DIRTY_KEY = 'interview-progress-dirty';
 const ZOOM_MIN = 0.7;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.1;
@@ -82,7 +87,6 @@ const state = {
   uiZoom: ZOOM_DEFAULT,
   ratings: {},           // { [id]: 'know' | 'shaky' | 'review' }
   seen: new Set(),       // IDs of questions ever opened
-  hiddenIds: new Set(),  // IDs of AI questions hidden/deleted locally
   showRoadmap: false,    // roadmap mode: the detail pane shows the path (#detail-roadmap)
   notesSelected: false,  // the sidebar "📚 Notes" row is active: the feed lists state.activeTab's notes
   activeNoteId: null,    // the note shown whole in #detail-note (null → #detail-empty)
@@ -140,6 +144,10 @@ function handleZoomShortcut(e) {
   // Any modifier means it is the browser's key (⌘/Ctrl +−0, ⌥⌘…), so leave it
   // alone entirely: no preventDefault, no early return.
   if (e.metaKey || e.ctrlKey || e.altKey) return false;
+  // The palette input is exempt from isShortcutSuppressedTarget (so its own
+  // keys work), which used to let bare -, + and 0 zoom instead of typing —
+  // "tech-12" could not be searched.
+  if (cmdPaletteOpen) return false;
   if (isShortcutSuppressedTarget(e.target)) return false;
 
   const key = e.key;
@@ -200,11 +208,21 @@ function applyTheme(theme, { persist = false } = {}) {
   syncThemeToggleUI();
 }
 
+/** Re-draw the pane so mermaid diagrams pick up the new theme. Notes have
+ *  diagrams too, so this is not gated on a selected question; the note
+ *  scroller keeps its position across the rebuild. */
+function rerenderForTheme() {
+  const noteBody = document.getElementById('note-body');
+  const keep = noteBody ? noteBody.scrollTop : 0;
+  renderMainPanel();
+  if (noteBody && state.notesSelected) noteBody.scrollTop = keep;
+}
+
 function toggleTheme() {
   const current = getResolvedTheme();
   const next = current === 'light' ? 'dark' : 'light';
   applyTheme(next, { persist: true });
-  if (state.selectedId) renderMainPanel();
+  rerenderForTheme();
 }
 
 function syncThemeToggleUI() {
@@ -213,31 +231,16 @@ function syncThemeToggleUI() {
     return;
   }
   
-  const currentTheme = getResolvedTheme();
-  const isLight = currentTheme === 'light';
-  const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+  const isDark = getResolvedTheme() === 'dark';
+  const label = isDark ? 'Switch to light theme' : 'Switch to dark theme';
   btn.setAttribute('aria-label', label);
   btn.title = label;
-  
-  // Update minimal toggle visual state based on theme
-  const themeToggle = document.getElementById('theme-toggle');
-  const textElement = themeToggle?.querySelector('.minimal-text');
-  
-  if (themeToggle && textElement) {
-    const isDark = currentTheme === 'dark';
-
-    
-    if (isDark) {
-      themeToggle.classList.add('active');
-      textElement.textContent = 'Dark';
-    } else {
-      themeToggle.classList.remove('active');
-      textElement.textContent = 'Light';
-    }
-    
-
-
-  }
+  // role="switch": "on" = dark, matching the `.active` knob position. The
+  // markup's static aria-checked used to stay "true" in light theme.
+  btn.classList.toggle('active', isDark);
+  btn.setAttribute('aria-checked', String(isDark));
+  const textElement = btn.querySelector('.minimal-text');
+  if (textElement) textElement.textContent = isDark ? 'Dark' : 'Light';
 }
 
 function initTheme() {
@@ -247,18 +250,14 @@ function initTheme() {
   mq.addEventListener('change', () => {
     if (getStoredTheme()) return;
     applyTheme(getSystemTheme());
-    if (state.selectedId) renderMainPanel();
+    rerenderForTheme();
   });
-
-  // Theme toggle uses onclick attribute in HTML
 }
 
 // ── Persistence ─────────────────────────────────────────────
 function loadRatings() {
-  try {
-    const raw = localStorage.getItem('interview-ratings');
-    if (raw) state.ratings = JSON.parse(raw);
-  } catch (e) {}
+  const local = readLocalRatings();
+  if (local) state.ratings = local;
 }
 
 /** Raw localStorage ratings for the boot merge; null when absent/unreadable. */
@@ -267,10 +266,19 @@ function readLocalRatings() {
     const raw = localStorage.getItem('interview-ratings');
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? sanitizeRatings(parsed) : null;
   } catch (e) {
     return null;
   }
+}
+
+/** Keep only `{ id: 'know' | 'shaky' | 'review' }` entries. */
+function sanitizeRatings(obj) {
+  const out = {};
+  Object.keys(obj || {}).forEach(id => {
+    if (VALID_RATING_VALUES.has(obj[id])) out[id] = obj[id];
+  });
+  return out;
 }
 
 /** Raw localStorage seen ids as a Set for the boot merge; null when absent. */
@@ -289,35 +297,93 @@ function saveRatings() {
   try {
     localStorage.setItem('interview-ratings', JSON.stringify(state.ratings));
   } catch (e) {}
-  // Fire-and-forget server sync
-  saveProgressToServer({ ratings: state.ratings, seen: state.seen }).catch(() => {});
+  scheduleProgressSync();
 }
 
 function loadSeen() {
-  try {
-    const raw = localStorage.getItem('interview-seen');
-    if (raw) state.seen = new Set(JSON.parse(raw));
-  } catch (e) {}
+  const local = readLocalSeen();
+  if (local) state.seen = local;
 }
 
 function saveSeen() {
   try {
     localStorage.setItem('interview-seen', JSON.stringify([...state.seen]));
   } catch (e) {}
-  // Fire-and-forget server sync
-  saveProgressToServer({ ratings: state.ratings, seen: state.seen }).catch(() => {});
+  scheduleProgressSync();
 }
 
-function loadHiddenIds() {
+/** Write the current progress to localStorage (the offline copy). */
+function writeLocalProgress() {
   try {
-    const raw = localStorage.getItem('interview-hidden');
-    if (raw) state.hiddenIds = new Set(JSON.parse(raw));
+    localStorage.setItem('interview-ratings', JSON.stringify(state.ratings));
+    localStorage.setItem('interview-seen', JSON.stringify([...state.seen]));
   } catch (e) {}
 }
 
-function saveHiddenIds() {
+function setProgressDirty(dirty) {
   try {
-    localStorage.setItem('interview-hidden', JSON.stringify([...state.hiddenIds]));
+    if (dirty) localStorage.setItem(PROGRESS_DIRTY_KEY, '1');
+    else localStorage.removeItem(PROGRESS_DIRTY_KEY);
+  } catch (e) {}
+}
+
+function isProgressDirty() {
+  try {
+    return localStorage.getItem(PROGRESS_DIRTY_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+// Mirror of the whole progress set to `PUT /api/progress`, fire-and-forget but
+// coalesced and serialised: every PUT replaces the full set, so two in flight
+// at once could land out of order and leave the older set on the server
+// (setRating twice quickly, or saveRatings + saveSeen from one slider move).
+let progressSyncTimer = null;
+let progressSyncInFlight = false;
+let progressSyncQueued = false;
+
+function scheduleProgressSync() {
+  setProgressDirty(true);
+  if (progressSyncTimer !== null) return;
+  progressSyncTimer = setTimeout(() => {
+    progressSyncTimer = null;
+    runProgressSync();
+  }, 0);
+}
+
+function runProgressSync() {
+  if (progressSyncInFlight) {
+    progressSyncQueued = true;
+    return;
+  }
+  progressSyncInFlight = true;
+  saveProgressToServer({ ratings: state.ratings, seen: state.seen })
+    .then(() => {
+      if (!progressSyncQueued) setProgressDirty(false);
+    })
+    .catch(() => {})
+    .finally(() => {
+      progressSyncInFlight = false;
+      if (progressSyncQueued) {
+        progressSyncQueued = false;
+        runProgressSync();
+      }
+    });
+}
+
+/** Learn/Quiz is a UI mode, persisted like the theme and roadmap mode. */
+function loadLearningMode() {
+  try {
+    state.learningMode = localStorage.getItem(LEARNING_MODE_STORAGE_KEY) !== '0';
+  } catch (e) {
+    state.learningMode = true;
+  }
+}
+
+function saveLearningMode() {
+  try {
+    localStorage.setItem(LEARNING_MODE_STORAGE_KEY, state.learningMode ? '1' : '0');
   } catch (e) {}
 }
 
@@ -339,14 +405,15 @@ function saveRoadmapMode() {
 /**
  * One-time cleanup: card collapse state now follows Learn/Quiz mode and is
  * re-derived on every render, so the old per-question `notion-collapsed::`
- * keys are pure dead UI state.
+ * keys are pure dead UI state. `interview-hidden` goes with them: no control
+ * ever wrote it and nothing reads it any more (hiding was not a filter).
  */
 function purgeCollapsedCardStorage() {
   try {
     const doomed = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('notion-collapsed::')) doomed.push(key);
+      if (key && (key.startsWith('notion-collapsed::') || key === 'interview-hidden')) doomed.push(key);
     }
     doomed.forEach(key => localStorage.removeItem(key));
   } catch (e) {}
@@ -357,70 +424,63 @@ function purgeCollapsedCardStorage() {
  * Returns true if server was used successfully.
  */
 async function loadProgressWithServerFallback() {
+  let server;
   try {
-    const { ratings, seen } = await fetchProgressFromServer();
-    const serverHasData =
-      (ratings && Object.keys(ratings).length > 0) || (seen && seen.size > 0);
-    // Server is empty: one-time wholesale import of whatever localStorage held.
-    if (!serverHasData) {
-      const hasLocal = localStorage.getItem('interview-ratings') || localStorage.getItem('interview-seen');
-      if (hasLocal) {
-        const imported = await importLocalStorageToServer();
-        if (imported) {
-          const fresh = await fetchProgressFromServer();
-          state.ratings = fresh.ratings;
-          state.seen = fresh.seen;
-          return true;
-        }
-      }
-      // Server empty and nothing to import: start fresh
-      state.ratings = {};
-      state.seen = new Set();
-      return true;
-    }
-    // Server has data. A same-origin localStorage that still holds progress
-    // means an orphaned delta — ratings made while this browser could not
-    // reach the API (server down, or the data moved between ports/origins).
-    // Merge it in instead of dropping it: the server wins on rating
-    // conflicts, local-only ids are added, `seen` is a union.
-    const localRatings = readLocalRatings();
-    const localSeen = readLocalSeen();
-    if (localRatings || localSeen) {
-      const mergedRatings = Object.assign({}, localRatings || {}, ratings);
-      const mergedSeen = new Set(seen);
-      if (localSeen) localSeen.forEach(id => mergedSeen.add(id));
-      state.ratings = mergedRatings;
-      state.seen = mergedSeen;
-      try {
-        await saveProgressToServer({ ratings: mergedRatings, seen: mergedSeen });
-        clearLocalStorageProgress();
-      } catch (e) {
-        // PUT failed: still show the merge for this session; it retries on the
-        // next boot because localStorage was kept.
-      }
-    } else {
-      state.ratings = ratings;
-      state.seen = seen;
-    }
-    return true;
+    server = await fetchProgressFromServer();
   } catch (err) {
     // Server unavailable – fallback handled by caller
     return false;
   }
+  const { ratings, seen } = server;
+  const localRatings = readLocalRatings();
+  const localSeen = readLocalSeen();
+  const localHasData = Boolean(
+    (localRatings && Object.keys(localRatings).length) || (localSeen && localSeen.size)
+  );
+  const serverHasData = Object.keys(ratings).length > 0 || seen.size > 0;
+
+  if (!serverHasData) {
+    // Server is empty: one-time wholesale import of whatever localStorage held.
+    // The local copy is shown either way; if the import is refused, the next
+    // sync PUTs it instead of it being silently replaced by an empty set.
+    state.ratings = localHasData ? (localRatings || {}) : {};
+    state.seen = localHasData ? (localSeen || new Set()) : new Set();
+    if (localHasData && !(await importLocalStorageToServer())) {
+      scheduleProgressSync();
+    } else {
+      setProgressDirty(false);
+    }
+    writeLocalProgress();
+    return true;
+  }
+
+  if (isProgressDirty() && localHasData) {
+    // A change made here never reached the API (server down, or the tab closed
+    // mid-PUT). Merge it in instead of dropping it: the server wins on rating
+    // conflicts, local-only ids are added, `seen` is a union. Gated on the
+    // dirty flag: localStorage is written on every save, so without the flag a
+    // rating removed (or a RESET) on another device came back from this one.
+    state.ratings = Object.assign({}, localRatings || {}, ratings);
+    state.seen = new Set(seen);
+    if (localSeen) localSeen.forEach(id => state.seen.add(id));
+    try {
+      await saveProgressToServer({ ratings: state.ratings, seen: state.seen });
+      setProgressDirty(false);
+    } catch (e) {
+      // PUT failed: still show the merge for this session; the dirty flag
+      // stays, so it retries on the next save or boot.
+    }
+  } else {
+    state.ratings = ratings;
+    state.seen = seen;
+  }
+  writeLocalProgress();
+  return true;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
 function getRating(id) {
   return state.ratings[id] || null;
-}
-
-/** Residual accessor (0 emitters since the gem re-point, kept deliberately per
- *  §B-5): knew | shaky | forgot | unseen from the ONE source,
- *  detailMemorySliderValueForId, so any future consumer still cannot disagree
- *  with the roadmap fill or the status phrase. */
-function memoryDotStateClassForId(id) {
-  if (!id) return '';
-  return MEMORY_DOT_CLASS_BY_VALUE[detailMemorySliderValueForId(id)] || '';
 }
 
 /** Short phrase for Accessible Name / status text: the shared label for the same 4-level value. */
@@ -491,8 +551,6 @@ const DIFFICULTY_LABELS = { E: 'Easy', M: 'Medium', H: 'Hard' };
 const MEMORY_STATUS_BY_VALUE = { 0: 'unseen', 1: 'review', 2: 'shaky', 3: 'know' };
 const MEMORY_VALUE_BY_STATUS = { unseen: 0, review: 1, shaky: 2, know: 3 };
 const MEMORY_LABELS = ['Unseen', 'Forgot', 'Shaky', 'Knew'];
-/** Slider ordinal → legacy `.qcard-memory` state word (residual, see above). */
-const MEMORY_DOT_CLASS_BY_VALUE = { 0: 'unseen', 1: 'forgot', 2: 'shaky', 3: 'knew' };
 
 /**
  * Primary: starred questions first within the compared set.
@@ -518,12 +576,6 @@ function sortQuestionsByImportanceDifficulty(items) {
 
 function getFilteredQuestions() {
   return questions.filter(q => {
-    // `interview-hidden` is NO LONGER a display filter: the user wants hidden
-    // questions visible everywhere — feed, the sections pane, and sidebar counts.
-    // The hide/unhide API and the store stay (the feature is kept), and hidden
-    // questions remain marked recoverable (roadmap cells still carry `data-ghost`),
-    // they are simply not excluded here any more. So per-topic counts here sum to
-    // every question, and no other display path re-subtracts them.
     // Browsing is always scoped to the active topic; facets narrow within it
     if (q.type !== state.activeTab) return false;
     if (state.diffFilter && q.difficulty !== state.diffFilter) return false;
@@ -648,11 +700,6 @@ function clearFeedSectionPin() {
   state.feedSectionPinned = false;
 }
 
-/** Questions sorted for list navigation (keyboard) within the visible feed section. */
-function getSortedFilteredQuestions() {
-  return sortQuestionsByImportanceDifficulty(getFeedQuestions());
-}
-
 // ── Sidebar: section rows + progress (targets #sb-list) ───────
 function selectFeedSection(type, section) {
   clearNotesSelection();
@@ -661,8 +708,6 @@ function selectFeedSection(type, section) {
 
   if (VALID_TABS.includes(type) && type !== state.activeTab) {
     state.activeTab = type;
-    const sel = document.getElementById('topic-select');
-    if (sel) sel.value = type;
     syncTopicTabsActive(type);
   }
 
@@ -859,7 +904,7 @@ function initTagFilterSearch() {
       chip.className = 'tag-selected-chip';
       chip.innerHTML = `
         <span class="tag-selected-label">${escapeHtml(tag)}</span>
-        <button type="button" class="tag-selected-remove" aria-label="Remove ${tag} filter">✕</button>
+        <button type="button" class="tag-selected-remove" aria-label="Remove ${escapeHtml(tag)} filter">✕</button>
       `;
       chip.querySelector('.tag-selected-remove').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -969,7 +1014,7 @@ function clearTagFilters() {
   }
 }
 
-/** Section badge in the detail header (#qv-section). No-ops until that markup lands. */
+/** Section badge in the detail header (#qv-section). */
 function syncDetailSectionChip(q) {
   const chip = document.getElementById('qv-section');
   if (!chip || !q) return;
@@ -978,9 +1023,9 @@ function syncDetailSectionChip(q) {
 }
 
 /** Single memory gem on feed question cards (bottom-right): the app-wide
- *  vocabulary (§B-5) — difficulty hue + memory alpha, the same `rm-diff-*` /
- *  `rm-mem-*` classes (and the same one source for the level) a roadmap leaf
- *  uses, so the gem and the tree can never read a rating differently. */
+ *  vocabulary — difficulty hue + memory alpha, the same `rm-diff-*` /
+ *  `rm-mem-*` classes (and the same one source for the level) a roadmap cell
+ *  uses, so the gem and the matrix can never read a rating differently. */
 function memoryCardIndicatorMarkup(diffCode, memLevel, memLabel) {
   return `<div class="qcard-memory rm-diff-${diffCode} rm-mem-${memLevel}" role="img" aria-label="${escapeHtml(memLabel)}"></div>`;
 }
@@ -1023,7 +1068,7 @@ function createFeedQuestionCard(q) {
 
 // ── Main feed: question cards (targets #feed-list, .qcard) ─────
 function renderList() {
-  const list = document.getElementById('feed-list') || document.getElementById('question-list');
+  const list = document.getElementById('feed-list');
 
   // Roadmap mode belongs to the detail pane (see renderRoadmapPane), not here:
   // the feed always renders its own section whatever the pane next to it shows.
@@ -1032,72 +1077,20 @@ function renderList() {
   const filteredQs = getFilteredQuestions();
   syncActiveFeedSection(filteredQs);
 
-  // Update dropdown option label with count (read base label from data-label attr or text)
-  const opt = document.querySelector(`#topic-select option[value="${state.activeTab}"]`);
-  if (opt) {
-    const base = opt.dataset.label || opt.textContent.replace(/\s*\(\d+\)/, '');
-    opt.dataset.label = base;
-    opt.textContent = `${base} (${filteredQs.length})`;
-  }
-
-  // Update filter control labels with counts (current tab only; ignores active filters)
+  // Filter chip counts (current tab only; ignores active filters). The star
+  // chip is the only `[data-status]` chip in the markup; memory is the slider.
   const allQ = questions.filter(q => q.type === state.activeTab);
-  const statusCounts = {
-    star:   allQ.filter(q => q.star).length,
-    know:   allQ.filter(q => getRating(q.id) === 'know').length,
-    shaky:  allQ.filter(q => getRating(q.id) === 'shaky').length,
-    review: allQ.filter(q => getRating(q.id) === 'review').length,
-    unseen: allQ.filter(q => !state.seen.has(q.id)).length,
-  };
-
-  for (const [status, count] of Object.entries(statusCounts)) {
-    const legacyChip = queryLegacyStatusFilterChip(status);
-    if (legacyChip) {
-      const countEl = legacyChip.querySelector('.chip-count');
-      if (countEl) {
-        countEl.textContent = ` (${count})`;
-      } else {
-        const label = legacyChip.dataset.chipLabel;
-        if (label) legacyChip.textContent = `${label} (${count})`;
-        else {
-          const base = legacyChip.dataset.label ??= legacyChip.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
-          legacyChip.textContent = `${base} (${count})`;
-        }
-      }
-    }
-    
-  }
+  const starCount = document.querySelector('#importance-chips .chip[data-status="star"] .chip-count');
+  if (starCount) starCount.textContent = `(${allQ.filter(q => q.star).length})`;
   for (const code of ['E', 'M', 'H']) {
-    const count = allQ.filter(q => q.difficulty === code).length;
-    document
-      .querySelectorAll(`#diff-chips [data-diff="${code}"], #diff-filters .pill[data-diff="${code}"]`)
-      .forEach(chip => {
-        const countEl = chip.querySelector('.chip-count');
-        if (countEl) {
-          countEl.textContent = `(${count})`;
-        } else {
-          // Fallback for pills that don't have structured layout
-          const label = chip.dataset.chipLabel;
-          if (label) chip.textContent = `${label} (${count})`;
-          else {
-            const base = chip.dataset.label ??= chip.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
-            chip.textContent = `${base} (${count})`;
-          }
-        }
-      });
+    const countEl = document.querySelector(`#diff-chips .chip[data-diff="${code}"] .chip-count`);
+    if (countEl) countEl.textContent = `(${allQ.filter(q => q.difficulty === code).length})`;
   }
 
   if (state.notesSelected && renderNoteFeed(list)) {
     renderSidebar();
     return;
   }
-
-  const typeLabel = {
-    android: 'Android',
-    behavioral: 'Behaviour',
-    'data-structures': 'Data Structures',
-    'system-design': 'System Design',
-  };
 
   const feedQs = getSortedFeedQuestions();
 
@@ -1188,37 +1181,43 @@ function renderList() {
   renderSidebar();
 }
 
-// ── Detail panel: Notion blocks + status (see .claude/handoff.md) ─
+// ── Detail panel: Notion blocks ─────────────────────────────────
+// Card metadata per topic: key → icon + label. Every key a topic's data can
+// fill must be listed here: collectDetailValues reads only these keys, so a
+// field missing from the list is neither rendered nor searchable.
 const SD_SECTIONS = [
-  { key: 'scope',       icon: '🎯', label: 'Clarifying Questions & Scope', defaultOpen: true },
-  // Virtual split of `scope` (see splitScopeSection). `scope` above stays the
-  // fallback card for blobs without a standalone assumptions heading.
-  { key: 'scope-q',     icon: '❓', label: 'Clarifying Questions',         defaultOpen: true },
-  { key: 'scope-a',     icon: '❗', label: 'Assumptions',                  defaultOpen: true },
-  { key: 'functional',  icon: '⚙️',  label: 'Functional Requirements',      defaultOpen: true },
-  { key: 'nfr',         icon: '📊',  label: 'Non-Functional Requirements',  defaultOpen: true },
-  { key: 'capacity',    icon: '📈',  label: 'Capacity Estimation',          defaultOpen: true },
-  { key: 'architecture',icon: '🏗️',  label: 'High-Level Architecture',      defaultOpen: true },
-  { key: 'dataModel',   icon: '🗄️',  label: 'Data Model',                   defaultOpen: false },
-  { key: 'api',         icon: '🔌',  label: 'API Design',                   defaultOpen: false },
-  { key: 'tradeoffs',   icon: '⚖️',  label: 'Key Trade-offs',               defaultOpen: false },
-  { key: 'followUp',    icon: '🧵',  label: 'Follow-ups',                   defaultOpen: false },
-  { key: 'pitfalls',    icon: '🚩',  label: 'Common Pitfalls',              defaultOpen: false },
+  // Fallback card for a `scope` blob with no assumptions marker (see
+  // splitScopeSection); every blob carries a marker today.
+  { key: 'scope',       icon: '🎯', label: 'Clarifying Questions & Scope' },
+  // Virtual split of `scope` (see splitScopeSection).
+  { key: 'scope-q',     icon: '❓', label: 'Clarifying Questions' },
+  { key: 'scope-a',     icon: '❗', label: 'Assumptions' },
+  { key: 'functional',  icon: '⚙️', label: 'Functional Requirements' },
+  { key: 'nfr',         icon: '📊', label: 'Non-Functional Requirements' },
+  { key: 'capacity',    icon: '📈', label: 'Capacity Estimation' },
+  { key: 'architecture', icon: '🏗️', label: 'High-Level Architecture' },
+  { key: 'dataModel',   icon: '🗄️', label: 'Data Model' },
+  { key: 'api',         icon: '🔌', label: 'API Design' },
+  { key: 'tradeoffs',   icon: '⚖️', label: 'Key Trade-offs' },
+  { key: 'approach',    icon: '📋', label: 'Interview Approach' },
+  { key: 'followUp',    icon: '🧵', label: 'Follow-ups' },
+  { key: 'pitfalls',    icon: '🚩', label: 'Common Pitfalls' },
 ];
 
 const BEHAVIORAL_SECTIONS = [
-  { key: 'listenFor', icon: '👂', label: 'What to listen for', defaultOpen: true },
-  { key: 'starGuide', icon: '⭐', label: 'STAR hint', defaultOpen: true },
-  { key: 'redFlags', icon: '🚩', label: 'Red flags', defaultOpen: true },
+  { key: 'listenFor', icon: '👂', label: 'What to listen for' },
+  { key: 'starGuide', icon: '⭐', label: 'STAR hint' },
+  { key: 'redFlags',  icon: '🚩', label: 'Red flags' },
 ];
 
 // Technical (android / data-structures): structured fields with `answer` fallback.
 // `fallback` names the documented legacy field (`expectedAnswer`).
 const TECH_SECTIONS = [
-  { key: 'answer', icon: '💡', label: 'Expected Answer', defaultOpen: true, fallback: 'expectedAnswer' },
-  { key: 'keyPoints',      icon: '🔑', label: 'Key Points',      defaultOpen: false },
-  { key: 'followUp',       icon: '🧵', label: 'Follow-ups',      defaultOpen: false },
-  { key: 'redFlags',       icon: '🚩', label: 'Red Flags',       defaultOpen: false },
+  { key: 'answer',     icon: '💡', label: 'Expected Answer', fallback: 'expectedAnswer' },
+  { key: 'keyPoints',  icon: '🔑', label: 'Key Points' },
+  { key: 'complexity', icon: '⏱️', label: 'Complexity' },
+  { key: 'followUp',   icon: '🧵', label: 'Follow-ups' },
+  { key: 'redFlags',   icon: '🚩', label: 'Red Flags' },
 ];
 
 // ── Detail layout ──────────────────────────────────────────────
@@ -1233,28 +1232,30 @@ const TECH_SECTIONS = [
 //                      (this form or a one-card `cols` resolution) collapse
 //                      into one band stacked column-first; alone it stays a
 //                      plain half card.
-// Safety rule: a key present in the question data but missing from the
-// topic's layout still renders, appended as its own full-width row (see
+// Safety rule: a section key present in the question data but missing from
+// the topic's layout still renders, appended as its own full-width row (see
 // buildDetailRows). Silently dropping content was the original clipping bug.
 const DETAIL_LAYOUT = {
   'system-design': [
+    { full: 'scope' }, // only when the blob has no assumptions marker
     { cols: ['scope-q', 'scope-a'] },
     { cols: ['functional', 'nfr'] },
     { half: 'capacity' },
     { full: 'architecture' },
     { cols: ['dataModel', 'api'] },
     { full: 'tradeoffs' },
+    { full: 'approach' },
     { cols: ['followUp', 'pitfalls'] },
-    
   ],
   android: [
-     { full: 'answer' },
-     { full: 'keyPoints' },
+    { full: 'answer' },
+    { full: 'keyPoints' },
     { cols: ['followUp', 'redFlags'] },
   ],
   'data-structures': [
     { full: 'answer' },
     { full: 'keyPoints' },
+    { full: 'complexity' },
     { cols: ['followUp', 'redFlags'] },
   ],
   behavioral: [
@@ -1286,8 +1287,8 @@ function cleanRedundantTitles(markdown) {
 
   return markdown.trim();
 }
-// layout forgot. Types without an entry read TECH_SECTIONS/tech layout, which
-// matches the old renderer's else-branch.
+
+// Types without an entry read TECH_SECTIONS and the android layout.
 const DETAIL_SECTIONS_BY_TYPE = {
   'system-design': SD_SECTIONS,
   behavioral: BEHAVIORAL_SECTIONS,
@@ -1380,27 +1381,26 @@ function createDetailCard(q, values, key, width, rowStart) {
   const body = document.createElement('div');
   body.className = 'notion-block-body' + (isCollapsed ? ' collapsed' : '');
   body.hidden = isCollapsed;
-  body.innerHTML = typeof marked !== 'undefined'
-    ? marked.parse(String(cleanedRaw))
-    : `<p>${escapeHtml(String(cleanedRaw))}</p>`;
+  body.innerHTML = renderMarkdown(cleanedRaw);
 
+  wireCardToggle(block, head, body);
+
+  block.appendChild(head);
+  block.appendChild(body);
+  return { block, body };
+}
+
+/** Header click flips one card open/closed: class, `hidden`, aria and chevron. */
+function wireCardToggle(block, head, body) {
   head.addEventListener('click', () => {
     const collapsed = !block.classList.contains('collapsed');
     block.classList.toggle('collapsed', collapsed);
     head.setAttribute('aria-expanded', (!collapsed).toString());
     body.classList.toggle('collapsed', collapsed);
     body.hidden = collapsed;
-
-    // Update chevron icon
     const chevron = head.querySelector('.notion-chevron');
-    if (chevron) {
-      chevron.textContent = collapsed ? '▶' : '▼';
-    }
+    if (chevron) chevron.textContent = collapsed ? '▶' : '▼';
   });
-
-  block.appendChild(head);
-  block.appendChild(body);
-  return { block, body };
 }
 
 /**
@@ -1528,6 +1528,8 @@ const TOPIC_LABELS = {
   'system-design': 'System Design',
 };
 
+let mermaidRenderSeq = 0;
+
 function runMermaidInContainer(container) {
   if (typeof mermaid === 'undefined' || !container) return;
   const blocks = container.querySelectorAll('pre code.language-mermaid');
@@ -1540,7 +1542,7 @@ function runMermaidInContainer(container) {
     theme: getMermaidTheme(),
     themeVariables: { fontSize: getComputedStyle(document.documentElement).fontSize }
   });
-  blocks.forEach(async (block, i) => {
+  blocks.forEach(async block => {
     const source = block.textContent.trim();
     const wrap = document.createElement('div');
     wrap.className = 'mermaid-container';
@@ -1550,7 +1552,10 @@ function runMermaidInContainer(container) {
     wrap.setAttribute('aria-label', 'Enlarge diagram');
     block.parentElement.replaceWith(wrap);
     try {
-      const id = 'mermaid-' + Date.now() + '-' + i;
+      // A process-wide counter: a band or a note renders several containers in
+      // the same millisecond, and `Date.now() + index-in-container` handed
+      // them the same id, so concurrent renders clobbered each other.
+      const id = `mermaid-${++mermaidRenderSeq}`;
       const { svg } = await mermaid.render(id, source);
       wrap.innerHTML = svg;
     } catch (e) {
@@ -1784,11 +1789,11 @@ function clearNotesSelection() {
   state.activeNoteId = null;
 }
 
+// Syncs the strip even when activeTab already matches: a hashchange sets it in
+// restoreStateFromURL before the note opens.
 function switchTabForNotes(topic) {
-  if (!VALID_TABS.includes(topic) || topic === state.activeTab) return;
+  if (!VALID_TABS.includes(topic)) return;
   state.activeTab = topic;
-  const sel = document.getElementById('topic-select');
-  if (sel) sel.value = topic;
   syncTopicTabsActive(topic);
 }
 
@@ -1797,6 +1802,7 @@ function selectNotesSection() {
   if (setRoadmapMode(false)) hideRoadmapTooltip();
   state.notesSelected = true;
   state.activeNoteId = null;
+  syncTopicTabsActive(state.activeTab);
   pushURLState();
   renderList();
   renderMainPanel();
@@ -1944,21 +1950,26 @@ function buildLinkBlock(extraClass, icon, label, items) {
   return block;
 }
 
-/** One always-expanded full-width card in createDetailCard's markup. */
+/**
+ * One full-width card in createDetailCard's markup. Titled cards toggle like
+ * question cards but always render expanded — notes ignore Learn/Quiz, and no
+ * collapse state is stored. The untitled lead card has no header to click.
+ */
 function createNoteCard(icon, label, md) {
   const block = document.createElement('div');
   block.className = 'notion-block db-full note-card' + (label ? '' : ' note-lead');
-  if (label) {
-    const head = document.createElement('div');
-    head.className = 'notion-block-header';
-    head.innerHTML = `${icon ? `<span class="notion-icon">${escapeHtml(icon)}</span>` : ''}<span class="notion-label">${escapeHtml(label)}</span>`;
-    block.appendChild(head);
-  }
   const body = document.createElement('div');
   body.className = 'notion-block-body';
-  body.innerHTML = typeof marked !== 'undefined'
-    ? marked.parse(String(md))
-    : `<p>${escapeHtml(String(md))}</p>`;
+  if (label) {
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'notion-block-header';
+    head.setAttribute('aria-expanded', 'true');
+    head.innerHTML = `<span class="notion-chevron">▼</span>${icon ? `<span class="notion-icon">${escapeHtml(icon)}</span>` : ''}<span class="notion-label">${escapeHtml(label)}</span>`;
+    wireCardToggle(block, head, body);
+    block.appendChild(head);
+  }
+  body.innerHTML = renderMarkdown(md);
   // Wide tables pan inside their own box instead of stretching the card.
   body.querySelectorAll('table').forEach(table => {
     const wrap = document.createElement('div');
@@ -2098,7 +2109,7 @@ function createCmdNoteRow(entry) {
 function selectQuestion(id) {
   // Opening a question is the pane saying "show me this answer", so roadmap mode
   // ends here — every path into a question (feed card, arrow keys, palette, roadmap
-  // cell, ghost un-hide, hash link) funnels through this function.
+  // cell, hash link) funnels through this function.
   setRoadmapMode(false);
   clearNotesSelection();
 
@@ -2112,15 +2123,13 @@ function selectQuestion(id) {
   state._historyNav = false;
 
   state.selectedId = id;
-  // Switch tab if the selected question belongs to a different category
+  // Switch tab if the selected question belongs to a different category. The
+  // strip syncs unconditionally: a hashchange has already set activeTab via
+  // restoreStateFromURL, so a "did it change" test would skip it.
   const _q = getQuestionById(id);
-  if (_q && _q.type !== state.activeTab) {
-    state.activeTab = _q.type;
-    const sel = document.getElementById('topic-select');
-    if (sel) sel.value = _q.type;
-    syncTopicTabsActive(_q.type);
-  }
   if (_q) {
+    state.activeTab = _q.type;
+    syncTopicTabsActive(_q.type);
     state.activeFeedSection = { type: _q.type, section: _q.section };
     clearFeedSectionPin();
   }
@@ -2261,38 +2270,14 @@ function renderMainPanel() {
       runMermaidInContainer(card.body);
     });
 
-    // Render Related questions as a card-styled section at bottom (sibling of cardsContainer)
-// Skip for system design questions as requested
+    // Related questions: a non-collapsible block after the cards. Skipped for
+    // system design by the owner's choice.
     const relatedQuestions = (q.related || []).map(relId => getQuestionById(relId)).filter(Boolean);
     if (relatedQuestions.length > 0 && q.type !== 'system-design') {
-      const relatedSection = document.createElement('div');
-      relatedSection.className = 'detail-related';
-      relatedSection.innerHTML = `
-        <button type="button" class="notion-block-header" aria-expanded="true">
-          <span class="notion-chevron"></span>
-          <span class="notion-icon">🔗</span>
-          <span class="notion-label">Related Questions</span>
-        </button>
-        <div class="notion-block-body">
-          <div id="detail-related-list"></div>
-        </div>
-      `;
-      detailBody.appendChild(relatedSection);
-
-      const relatedList = relatedSection.querySelector('#detail-related-list');
-      relatedQuestions.forEach(rel => {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = 'related-item';
-        row.innerHTML = `<span class="related-title">${escapeHtml(`#${rel.num} — ${rel.title}`)}</span>`;
-        row.addEventListener('click', () => selectQuestion(rel.id));
-        relatedList.appendChild(row);
-      });
-      
-      // Hide the chevron since it's not collapsible
-      const header = relatedSection.querySelector('.notion-block-header');
-      const chevron = header.querySelector('.notion-chevron');
-      if (chevron) chevron.style.display = 'none';
+      detailBody.appendChild(buildLinkBlock('detail-related-questions', '🔗', 'Related Questions', relatedQuestions.map(rel => ({
+        text: `#${rel.num} — ${rel.title}`,
+        onClick: () => selectQuestion(rel.id),
+      }))));
     }
 
     // Question → concept-note back-links (every topic, system design included).
@@ -2305,48 +2290,17 @@ function renderMainPanel() {
     }
   }
 
-  const hiddenFace = document.getElementById('card-hidden-face');
-  const revealedFace = document.getElementById('card-revealed-face');
+  // The memory slider appears once the answer is revealed.
   const ratingBar = document.getElementById('rating-bar');
-  const metaSection = document.getElementById('meta-section');
-
-  if (state.cardRevealed) {
-    if (hiddenFace) hiddenFace.classList.add('hidden');
-    if (revealedFace) revealedFace.classList.remove('hidden');
-    if (ratingBar) ratingBar.classList.remove('hidden');
-    if (metaSection) metaSection.classList.add('hidden');
-  } else {
-    if (hiddenFace) hiddenFace.classList.remove('hidden');
-    if (revealedFace) revealedFace.classList.add('hidden');
-    if (ratingBar) ratingBar.classList.add('hidden');
-    if (metaSection) metaSection.classList.add('hidden');
-  }
+  if (ratingBar) ratingBar.classList.toggle('hidden', !state.cardRevealed);
 
   updateRatingButtons(q.id);
   syncDetailSectionChip(q);
 
   const quizCover = document.getElementById('quiz-reveal-cover');
-  const quizCovered = Boolean(q && !state.learningMode && !state.cardRevealed);
+  const quizCovered = !state.learningMode && !state.cardRevealed;
   if (detailBody) detailBody.classList.toggle('quiz-covered', quizCovered);
   if (quizCover) quizCover.classList.toggle('hidden', !quizCovered);
-
-  
-}
-
-
-
-function flashSaved() {
-  document.querySelectorAll('.saved-dot').forEach(dot => {
-    dot.classList.remove('flash');
-    void dot.offsetWidth;
-    dot.classList.add('flash');
-    const clear = () => {
-      dot.classList.remove('flash');
-      dot.removeEventListener('animationend', clear);
-    };
-    dot.addEventListener('animationend', clear);
-    setTimeout(clear, 650);
-  });
 }
 
 function revealCard() {
@@ -2356,27 +2310,23 @@ function revealCard() {
   renderMainPanel();
 }
 
+/** #mode-toggle is a role="switch": "on" (and `.active`) = Quiz. */
+function syncLearningModeUI() {
+  const btn = document.getElementById('mode-toggle');
+  if (btn) {
+    btn.classList.toggle('active', !state.learningMode);
+    btn.setAttribute('aria-checked', String(!state.learningMode));
+    const modeText = btn.querySelector('.mode-text');
+    if (modeText) modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
+  }
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
+}
+
 function toggleLearningMode() {
   state.learningMode = !state.learningMode;
-  const btn = document.getElementById('mode-toggle');
-  const sidebar = document.querySelector('.sidebar');
-  
-  if (btn) {
-    // Quiz mode = active state (green), Learn mode = inactive state (default)
-    btn.classList.toggle('active', !state.learningMode);
-    // role="switch" is meaningless to screen readers unless aria-checked
-    // follows the mode (it used to stay at the markup's static "false").
-    btn.setAttribute('aria-checked', String(!state.learningMode));
-
-    // Update text to show current mode (id or class — whichever the markup ships)
-    const modeText = btn.querySelector('#mode-text, .mode-text');
-    if (modeText) {
-      modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
-    }
-  }
-  
-  if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
-
+  saveLearningMode();
+  syncLearningModeUI();
   if (state.selectedId) {
     state.cardRevealed = state.learningMode;
     renderMainPanel();
@@ -2437,17 +2387,13 @@ function exitRoadmapMode() {
 // drill-down state. A cell is a real `<a href="#<id>">`, so ⌘/middle-click opens
 // a question through the app's own hash routing with no extra code.
 //
-// Cell identity (§ frozen CSS handoff): cell size and gutter are B's `--rm-cell` /
-// gutter tokens (never inlined here); encoding is hue = difficulty
-// (`rm-diff-E|M|H`), alpha = memory (`rm-mem-0…3`, ONLY from
-// detailMemorySliderValueForId), a bold border = starred (`rm-star` — B thickens the
-// cell's edge, NOT a ★ glyph inside the cell), and the browser's own focus ring for
-// the roving tab stop. Hidden questions stay
-// in the grid and render like any other cell (the user's decision), so no ghost
-// class and no dashed style are emitted from JS — but a hidden cell still carries
-// `data-ghost` so the one un-hide path keeps working without a visual tell. There
-// is no you-are-here and no next-gap mark; the current question's `rm-cur` outline
-// is gated behind ROADMAP_MARK_CURRENT below.
+// Cell identity: cell size and gutter are the sheet's `--rm-cell` / `--rm-gap`
+// tokens (never inlined here); encoding is hue = difficulty (`rm-diff-E|M|H`),
+// alpha = memory (`rm-mem-0…3`, ONLY from detailMemorySliderValueForId), a bold
+// border = starred (`rm-star` — the sheet thickens the cell's edge, NOT a ★ glyph
+// inside the cell), and the browser's own focus ring for the roving tab stop.
+// There is no you-are-here and no next-gap mark; the current question's `rm-cur`
+// outline is gated behind ROADMAP_MARK_CURRENT below.
 //
 // Column order inside a row is starred-first, then E → M → H, stable on data
 // order (roadmapColumnOrder). Every number the pane prints — the `<n> questions,
@@ -2461,8 +2407,8 @@ const ROADMAP_ROW_KEY_SEP = '\u0000'; // separator for the (topic, section) row 
 // — `Concurrency` is a section of android AND data-structures and `Architecture`
 // of android AND system-design, so with four blocks on screen the section name
 // alone is not an identifier.
-// Cell size (22px, `--rm-cell`) and gutter (3px) are the CSS agent's tokens —
-// never inlined here; this file only emits the matrix structure and classes.
+// Cell size (22px, `--rm-cell`) and gutter (3px) are style.css tokens — never
+// inlined here; this file only emits the matrix structure and classes.
 const ROADMAP_MARK_CURRENT = true; // gate the open question's `rm-cur` outline.
 // The user is still choosing between "no mark" and a 1px outline in the mock, so
 // flipping this one constant adds or drops it without touching the builders.
@@ -2488,15 +2434,6 @@ let roadmapScrollRequest = null;   // { topic, section, block } | null
 let roadmapTooltipEl = null;
 let roadmapTipSubject = null;
 let roadmapMatrixEl = null;        // the #roadmap-matrix host, found or made once
-
-/** The only definition of progress on this pane: `know`, not “any rating”. It is
- *  consistent with the lit cells by derivation: `rm-mem-3` comes from
- *  detailMemorySliderValueForId, which maps `know` → 3 and nothing else. The
- *  matrix prints no known tally, so this stays the semantic anchor for other
- *  surfaces (and the census); the renderer counts `rm-mem-3` off the emitted DOM. */
-function roadmapIsKnown(id) {
-  return getRating(id) === 'know';
-}
 
 /** The open question, wherever its row sits — used by Jump-to-current and the
  *  enter-roadmap scroll. */
@@ -2564,16 +2501,13 @@ function roadmapCellAriaLabel(q, sectionName, pos, total) {
     `Memory: ${MEMORY_LABELS[mem]}`,
   ];
   if (q.star) bits.push('Important');
-  if (state.hiddenIds.has(q.id)) bits.push('Hidden — activate to unhide and open');
   return bits.join('. ');
 }
 
 /** One matrix cell: a real anchor carrying its whole state in classes + aria-label.
  *  `rm-star` marks importance (B draws a bold border on the cell — never a ★ glyph
  *  inside it), difficulty is hue (`rm-diff-*`), memory is alpha (`rm-mem-*`, ONLY
- *  from detailMemorySliderValueForId). Hidden questions render like any other cell
- *  (no ghost class) but keep `data-ghost`, so this cell's click can still undo the
- *  hide (roadmapUnhideAndOpen). The open question gets `rm-cur` only while
+ *  from detailMemorySliderValueForId). The open question gets `rm-cur` only while
  *  ROADMAP_MARK_CURRENT is on. `data-rmr` (row) and `data-rmc` (column) drive the
  *  ragged-grid arrow model. */
 function roadmapBuildCell(q, topic, sectionName, rowIndex, colIndex, total) {
@@ -2590,7 +2524,6 @@ function roadmapBuildCell(q, topic, sectionName, rowIndex, colIndex, total) {
   // onRoadmapGridKeyDown); Tab moves to the next control outside it.
   cell.tabIndex = -1;
   cell.setAttribute('aria-label', roadmapCellAriaLabel(q, sectionName, colIndex + 1, total));
-  if (state.hiddenIds.has(q.id)) cell.dataset.ghost = '1';
   return cell;
 }
 
@@ -2685,13 +2618,8 @@ function roadmapBuildBlock(topic, label, rows, startRow) {
 }
 
 // ── Roadmap matrix host ──────────────────────────────────────────
-/** One runtime host under #detail-roadmap: #roadmap-matrix. The shipped partials
- *  may already carry it once the §B markup lands (the coordinator finalises
- *  components/detail-panel.html with the matrix statics and legend, and drops the
- *  pre-tree #roadmap-bands / #roadmap-rail there); prefer that node, else append
- *  once. Idempotent, and it never touches the retired pre-tree hosts — the static
- *  runtime migration this replaced was a stopgap while the pane was a tree, and the
- *  matrix needs none of it. */
+/** The matrix host under #detail-roadmap: components/detail-panel.html ships
+ *  #roadmap-matrix; prefer that node, else append one once. Idempotent. */
 function roadmapMatrixHost() {
   if (roadmapMatrixEl && roadmapMatrixEl.parentNode) return roadmapMatrixEl;
   const found = document.getElementById('roadmap-matrix');
@@ -2957,26 +2885,12 @@ function roadmapCellTipLines(cell) {
     q.title,
     `${q.section} · ${DIFFICULTY_LABELS[q.difficulty] || q.difficulty} · ${MEMORY_LABELS[mem]}`,
   ];
-  const extra = [];
-  if (q.star) extra.push('⭐ Important');
-  if (state.hiddenIds.has(q.id)) extra.push('Hidden — click to unhide and open');
-  if (extra.length) lines.push(extra.join(' · '));
+  // Tooltip text, outside the cell, so the star stays a glyph here.
+  if (q.star) lines.push('⭐ Important');
   return lines;
 }
 
 // ── Roadmap interaction ──────────────────────────────────────────
-/**
- * The app's only un-hide path. `interview-hidden` used to be written by
- * hideAIQuestion() and never removed anywhere, so a question hidden by mistake
- * was gone for good. A matrix cell has no ghost look, but it keeps `data-ghost`
- * so clicking a hidden question's cell still undoes the hide and opens it.
- */
-function roadmapUnhideAndOpen(id) {
-  state.hiddenIds.delete(id);
-  saveHiddenIds();
-  selectQuestion(id);
-}
-
 function onRoadmapMatrixClick(e) {
   const cell = e.target && e.target.closest ? e.target.closest('.rm-cell') : null;
   if (!cell) return;
@@ -2987,12 +2901,6 @@ function onRoadmapMatrixClick(e) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
   e.preventDefault();
   hideRoadmapTooltip();
-  // A hidden cell renders like any other (no ghost class) but keeps data-ghost, so
-  // the pane's only un-hide path still fires — see the roadmapBuildCell flag.
-  if (cell.dataset.ghost) {
-    roadmapUnhideAndOpen(id);
-    return;
-  }
   selectQuestion(id);
 }
 
@@ -3086,35 +2994,24 @@ function initializeRoadmap() {
   pane.addEventListener('scroll', hideRoadmapTooltip, { passive: true });
 }
 
-function hideAIQuestion(id) {
-  state.hiddenIds.add(id);
-  saveHiddenIds();
-  renderApp();
+/** Light the word for the slider's current step (`.is-active` in style.css);
+ *  `step` null lights none. */
+function syncMemoryStepLabels(selector, step) {
+  document.querySelectorAll(selector).forEach(lbl => {
+    lbl.classList.toggle('is-active', step !== null && lbl.dataset.step === String(step));
+  });
 }
 
+/** The detail header's memory slider (#detail-memory-range) and its labels. */
 function updateRatingButtons(id) {
-  const rating = id ? getRating(id) : null;
-  const bar = document.getElementById('rating-bar');
-  const buttons = bar
-    ? bar.querySelectorAll('.rate-btn[data-rating]')
-    : document.querySelectorAll('#rate-know, #rate-shaky, #rate-review');
-
-  buttons.forEach(btn => {
-    const r = btn.dataset.rating;
-    if (!r) return;
-    btn.classList.remove('active-know', 'active-shaky', 'active-review');
-    const on = rating === r;
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (on) btn.classList.add(`active-${r}`);
-  });
-
+  const v = detailMemorySliderValueForId(id);
   const range = document.getElementById('detail-memory-range');
   if (range) {
-    const v = detailMemorySliderValueForId(id);
     range.value = String(v);
     range.setAttribute('aria-valuenow', String(v));
     range.setAttribute('aria-valuetext', detailMemorySliderAriaValuetext(id, v));
   }
+  syncMemoryStepLabels('.memory-range-labels .memory-range-lbl', id ? v : null);
 }
 
 function setRating(id, rating) {
@@ -3126,12 +3023,8 @@ function setRating(id, rating) {
     state.ratings[id] = rating;
   }
   saveRatings();
-  flashSaved();
   updateRatingButtons(id);
   renderList();
-  const q = getQuestionById(id);
-  if (q) syncDetailSectionChip(q);
-  
 }
 
 /**
@@ -3177,7 +3070,6 @@ function applyDetailMemoryRange(id, rawValue) {
   }
   saveRatings();
   saveSeen();
-  flashSaved();
   updateRatingButtons(id);
   renderList();
   renderMainPanel();
@@ -3189,7 +3081,7 @@ function navigateList(direction) {
     stepNote(direction, true);
     return;
   }
-  const filtered = getSortedFilteredQuestions();
+  const filtered = getSortedFeedQuestions();
   if (filtered.length === 0) return;
   let idx = filtered.findIndex(q => q.id === state.selectedId);
   if (idx === -1) {
@@ -3202,6 +3094,7 @@ function navigateList(direction) {
 
 function onTopicChange(value) {
   state.activeTab = value;
+  syncTopicTabsActive(value);
   clearNotesSelection();
   
   state.activeFeedSection = null;
@@ -3247,9 +3140,14 @@ function initializeHashRouting() {
     const prevNoteId = state.activeNoteId;
     restoreStateFromURL();
 
+    // A no-op hash (the same target, or an unknown id / topic) is rewritten to
+    // the canonical form of what is on screen instead of being left as typed.
     if (state.notesSelected) {
       const id = state.activeNoteId;
-      if (prevNotes && prevNoteId === id && state.activeTab === prevTab) return;
+      if (prevNotes && prevNoteId === id && state.activeTab === prevTab) {
+        pushURLState();
+        return;
+      }
       if (id) openNote(id);
       else selectNotesSection();
       return;
@@ -3264,13 +3162,19 @@ function initializeHashRouting() {
 
     const target = state.selectedId ? getQuestionById(state.selectedId) : null;
     if (target) {
-      if (target.id === prevSelected && state.activeTab === prevTab) return;
+      if (target.id === prevSelected && state.activeTab === prevTab) {
+        pushURLState();
+        return;
+      }
       // Re-runs renderList/renderMainPanel and canonicalises the hash
       // (e.g. `#sd-75` → `#tab=system-design&q=sd-75`).
       selectQuestion(target.id);
       return;
     }
-    if (!prevSelected && state.activeTab === prevTab) return;
+    if (!prevSelected && state.activeTab === prevTab) {
+      pushURLState();
+      return;
+    }
     // Hash points at a topic with no (valid) question: mirror a tab click.
     onTopicChange(state.activeTab);
   });
@@ -4110,11 +4014,15 @@ function wireCommandPalette() {
   }
 }
 
-/** Topbar key chip for the primary shortcut (W1 owns the element; guarded). */
+/** Every on-screen palette key chip (the topbar's #cmd-kbd-hint and the empty
+ *  state's [data-cmd-kbd]) and the launcher tooltip, per platform. */
 function syncCmdKbdHint() {
-  const hint = document.getElementById('cmd-kbd-hint');
-  if (!hint) return;
-  hint.textContent = CMD_IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
+  const keys = CMD_IS_MAC ? '⌘⇧F' : 'Ctrl+Shift+F';
+  document.querySelectorAll('#cmd-kbd-hint, [data-cmd-kbd]').forEach(el => {
+    el.textContent = keys;
+  });
+  const launch = document.getElementById('cmd-launch');
+  if (launch) launch.title = `Search all questions (${keys})`;
 }
 
 /** ⌘⇧F / Ctrl+Shift+F is primary; ⌘E / Ctrl+E stays as the legacy alias. */
@@ -4138,82 +4046,40 @@ function syncTopicTabsActive(tab) {
 }
 
 function syncDiffFilterChipsUI() {
-  document.querySelectorAll('#diff-chips .chip[data-diff], #diff-filters .pill[data-diff]').forEach(node => {
-    const d = node.dataset.diff;
-    if (!d || d === 'all') return;
-    node.classList.toggle('active', state.diffFilter === d);
+  document.querySelectorAll('#diff-chips .chip[data-diff]').forEach(node => {
+    const on = state.diffFilter === node.dataset.diff;
+    node.classList.toggle('active', on);
+    node.setAttribute('aria-pressed', String(on));
   });
 }
 
-/** Legacy HTML only: importance star chip, or old #status-chips / #status-filters / id="pill-*" memory buttons. */
-function queryLegacyStatusFilterChip(status) {
-  return (
-    document.getElementById(`pill-${status}`)
-    || document.querySelector(
-      `#importance-chips .chip[data-status="${status}"], #status-chips .chip[data-status="${status}"], #status-filters .pill[data-status="${status}"]`
-    )
-  );
-}
-
+/**
+ * The sidebar memory slider shows the memory filter: full strength at the
+ * filtered step, dimmed at 0 with no lit label when no memory filter is on
+ * (none, or the ⭐ chip — which used to leave the slider bright on "Unseen",
+ * and a memory pick after a clear used to stay dimmed).
+ */
 function syncSidebarMemoryRange() {
   const range = document.getElementById('sidebar-memory-range');
   if (!range) return;
-  
-  // Map status filter to range values: unseen=0, review=1, shaky=2, know=3
-  let value = 0; // Default to "Unseen"
-  if (state.statusFilter === 'unseen') value = 0;
-  else if (state.statusFilter === 'review') value = 1;
-  else if (state.statusFilter === 'shaky') value = 2;
-  else if (state.statusFilter === 'know') value = 3;
-  else if (!state.statusFilter) {
-    // No filter active - show dimmed state
-    range.style.opacity = '0.6';
-    value = 0; // Default position
-  } else {
-    range.style.opacity = '1';
-  }
-  
+  const memValue = getSliderValueFromStatus(state.statusFilter);
+  const value = memValue === null ? 0 : memValue;
+  range.style.opacity = memValue === null ? '0.6' : '1';
   range.value = String(value);
-  range.setAttribute('value', String(value)); // For CSS highlighting
   range.setAttribute('aria-valuenow', String(value));
-  
-  const labels = MEMORY_LABELS;
-  const labelText = !state.statusFilter ? 'No filter (double-click to clear)' : labels[value];
-  range.setAttribute('aria-valuetext', labelText || 'Unseen');
+  range.setAttribute('aria-valuetext', memValue === null
+    ? 'No memory filter'
+    : `Filter: ${MEMORY_LABELS[value]} (double-click to clear)`);
+  syncMemoryStepLabels('.memory-labels-enhanced .memory-lbl-enhanced', memValue);
 }
 
 function syncMemoryFilterUI() {
-  const legacySelector =
-    '#importance-chips .chip[data-status], #status-chips .chip[data-status], #status-filters .pill[data-status]';
-  document.querySelectorAll(legacySelector).forEach(node => {
-    node.classList.remove('active', 'active-know', 'active-shaky', 'active-review', 'active-star', 'active-unseen');
+  // The ⭐ chip is the only `[data-status]` chip in the markup; memory is the slider.
+  document.querySelectorAll('#importance-chips .chip[data-status]').forEach(node => {
+    const on = state.statusFilter === node.dataset.status;
+    node.classList.toggle('active-star', on);
+    node.setAttribute('aria-pressed', String(on));
   });
-  document.querySelectorAll('.memory-filter-hit[data-status]').forEach(node => {
-    node.classList.remove('active', 'active-know', 'active-shaky', 'active-review', 'active-star', 'active-unseen');
-    node.setAttribute('aria-pressed', 'false');
-  });
-
-  if (!state.statusFilter) {
-    syncSidebarMemoryRange();
-    return;
-  }
-  const activeMap = {
-    star: 'active-star',
-    know: 'active-know',
-    shaky: 'active-shaky',
-    review: 'active-review',
-    unseen: 'active-unseen',
-  };
-  const cls = activeMap[state.statusFilter] || 'active';
-  const activeEl = queryLegacyStatusFilterChip(state.statusFilter);
-  if (activeEl) activeEl.classList.add(cls);
-
-  const hit = document.querySelector(`.memory-filter-hit[data-status="${state.statusFilter}"]`);
-  if (hit) {
-    hit.classList.add(cls);
-    hit.setAttribute('aria-pressed', 'true');
-  }
-
   syncSidebarMemoryRange();
 }
 
@@ -4222,8 +4088,14 @@ function isShortcutSuppressedTarget(el) {
   if (!el || el === document.body) return false;
   if (el.id === 'cmd-input') return false;
   const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable) return true;
-  return false;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(el.isContentEditable);
+}
+
+/** Space/Enter on a focused control belong to that control (a toggle, a
+ *  sidebar row, a related-question button), not to the global reveal key. */
+function isActivatableTarget(el) {
+  return Boolean(el && el.closest && el !== document.body
+    && el.closest('button, a[href], summary, [role="button"], [role="switch"], [role="option"]'));
 }
 
 function wireResetMemoryButton() {
@@ -4254,7 +4126,7 @@ async function initializeApp() {
   initTheme();
   initZoom();
   questions = QuestionDB.all();
-  loadHiddenIds();
+  loadLearningMode();
   loadRoadmapMode();
   buildCmdSearchStructures();
   // Concept notes load in the background: the first render never waits on
@@ -4326,33 +4198,21 @@ function restoreStateFromURL() {
 }
 
 function initializeTopicControls() {
-  const topicSelect = document.getElementById('topic-select');
-  if (topicSelect) topicSelect.value = state.activeTab;
   syncTopicTabsActive(state.activeTab);
 
   document.querySelectorAll('#topic-tabs .topic-tab[data-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
       const tabId = tab.dataset.tab;
       if (!VALID_TABS.includes(tabId)) return;
-      if (topicSelect) topicSelect.value = tabId;
       syncTopicTabsActive(tabId);
       onTopicChange(tabId);
     });
   });
-
-  if (topicSelect) {
-    topicSelect.addEventListener('change', () => {
-      const tabId = topicSelect.value;
-      syncTopicTabsActive(tabId);
-      onTopicChange(tabId);
-    });
-  }
 }
 
 function initializeSearchAndFilters() {
-  document.querySelectorAll('#diff-chips .chip[data-diff], #diff-filters .pill[data-diff]').forEach(btn => {
+  document.querySelectorAll('#diff-chips .chip[data-diff]').forEach(btn => {
     const diff = btn.dataset.diff;
-    if (!diff || diff === 'all') return;
     btn.addEventListener('click', () => {
       state.diffFilter = state.diffFilter === diff ? null : diff;
       syncDiffFilterChipsUI();
@@ -4372,21 +4232,14 @@ function initializeMemoryFilters() {
     renderList();
   };
 
-  document
-    .querySelectorAll(
-      '#importance-chips .chip[data-status], #status-chips .chip[data-status], #status-filters .pill[data-status]'
-    )
-    .forEach(btn => {
-      btn.addEventListener('click', () => onStatusFilterPick(btn.dataset.status));
-    });
+  document.querySelectorAll('#importance-chips .chip[data-status]').forEach(btn => {
+    btn.addEventListener('click', () => onStatusFilterPick(btn.dataset.status));
+  });
 
   const sidebarMemoryRange = document.getElementById('sidebar-memory-range');
   if (sidebarMemoryRange) {
     sidebarMemoryRange.addEventListener('input', e => {
-      const value = parseInt(e.target.value);
-      const statusMap = MEMORY_STATUS_BY_VALUE;
-      e.target.setAttribute('value', value);
-      onStatusFilterPick(statusMap[value]);
+      onStatusFilterPick(getStatusFromSliderValue(e.target.value));
     });
     
     sidebarMemoryRange.addEventListener('dblclick', () => {
@@ -4410,19 +4263,8 @@ function initializeMemoryFilters() {
 }
 
 function initializeEventListeners() {
-  const cardHidden = document.getElementById('card-hidden-face');
-  if (cardHidden) cardHidden.addEventListener('click', revealCard);
-
   const quizRevealCover = document.getElementById('quiz-reveal-cover');
   if (quizRevealCover) quizRevealCover.addEventListener('click', revealCard);
-
-  const rateHost = document.getElementById('detail-question') || document.getElementById('main-panel') || document.body;
-  rateHost.querySelectorAll('[data-rating="know"],[data-rating="shaky"],[data-rating="review"]').forEach(btn => {
-    const rating = btn.dataset.rating;
-    btn.addEventListener('click', () => {
-      if (state.selectedId) setRating(state.selectedId, rating);
-    });
-  });
 }
 
 function initializeKeyboardHandlers() {
@@ -4444,6 +4286,11 @@ function initializeKeyboardHandlers() {
       handleCommandPaletteKeyboard(e);
       return;
     }
+
+    // The diagram modal owns the keyboard while open (its own listener
+    // handles Esc); arrows / 1-2-3 must not drive the page behind it.
+    const diagramModal = document.getElementById('diagram-modal');
+    if (diagramModal && !diagramModal.hidden) return;
 
     if (isShortcutSuppressedTarget(e.target)) return;
 
@@ -4515,6 +4362,11 @@ function handleMainKeyboardShortcuts(e) {
     if (e.key === ' ' || e.key === '1' || e.key === '2' || e.key === '3') return;
   }
 
+  // Space on a focused control is that control's own activation: a sidebar
+  // row's handler used to select the section AND the global handler revealed
+  // the card, and Space on a topbar switch never toggled it.
+  if (e.key === ' ' && (consumed || isActivatableTarget(e.target))) return;
+
   const shortcuts = {
     'ArrowDown': () => navigateList(1),
     'ArrowUp': () => navigateList(-1),
@@ -4525,14 +4377,10 @@ function handleMainKeyboardShortcuts(e) {
     'ArrowLeft': () => historyBack(),
     'ArrowRight': () => historyForward(),
     'Escape': () => {
-      // Roadmap mode first: it is a pane mode, so leaving it is the shallower
-      // action. Back to whatever question was open.
-      if (state.showRoadmap && !consumed) {
-        exitRoadmapMode();
-        return;
-      }
-      closeCmdPalette();
-    }
+      // Roadmap mode is a pane mode, so Esc leaves it — back to whatever
+      // question was open. (The palette handles its own Esc before this.)
+      if (state.showRoadmap && !consumed) exitRoadmapMode();
+    },
   };
 
   if (shortcuts[e.key]) {
@@ -4542,17 +4390,7 @@ function handleMainKeyboardShortcuts(e) {
 }
 
 function initializeUIState() {
-  const toggleBtn = document.getElementById('mode-toggle');
-  const sidebar = document.querySelector('.sidebar');
-  if (toggleBtn) {
-    toggleBtn.classList.toggle('active', !state.learningMode);
-    toggleBtn.setAttribute('aria-checked', String(!state.learningMode));
-    const modeText = toggleBtn.querySelector('#mode-text, .mode-text');
-    if (modeText) {
-      modeText.textContent = state.learningMode ? 'Learn' : 'Quiz';
-    }
-  }
-  if (sidebar) sidebar.classList.toggle('learning-mode', state.learningMode);
+  syncLearningModeUI();
 
   // The restored mode has to be reflected on the switch before the first render.
   syncRoadmapToggleUI();
@@ -4594,10 +4432,24 @@ async function init() {
   syncCmdKbdHint();
   renderApp();
   pushURLState();
-  notesLoadPromise.then(onNotesLoaded);
+  notesLoadPromise.then(onNotesLoaded).catch(err => console.error('Notes failed to load:', err));
 }
 
 // ── Utility ────────────────────────────────────────────────────
+/**
+ * Markdown → HTML for answer cards and concept notes. marked passes raw HTML
+ * in the source straight through, and notes are converted from outside
+ * material, so the output goes through DOMPurify (loaded beside marked in
+ * index.template.html). If that CDN script failed to load, the content is
+ * still this repo's own files, so rendering fails open rather than blank.
+ */
+function renderMarkdown(md) {
+  const text = String(md);
+  if (typeof marked === 'undefined') return `<p>${escapeHtml(text)}</p>`;
+  const html = marked.parse(text);
+  return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : html;
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -4613,8 +4465,12 @@ function initResize() {
   if (!handle || !sidebar) return;
 
   // Restore saved width
-  const saved = localStorage.getItem('sidebar-width');
-  sidebar.style.width = (saved ?? '600') + 'px';
+  let saved = NaN;
+  try {
+    saved = parseInt(localStorage.getItem('sidebar-width'), 10);
+  } catch (e) {}
+  // Same clamp as the drag, so a corrupt or stale value cannot stick.
+  sidebar.style.width = (Number.isFinite(saved) ? Math.min(800, Math.max(500, saved)) : 600) + 'px';
 
   let startX, startW;
 
@@ -4635,7 +4491,9 @@ function initResize() {
       handle.classList.remove('dragging');
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
-      localStorage.setItem('sidebar-width', sidebar.offsetWidth);
+      try {
+        localStorage.setItem('sidebar-width', String(sidebar.offsetWidth));
+      } catch (e) {}
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -4655,7 +4513,8 @@ async function fetchProgressFromServer() {
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
     const data = await response.json();
     // Validate data structure
-    if (typeof data !== 'object' || !data.ratings || !Array.isArray(data.seen)) {
+    if (!data || typeof data !== 'object' || !data.ratings || typeof data.ratings !== 'object'
+      || Array.isArray(data.ratings) || !Array.isArray(data.seen)) {
       throw new Error('Invalid progress data from server');
     }
     // Ensure ratings values are valid
@@ -4697,7 +4556,9 @@ async function saveProgressToServer({ ratings, seen }) {
     });
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
   } catch (err) {
-    console.error('Failed to save progress to server:', err);
+    // A warning, not an error: with no API (plain static server) every save
+    // lands here by design and localStorage keeps the progress.
+    console.warn('Could not save progress to server:', err);
     throw err;
   }
 }
@@ -4708,58 +4569,28 @@ async function saveProgressToServer({ ratings, seen }) {
  */
 async function importLocalStorageToServer() {
   try {
-    // Load from localStorage
-    const rawRatings = localStorage.getItem('interview-ratings');
-    const rawSeen = localStorage.getItem('interview-seen');
-    if (!rawRatings && !rawSeen) return false; // Nothing to import
+    // Already sanitised: invalid ratings and non-string seen ids are dropped.
+    const ratings = readLocalRatings() || {};
+    const seen = readLocalSeen() || new Set();
+    if (!Object.keys(ratings).length && !seen.size) return false; // Nothing to import
 
-    const ratings = rawRatings ? JSON.parse(rawRatings) : {};
-    const seenRaw = rawSeen ? JSON.parse(rawSeen) : [];
-    const seen = new Set(seenRaw);
-
-    // Validate localStorage data (same as in loadRatings/loadSeen)
-    for (const rating of Object.values(ratings)) {
-      if (!VALID_RATING_VALUES.has(rating)) {
-        throw new Error(`Invalid rating in localStorage: ${rating}`);
-      }
-    }
-    for (const id of seen) {
-      if (typeof id !== 'string') {
-        throw new Error(`Invalid seen ID in localStorage: ${id}`);
-      }
-    }
-
-    // Send to server
     const response = await fetch(`${SERVER_API_BASE}/api/import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ratings: ratings,
-        seen: Array.from(seen)
-      })
+      body: JSON.stringify({ ratings, seen: Array.from(seen) }),
     });
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
     const result = await response.json();
-    if (result.imported) {
-      // Clear localStorage after successful import
-      localStorage.removeItem('interview-ratings');
-      localStorage.removeItem('interview-seen');
-    }
-    return result.imported;
+    return Boolean(result && result.imported);
   } catch (err) {
     console.warn('Could not import localStorage to server:', err);
     return false;
   }
 }
 
-/**
- * Clear localStorage progress keys.
- */
-function clearLocalStorageProgress() {
-  localStorage.removeItem('interview-ratings');
-  localStorage.removeItem('interview-seen');
-}
-
 // ── Boot ───────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => { await init(); initResize(); });
+document.addEventListener('DOMContentLoaded', () => {
+  initResize();
+  init().catch(err => console.error('Interview Prep failed to start:', err));
+});

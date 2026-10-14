@@ -16,6 +16,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <!-- Sanitises marked's output (renderMarkdown in view/app.js). -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <link rel="stylesheet" href="view/style.css">
   
@@ -41,13 +43,6 @@
       </button>
     </div>
     <div class="topbar-right">
-      <label class="sr-only" for="topic-select">Topic (sync)</label>
-      <select class="topic-select sr-only" id="topic-select" onchange="onTopicChange(this.value)" aria-hidden="true" tabindex="-1">
-        <option value="data-structures">Data Structures</option>
-        <option value="android">Android</option>
-        <option value="system-design">System Design</option>
-        <option value="behavioral">Behaviour</option>
-      </select>
       <div class="mode-controls">
         <!-- A real switch, same contract as #mode-toggle / #theme-toggle: the
              `.minimal-text` word is absolutely centred so it costs no width, and
@@ -79,7 +74,7 @@
           </button>
         </div>
         <div class="toggle-wrapper">
-          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="true">
+          <button type="button" class="minimal-toggle" id="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark theme" aria-label="Toggle between light and dark theme" role="switch" aria-checked="false">
             <div class="minimal-track">
               <span class="minimal-text theme-text">Light</span>
               <div class="minimal-knob">
@@ -198,7 +193,7 @@
       <div class="empty-state" id="detail-empty">
         <div class="empty-icon">📋</div>
         <h3 class="empty-title">Select a question</h3>
-        <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill">⌘E</kbd> to search everything.</p>
+        <p class="empty-desc">Pick a card in the feed or press <kbd class="kbd-pill" data-cmd-kbd>⌘⇧F</kbd> to search everything.</p>
         <div class="kbd-hint">
           <div class="kbd-hint-item"><kbd>↑</kbd> / <kbd>↓</kbd> Navigate</div>
           <div class="kbd-hint-item"><kbd>Space</kbd> Reveal</div>
@@ -246,33 +241,6 @@
         </button>
 
         <div class="detail-body" id="detail-body"></div>
-
-        <div class="detail-related pinned" id="detail-related" hidden>
-          <div class="related-label">Related Questions</div>
-          <div class="related-list" id="related-list"></div>
-        </div>
-
-        <div class="flashcard legacy-flashcard hidden" id="flashcard" aria-hidden="true">
-          <div class="card-hidden" id="card-hidden-face">
-            <div class="card-reveal-icon">🃏</div>
-            <div class="card-reveal-text">Reveal</div>
-          </div>
-          <div class="card-content hidden" id="card-revealed-face">
-            <div class="answer-content" id="answer-content"></div>
-            <div id="detail-sections"></div>
-          </div>
-        </div>
-
-        <div class="meta-section hidden" id="meta-section" aria-hidden="true">
-          <div class="meta-row">
-            <span class="meta-label">Tags</span>
-            <div class="meta-chips" id="meta-tags"></div>
-          </div>
-          <div class="meta-row">
-            <span class="meta-label">Related</span>
-            <div class="related-list" id="meta-related"></div>
-          </div>
-        </div>
       </div>
 
       <!-- Roadmap mode. A sibling `.detail-inner`, so it inherits the pane's
@@ -304,9 +272,7 @@
         </div>
         <!-- The matrix host. `roadmapMatrixHost()` prefers this node and appends
              one only if it is missing, so this static is the real thing, not a
-             placeholder. Rows and cells are built by view/app.js. Hidden questions
-             carry no separate key: the matrix draws them like any other cell, and
-             the only tell is the cell's aria-label plus the click that restores it. -->
+             placeholder. Rows and cells are built by view/app.js. -->
         <div class="roadmap-matrix" id="roadmap-matrix"></div>
       </div>
 
