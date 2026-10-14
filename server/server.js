@@ -322,9 +322,10 @@ function serveStatic(pathname, res) {
 // ---------------------------------------------------------------------------
 const server = http.createServer((req, res) => {
   touchActivity();
-  // CORS: the page may be served from any local port (1000, 8899, 8888…) while
-  // this API lives on 1001 — a different origin, so every write is cross-origin
-  // and browsers preflight it. Echo the requester's origin; this is a local
+  // CORS: the app normally reaches this API same-origin through proxy-server.js
+  // (/api/* on 1000 is forwarded here), so no preflight happens. These headers
+  // only serve a page that calls 1001 directly from another local port, which
+  // is cross-origin and preflighted. Echo the requester's origin; this is a local
   // progress store, there is nothing on it worth protecting from a localhost
   // peer, and without the preflight answer PUT/POST silently never arrive.
   const origin = req.headers.origin;

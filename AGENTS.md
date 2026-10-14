@@ -18,7 +18,9 @@ fallback), and a command palette that searches every question and every rendered
 
 Then open `http://localhost:1000`. `start-server.sh` execs `server/proxy-server.js`, which serves
 the repo root statically on **1000** and spawns `server/server.js` — the progress API on **1001**,
-built on `node:sqlite`, so it needs **Node ≥ 22**. Both bind every interface, so the script also
+built on `node:sqlite`, so it needs **Node ≥ 22**. The proxy binds every interface (`HOST`,
+default `0.0.0.0`) while the API it spawns binds `127.0.0.1` only — LAN clients reach the API
+through the proxy's same-origin `/api` forward. That is why the script also
 prints a `http://<lan-ip>:1000` URL for other devices (allow the `node` binary through the OS
 firewall, not Python). Any plain static server works too (`python -m http.server 1000`,
 `npx serve`): with no API answering, the app keeps progress in localStorage instead.
@@ -51,7 +53,8 @@ firewall, not Python). Any plain static server works too (`python -m http.server
 │   └── roadmaps.js         #   RoadmapDB: band ORDER per topic; membership derived
 │   ├── notes/<topic>/<NN>-<id>.md   #   Concept notes (Markdown, fetched at runtime)
 ├── scripts/
-│   └── compose-html.mjs    # Composes index.html from components (--check = staleness gate)
+│   ├── compose-html.mjs    # Composes index.html from components (--check = staleness gate)
+│   └── validate-data.mjs   # Schema gate for data/*.js + notes registry (exit 1 on error)
 ├── server/
 │   ├── proxy-server.js     # Static on 1000; spawns and forwards /api to 1001
 │   ├── server.js           # Zero-dependency node:sqlite progress API on 1001
@@ -189,10 +192,13 @@ Clarifying Questions now.
 
 ## Testing
 
-No test infrastructure exists currently. All verification is manual via browser, plus two cheap
+No test infrastructure exists currently. All verification is manual via browser, plus three cheap
 gates that need no server: `node --check view/app.js` / `node --check data/<topic>.js` for syntax,
-and `node scripts/compose-html.mjs --check`, which exits 1 when `index.html` no longer matches the
-template plus components.
+`node scripts/compose-html.mjs --check`, which exits 1 when `index.html` no longer matches the
+template plus components, and `node scripts/validate-data.mjs`, which loads every `data/*.js` and
+the notes registry and exits 1 on a schema break (id/num mismatch, missing required field, an
+`answer` over 3 bullets, `complexity` on android, an unknown `related` id, an unregistered or
+missing note file). It warns, without failing, when `keyPoints` is shorter than `answer`.
 
 ## Adding New Questions
 
@@ -241,8 +247,10 @@ personal stories, private links or logistics. Verify with `node --check data/not
   summary line under the H1 — else the first section's text — and a section-count chip); ↑/↓ move
   across those cards. Opening one sets `state.activeNoteId` and renders the **whole note** in
   `#detail-note` — a third sibling `.detail-inner` of `#detail-question` and `#detail-roadmap`
-  (its own scroller is `#note-body`): the summary as a headerless lead card, then one always
-  expanded full-width `.notion-block` per H2 (`data-note-section`), with its H3s rendered inline,
+  (its own scroller is `#note-body`): the summary as a headerless lead card, then one full-width
+  `.notion-block` per H2 (`data-note-section`), with its H3s rendered inline — its header is a
+  toggle button shared with question cards (`wireCardToggle`), every render starts expanded and no
+  collapse state is stored, so a palette or back-link jump always lands on an open card —
   and a "Related questions" block = registry `related` ∪ every section's `<!-- related: -->` ids,
   deduped in order. The header's ‹ › step to the previous/next note. Notes ignore Learn/Quiz;
   ←/→ keep their question-history meaning. Selecting a question section, opening a question
