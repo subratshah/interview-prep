@@ -80,7 +80,7 @@ flowchart LR
 - `type = video, content_id = 1` → exactly one row in `videos` where `id = 1`: one-to-one.
 
 ## ⚛️ ACID transactions
-<!-- related: sd-46, sd-50 -->
+<!-- related: sd-136, sd-46, sd-50 -->
 
 ### 🧪 The four guarantees
 
@@ -93,6 +93,63 @@ flowchart LR
 
 - ACID's C (constraints) is not CAP's C (every read sees the latest write).
 - Isolation levels trade safety for throughput: read committed → repeatable read → serializable.
+
+## 🧵 Isolation levels and MVCC
+<!-- related: sd-136, sd-46 -->
+
+### 🐛 The anomalies
+- **Dirty read** — you read another transaction's uncommitted write, which may roll back.
+- **Non-repeatable read** — the same row read twice in one transaction returns different values.
+- **Phantom** — the same range query returns new rows because someone inserted into the range.
+- **Lost update** — two read-modify-write cycles overlap and one overwrites the other.
+- **Write skew** — two transactions read the same rows, each writes a *different* row, and together they break a rule (two doctors both go off call because each saw the other still on call).
+
+### 📶 The levels (ANSI SQL)
+
+| Level | Prevents | Still allows |
+|---|---|---|
+| Read uncommitted | — | Dirty reads and everything below |
+| **Read committed** | Dirty reads | Non-repeatable reads, phantoms, lost updates |
+| **Repeatable read** | + non-repeatable reads | Phantoms (per the standard), write skew |
+| **Serializable** | All of the above | Nothing — results equal some serial order |
+
+- Defaults differ: **PostgreSQL** and Oracle use read committed; **MySQL InnoDB** uses repeatable read.
+- Engines diverge from the standard: PostgreSQL's repeatable read is **snapshot isolation** (no phantoms, but write skew possible) and its serializable is **SSI**, which aborts conflicting transactions — so callers must **retry** on serialization failure.
+
+### 🗂️ MVCC
+- **Multi-version concurrency control**: an update writes a **new row version** instead of overwriting; each transaction reads the versions visible in its **snapshot**.
+- Result: **readers don't block writers and writers don't block readers**; only write–write conflicts on the same row wait or abort.
+- Old versions must be cleaned up — PostgreSQL's **VACUUM**, InnoDB's undo-log **purge**. A long-running transaction pins old versions and causes bloat.
+
+### 🛠️ Fixing lost updates and write skew
+- Atomic update: `UPDATE accounts SET balance = balance - 100 WHERE id = 1 AND balance >= 100`.
+- Pessimistic lock: `SELECT … FOR UPDATE` on the rows you will change (for write skew, lock the rows you *read*).
+- Optimistic: a `version` column, `UPDATE … WHERE version = ?`, retry if 0 rows changed.
+- Or run that transaction as serializable and retry on conflict.
+
+> 🔑 Name the anomaly first, then pick the cheapest fix that prevents it — serializable everywhere is rarely the answer.
+
+## 🧩 Normalisation vs denormalisation
+<!-- related: sd-46 -->
+
+### 📏 Normal forms
+- **1NF** — atomic values, no repeating groups (no `phone1, phone2, phone3` or comma lists in a column).
+- **2NF** — no column depends on only *part* of a composite key.
+- **3NF** — no column depends on another non-key column (store `city_id`, not `city` *and* `city_population`).
+- **BCNF** — every determinant is a candidate key; a stricter 3NF.
+- Goal: each fact stored **once**, so an update can't leave copies disagreeing (update anomalies).
+
+### ⚡ When to denormalise
+- Read-heavy paths where joins dominate latency: copy `author_name` into `posts`, keep a `like_count` counter, precompute aggregates or materialised views.
+- Cost: every write must update the copies (in the same transaction, a trigger, or an event), and stale copies are now possible.
+
+| | Normalised | Denormalised |
+|---|---|---|
+| Writes | One place, simple | Fan out to copies |
+| Reads | Joins | Single lookup |
+| Fits | OLTP source of truth | Read models, analytics (star schema), NoSQL |
+
+> 💡 Normalise the source of truth to 3NF; denormalise read models you can rebuild from it.
 
 ## 📇 Indexes
 <!-- related: sd-47 -->

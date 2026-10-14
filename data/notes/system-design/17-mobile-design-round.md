@@ -55,7 +55,7 @@ flowchart LR
 6. **Wrap up** — tradeoffs, bottlenecks, monitoring, rollout, what you'd do with more time.
 
 ## 🧱 Common building blocks
-<!-- related: sd-3, sd-18, sd-113, sd-114, sd-116 -->
+<!-- related: sd-3, sd-18, sd-113, sd-114, sd-116, sd-133 -->
 
 | Block | Key decisions |
 |---|---|
@@ -73,7 +73,7 @@ flowchart LR
 | **Observability** | Crash + ANR rates, perf traces, feature flags, staged rollout |
 
 ## 🧪 Typical prompts
-<!-- related: sd-2, sd-30, sd-119, sd-117, sd-118 -->
+<!-- related: sd-2, sd-30, sd-119, sd-117, sd-118, sd-129, sd-130, sd-131, sd-132, sd-133, sd-134, sd-135 -->
 
 - Apps: messaging/chat, photo feed with stories, music streaming, ride hailing, location sharing, video calling.
   - 💬 Messaging: [Design a real-time Messaging System | Walmart](https://codemia.io/practice/walmart-design-a-real-time-messaging-system), 🎥 [Design WhatsApp](https://youtu.be/RJRPTfI7l5Q), [chat app](https://blog.algomaster.io/p/design-a-chat-application-like-whatsapp)

@@ -15,6 +15,19 @@
 1. **Complete** — union of all partitions = full data set; nothing lost or duplicated.
 2. **Even** — load and data spread evenly; 90% / 10% defeats the point.
 
+## ↔️ Horizontal vs vertical
+<!-- related: sd-48 -->
+
+| | Horizontal (sharding) | Vertical |
+|---|---|---|
+| Splits | **Rows** — each partition holds some users | **Columns** or whole tables |
+| Example | Users 1–50k on P1, 50k–100k on P2 | `users` (hot: name, email) vs `user_profiles` (cold: bio, settings blob) |
+| Scales | Data size and write throughput | Row width, I/O per read, team or feature isolation |
+| Cost | Cross-shard queries and transactions | Joins across the split |
+
+- **Functional partitioning** is vertical at service level: orders, payments and catalogue each get their own database.
+- Usual order: split vertically by feature first, then shard the tables that still outgrow one node.
+
 ## 📐 Key-range partitioning
 <!-- related: sd-48 -->
 
@@ -62,6 +75,18 @@ flowchart LR
 
 - Move data in the background, throttled; flip routing only after copy completes.
 - Keep a routing map (config service / ZooKeeper) so clients find the right partition.
+
+### 📒 Directory (lookup) partitioning
+- Instead of a formula, a **lookup service** stores `key → partition` explicitly (e.g. `tenant 42 → shard 7`).
+- ✅ Any placement is possible: move one tenant, isolate a noisy customer, pin a region's users to a region.
+- ❌ An extra hop on every request, and the directory is critical — it must be replicated, highly available and **cached** by routers.
+
+```mermaid
+flowchart LR
+  R["Request tenant 42"] --> D["Directory: tenant to shard"]
+  D -->|"shard 7"| S7[(Shard 7)]
+  D -.->|cached in router| R
+```
 
 ## 🔎 Secondary indexes: local vs global
 <!-- related: sd-48 -->

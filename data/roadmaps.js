@@ -9,10 +9,9 @@
 // matching edit here. Deriving removes the failure mode: a question with a
 // section is on the path, and `getQuestionIds(topic)` is the topic's full id set.
 const RoadmapDB = (() => {
-  // Band order per topic, verified against this branch's data. Question counts
-  // per band at the time of writing: android 18,26,19,18,13,15,11,25,18,1 = 164;
-  // behavioral 12,9,13,17,17 = 68; data-structures 7,4,4,6,6,11,7,1 = 46;
-  // system-design 12,24,34,9,10,8 = 97.
+  // Band order per topic. Per-band counts are deliberately not recorded here —
+  // they drifted on every data edit; `node scripts/validate-data.mjs` prints
+  // the current per-topic totals.
   //
   // A section that exists in the data but not in this list is appended in data
   // order (see build()), so forgetting to edit this array costs nothing but the
@@ -55,7 +54,6 @@ const RoadmapDB = (() => {
       'Architecture',
       'Frontend',
       'Staff / Platform',
-      'Software Engineering Principles',
     ],
   };
 

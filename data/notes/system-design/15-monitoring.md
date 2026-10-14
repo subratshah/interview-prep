@@ -96,6 +96,22 @@ sequenceDiagram
 
 - RCA flow: alert on metric → narrow via dashboard → trace a slow request → read its logs.
 
+### 🪵 Log levels and correlation
+| Level | Use for | Production |
+|---|---|---|
+| DEBUG | Developer detail, payload shapes | Off (sample if needed) |
+| INFO | Business events: order placed, job done | On |
+| WARN | Recovered problem: retry succeeded, fallback used | On, watch trends |
+| ERROR | Request failed, needs attention | On, counted as a metric |
+| FATAL | Process cannot continue | On, pages |
+
+- Every line carries a **correlation id** (the request / trace id), so one request's logs join up across services and queues.
+- Log as JSON key–values (`"user_id": 42`), not prose — so you can filter and aggregate.
+
+### 🤖 Synthetic vs real-user monitoring
+- **Synthetic (active)** — scripted probes hit key flows (login, checkout) every minute from several regions. Catches outages at 3 a.m. when nobody is using the app.
+- **Real-user (passive, RUM)** — measures what real clients see: app start time, screen load, crash rate. Catches what probes miss: slow devices, one carrier, one app version.
+
 ## 🚨 Alerting tiers
 <!-- related: sd-122, sd-99 -->
 
@@ -107,4 +123,26 @@ sequenceDiagram
 
 - Alert on **symptoms** users feel, not every cause; use windows ("5 min over threshold") to avoid flapping.
 - Every page must be actionable and linked to a runbook.
+- **Threshold vs anomaly alerts**: a fixed threshold (5xx > 1%) is simple and predictable; an anomaly alert compares to a learned baseline (this hour last week) and catches "traffic fell 40%", which no fixed threshold sees. Anomaly alerts are noisier — use them for traffic and business metrics, thresholds and SLOs for paging.
+
+## 🎯 SLIs, SLOs, SLAs and error budgets
+<!-- related: sd-122, sd-99 -->
+
+| Term | What it is | Example |
+|---|---|---|
+| **SLI** | A measured ratio of good events | % of requests that return non-5xx within 300 ms |
+| **SLO** | Internal target for an SLI over a window | 99.9% over 30 days |
+| **SLA** | Contract with customers, with penalties | 99.5% monthly, else credits — looser than the SLO |
+
+### 💰 Error budget
+- Budget = **1 − SLO**. At 99.9% over 30 days: 0.1% × 43,200 min = **43.2 minutes** of full outage (or the same share of bad requests).
+- 99.99% leaves only **4.3 minutes** a month — each extra nine costs far more engineering.
+- **Policy**: budget left → ship features; budget spent → freeze risky releases and fix reliability. It turns "ship vs stabilise" into a number both sides agreed on.
+
+### 🔥 Burn-rate alerts
+- **Burn rate** = how fast the budget is being used; 1× spends exactly the budget over the window.
+- Page on fast burn, ticket on slow burn — e.g. page at **14.4×** over 1 hour (2% of a 30-day budget gone in an hour), ticket at **1×** over 3 days.
+- Pair a long window with a short one (1 h with 5 min) so the alert also **resets** quickly once the problem is fixed.
+
+> 🔑 Page on SLO burn, not on CPU: users feel the SLI, not the machine.
 

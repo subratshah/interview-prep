@@ -52,7 +52,7 @@
 | Watch | 480p |
 
 ## 📶 Adaptive bitrate (ABR)
-<!-- related: sd-17 -->
+<!-- related: sd-17, sd-131 -->
 
 - Every segment exists at every rendition; the player chooses per segment.
 - **Rule:** measured throughput comfortably **above** the next rendition's bitrate → step **up**; **below** the current bitrate or buffer draining → step **down**. Already-buffered segments keep playing at their quality.

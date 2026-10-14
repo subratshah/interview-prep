@@ -113,6 +113,11 @@ flowchart LR
 | Cost | Cheapest, lowest latency | More CPU per request |
 | Example | AWS NLB | AWS ALB, NGINX, Envoy |
 
+### 🎭 Virtual IP and LB redundancy
+- Clients connect to one **virtual IP (VIP)** (or one DNS name), not to a machine.
+- A single LB is a single point of failure, so run a **pair**: active–passive sharing the VIP via VRRP (keepalived) — if the active dies, the passive claims the VIP within seconds.
+- Managed cloud LBs and **anycast** (the same IP announced from many locations) give the same effect without you running the pair.
+
 ## 🩺 Health checks
 <!-- related: sd-122 -->
 
@@ -153,4 +158,12 @@ sequenceDiagram
 - Health and load metrics show the traffic shape: an India-only app is busy by day, peaks in the evening, quiet at night → **scale down at night**.
 - Scale on CPU, request rate, queue depth or p90 latency; keep a minimum fleet and a cooldown.
 - New instances join only after passing readiness.
+
+| Style | Trigger | Good for | Weakness |
+|---|---|---|---|
+| **Reactive** (target tracking / step) | Metric crosses a target, e.g. CPU 60% | Unpredictable load | Lags the spike by boot + warm-up time |
+| **Scheduled** | Clock: scale up at 18:00, down at 01:00 | Known daily or weekly cycles, planned sales | Wrong when the pattern shifts |
+| **Predictive** | Forecast from past weeks | Regular cycles with a steep ramp | Needs history; still pair with reactive |
+
+> 💡 Combine them: scheduled or predictive capacity for the known peak, reactive on top for surprises.
 
