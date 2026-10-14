@@ -21,7 +21,7 @@
 | Append | n/a | O(1) amortized |
 
 ## 🗝️ Hash map and set patterns
-<!-- related: ds-2, ds-61 -->
+<!-- related: ds-2, ds-61, ds-71, ds-72 -->
 
 ### 🧰 Templates
 - **Complement lookup** — store `value → index`; check `target - x` before inserting x.
@@ -46,7 +46,7 @@ fun twoSum(nums: IntArray, target: Int): IntArray {
 > 📝 Practice: [Two Sum](https://leetcode.com/problems/two-sum) · [Valid Anagram](https://leetcode.com/problems/valid-anagram) · Group Anagrams · [Longest Consecutive Sequence](https://leetcode.com/problems/longest-consecutive-sequence).
 
 ## ➕ Prefix sums and in-place tricks
-<!-- related: ds-68, ds-36 -->
+<!-- related: ds-68, ds-36, ds-71 -->
 
 ### 📐 Prefix sums
 - `pre[i+1] = pre[i] + a[i]`; range sum `[l, r]` = `pre[r+1] - pre[l]` in O(1).

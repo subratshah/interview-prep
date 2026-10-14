@@ -12,7 +12,7 @@
 > 🔑 Complexity ≈ branching factor ^ depth × work per leaf — state it explicitly.
 
 ## 🧩 The template
-<!-- related: ds-42 -->
+<!-- related: ds-42, ds-77, ds-79 -->
 
 ```mermaid
 flowchart TD
@@ -41,6 +41,7 @@ fun subsetsWithDup(nums: IntArray): List<List<Int>> {
 ```
 
 ## 🌲 Shapes of the search
+<!-- related: ds-77, ds-78, ds-79, ds-80 -->
 
 | Problem | Branch on | Count | Dedupe trick |
 |---|---|---|---|
@@ -53,6 +54,7 @@ fun subsetsWithDup(nums: IntArray): List<List<Int>> {
 > 💡 Record `path.toList()` — adding the mutable `path` itself stores the same list n times.
 
 ## ✂️ Pruning and constraint checks
+<!-- related: ds-81, ds-82 -->
 
 - Check validity **before** recursing, not after.
 - **N-Queens** — one queen per row; sets (or bitmasks) for columns, `r - c` and `r + c` diagonals → O(1) checks.

@@ -36,7 +36,7 @@ fun firstTrue(lo0: Int, hi0: Int, ok: (Int) -> Boolean): Int {
 > 💡 Infinite loop? You used `lo = mid` with a lower mid. Round mid toward the side that moves.
 
 ## 🎯 Binary search on the answer
-<!-- related: ds-66 -->
+<!-- related: ds-66, ds-74 -->
 
 - Search the value space `[minPossible, maxPossible]`, not indices.
 - Write `feasible(x)`: O(n) check. Total O(n log range).

@@ -36,7 +36,7 @@ fun climbStairs(n: Int): Int {
 ```
 
 ## 📚 Pattern catalogue
-<!-- related: ds-25, ds-14, ds-28, ds-13, ds-30 -->
+<!-- related: ds-25, ds-14, ds-28, ds-13, ds-30, ds-83, ds-84 -->
 
 | Family | State | Transition | Example |
 |---|---|---|---|

@@ -34,7 +34,7 @@ fun removeDuplicates(a: IntArray): Int {
 > 💡 Merge sorted arrays in place by filling from the **back**, so nothing unread is overwritten.
 
 ## 🎯 Classic reasoning
-<!-- related: ds-29 -->
+<!-- related: ds-29, ds-69 -->
 
 ### 🔺 3Sum
 - Sort; fix `i`; two-pointer the rest for `-a[i]`; skip duplicates at `i`, `l`, `r` → O(n²).

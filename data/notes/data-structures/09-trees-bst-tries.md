@@ -38,7 +38,7 @@ fun levelOrder(root: TreeNode?): List<List<Int>> {
 > 💡 Recursion depth = height: O(log n) balanced, O(n) skewed — mention stack overflow risk.
 
 ## 🧮 Recursive patterns
-<!-- related: ds-9, ds-38 -->
+<!-- related: ds-9, ds-38, ds-86 -->
 
 - **Same / symmetric tree** — compare pairs recursively (`a.left` vs `b.right` for symmetry).
 - **Lowest common ancestor** — return the node if it's p or q; if both sides return non-null, current is the LCA.
@@ -72,7 +72,7 @@ fun gain(n: TreeNode?): Int {
 > 🔑 Know one well enough to implement rotations: right-rotate(y) makes x = y.left the new root, y.left = x.right.
 
 ## 🔤 Tries
-<!-- related: ds-22 -->
+<!-- related: ds-22, ds-82 -->
 
 - Node = children (array of 26 or map) + `isEnd`. Insert/search O(L) for word length L.
 - Wins over a hash set for **prefix** queries, autocomplete, word search on a board.

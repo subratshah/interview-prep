@@ -21,7 +21,7 @@
 | Implicit grid | none extra | O(1) | 4 or 8 | islands, flood fill |
 
 ## 🚶 BFS and DFS
-<!-- related: ds-7, ds-19, ds-26 -->
+<!-- related: ds-7, ds-19, ds-26, ds-76 -->
 
 | | BFS | DFS |
 |---|---|---|
@@ -47,7 +47,7 @@ fun numIslands(g: Array<CharArray>): Int {
 - **Union-Find** — near-O(1) merges with path compression + union by rank; dynamic connectivity.
 
 ## 📋 Topological sort
-<!-- related: ds-20 -->
+<!-- related: ds-20, ds-75 -->
 
 - Only on a DAG; a leftover node means a cycle.
 - **Kahn** — queue nodes with in-degree 0; pop, append, decrement neighbours.

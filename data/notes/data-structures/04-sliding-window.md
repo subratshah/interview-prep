@@ -12,7 +12,7 @@
 > 🔑 Each index enters and leaves the window at most once — that is the O(n) argument.
 
 ## 🧩 Templates
-<!-- related: ds-55, ds-32 -->
+<!-- related: ds-55, ds-32, ds-70 -->
 
 ### 📏 Fixed size k
 - Add `a[r]`, remove `a[r - k]` once `r >= k`; evaluate when the window is full.

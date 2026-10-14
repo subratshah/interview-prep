@@ -60,7 +60,7 @@ fun nextGreater(a: IntArray): IntArray {
 > 💡 "Visible people in a queue" is the same idea: count pops, plus one if the stack is still non-empty.
 
 ## ⛰️ Heaps (priority queues)
-<!-- related: ds-27, ds-40, ds-6 -->
+<!-- related: ds-27, ds-40, ds-6, ds-72 -->
 
 | Operation | Binary heap |
 |---|---|

@@ -12,7 +12,7 @@
 > 🔑 Be ready to justify **why** greedy is optimal (exchange argument).
 
 ## 🧭 Sort by start or by end?
-<!-- related: ds-39 -->
+<!-- related: ds-39, ds-73 -->
 
 | Goal | Sort by | Pass |
 |---|---|---|

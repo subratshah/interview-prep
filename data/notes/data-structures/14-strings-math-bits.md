@@ -42,7 +42,7 @@ fun myPow(x: Double, n: Int): Double {
 ```
 
 ## 🧮 Bit manipulation
-<!-- related: ds-44 -->
+<!-- related: ds-44, ds-85 -->
 
 | Trick | Expression |
 |---|---|
