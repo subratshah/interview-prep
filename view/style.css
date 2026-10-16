@@ -143,6 +143,7 @@
 
 /* Selection & code */
   --code-bg: #0d1117;
+  --code-color: #dcdcaa;
   --selected-bg-end: #141a22;
   --selected-border: #2a4a72;
   --selected-shadow: rgba(59, 130, 246, 0.15);
@@ -3212,14 +3213,13 @@ body.focus-mode .focus-rail {
   background: var(--code-bg);
   padding: 2px 0.375rem;
   border-radius: 0.25rem;
-  color: var(--accent-soft);
+  color: var(--code-color);
   border: 1px solid var(--border2);
 }
 
 .notion-block-body pre {
   background: var(--code-bg);
   border: 1px solid var(--border2);
-  border-left: 0.1875rem solid var(--accent);
   border-radius: 0.625rem;
   padding: 0.75rem 0.875rem;
   overflow-x: auto;
@@ -3232,6 +3232,121 @@ body.focus-mode .focus-rail {
   padding: 0;
   font-size: 0.6875rem;
   color: var(--text);
+}
+
+/* ── Syntax highlighting (Prism) ────────────────────────────────────────────
+   VS Code Dark+ token palette for fenced code blocks, kept in this sheet rather
+   than a CDN theme so both themes come from this file's own light/dark blocks.
+   Prism emits `.token.<kind>` spans; an unregistered language gets none and
+   falls back to the plain ink. Scoped to `.notion-block-body`, the only
+   container renderMarkdown fills. */
+.notion-block-body pre code .token.comment,
+.notion-block-body pre code .token.prolog,
+.notion-block-body pre code .token.doctype,
+.notion-block-body pre code .token.cdata {
+  color: #6a9955;
+}
+
+.notion-block-body pre code .token.punctuation {
+  color: #d4d4d4;
+}
+
+.notion-block-body pre code .token.property,
+.notion-block-body pre code .token.tag,
+.notion-block-body pre code .token.boolean,
+.notion-block-body pre code .token.number,
+.notion-block-body pre code .token.constant,
+.notion-block-body pre code .token.symbol,
+.notion-block-body pre code .token.deleted {
+  color: #b5cea8;
+}
+
+.notion-block-body pre code .token.selector,
+.notion-block-body pre code .token.attr-name,
+.notion-block-body pre code .token.string,
+.notion-block-body pre code .token.char,
+.notion-block-body pre code .token.builtin,
+.notion-block-body pre code .token.inserted {
+  color: #ce9178;
+}
+
+.notion-block-body pre code .token.operator,
+.notion-block-body pre code .token.entity,
+.notion-block-body pre code .token.url,
+.notion-block-body pre code .language-css .token.string,
+.notion-block-body pre code .style .token.string {
+  color: #d4d4d4;
+}
+
+.notion-block-body pre code .token.atrule,
+.notion-block-body pre code .token.attr-value,
+.notion-block-body pre code .token.keyword {
+  color: #c586c0;
+}
+
+.notion-block-body pre code .token.function,
+.notion-block-body pre code .token.class-name {
+  color: #dcdcaa;
+}
+
+.notion-block-body pre code .token.regex,
+.notion-block-body pre code .token.important,
+.notion-block-body pre code .token.variable {
+  color: #9cdcfe;
+}
+
+/* ── Light theme: VS Code Light+, the same map inverted. ── */
+[data-theme='light'] .notion-block-body pre code .token.comment,
+[data-theme='light'] .notion-block-body pre code .token.prolog,
+[data-theme='light'] .notion-block-body pre code .token.doctype,
+[data-theme='light'] .notion-block-body pre code .token.cdata {
+  color: #008000;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.punctuation {
+  color: #000000;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.property,
+[data-theme='light'] .notion-block-body pre code .token.tag,
+[data-theme='light'] .notion-block-body pre code .token.boolean,
+[data-theme='light'] .notion-block-body pre code .token.number,
+[data-theme='light'] .notion-block-body pre code .token.constant,
+[data-theme='light'] .notion-block-body pre code .token.symbol,
+[data-theme='light'] .notion-block-body pre code .token.deleted {
+  color: #098658;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.selector,
+[data-theme='light'] .notion-block-body pre code .token.attr-name,
+[data-theme='light'] .notion-block-body pre code .token.string,
+[data-theme='light'] .notion-block-body pre code .token.char,
+[data-theme='light'] .notion-block-body pre code .token.builtin,
+[data-theme='light'] .notion-block-body pre code .token.inserted {
+  color: #a31515;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.operator,
+[data-theme='light'] .notion-block-body pre code .token.entity,
+[data-theme='light'] .notion-block-body pre code .token.url {
+  color: #000000;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.atrule,
+[data-theme='light'] .notion-block-body pre code .token.attr-value,
+[data-theme='light'] .notion-block-body pre code .token.keyword {
+  color: #af00db;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.function,
+[data-theme='light'] .notion-block-body pre code .token.class-name {
+  color: #795e26;
+}
+
+[data-theme='light'] .notion-block-body pre code .token.regex,
+[data-theme='light'] .notion-block-body pre code .token.important,
+[data-theme='light'] .notion-block-body pre code .token.variable {
+  color: #001080;
 }
 
 /* Markdown tables (system-design `dataModel` / `tradeoffs`, schema notes).
@@ -3265,13 +3380,16 @@ body.focus-mode .focus-rail {
 }
 
 .notion-block-body a {
-  color: var(--accent-soft);
+  color: #60a5fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
 }
 
-/* External links open in a new tab; the arrow tells them apart from in-app links. */
-.notion-block-body a[href^="http"]::after {
-  content: " ↗";
-  font-size: 0.85em;
+.notion-block-body a:hover {
+  color: #3b82f6;
+  text-decoration-color: #60a5fa;
 }
 
 /* Related questions section at the end of detail body */
@@ -3844,6 +3962,43 @@ body.focus-mode .focus-rail {
 .mermaid-container svg {
   max-width: 100%;
   height: auto;
+}
+
+/* ── Mermaid edge labels ──
+   Mermaid's dark theme paints every edge label a solid grey plate
+   (`#id .edgeLabel { background-color: hsl(0, 0%, 34.4%) }`, injected as a
+   <style> inside the rendered SVG), which reads as a stray highlight box on
+   our dark `--code-bg` — `handler.post(r)` looked selected while `dispatch`
+   beside it looked normal.
+
+   The plate has a job: a label straddling its connector needs a mask, or the
+   line runs through the glyphs. So it is repainted to the diagram's own
+   surface — a gap in the line rather than a box on top of it. `!important` is
+   required because the theme's selector is `#mermaid-3 .edgeLabel` and the
+   per-render id cannot be targeted from a static sheet at all. */
+.mermaid-container svg .edgeLabel,
+.mermaid-container svg .edgeLabel rect {
+  background-color: var(--code-bg) !important;
+}
+
+.mermaid-container svg .edgeLabel rect {
+  fill: var(--code-bg) !important;
+  opacity: 1 !important;
+}
+
+/* `.labelBkg` is the same plate for a node's own label, and the same fix: the
+   theme's `rgba(87.75, 87.75, 87.75, 0.5)` is a grey wash over the node fill
+   #1f2020 that reads as a second, lighter box. Repainted to the node fill so a
+   label sitting on a wide node keeps its mask without the wash. */
+.mermaid-container svg .labelBkg {
+  background-color: #1f2020 !important;
+}
+
+[data-theme='light'] .mermaid-container svg .labelBkg {
+  /* The light theme's node fill comes from mermaid's light palette, which is
+     near-white; matching it keeps the mask invisible rather than drawing a
+     dark plate inside a pale node. */
+  background-color: #f4f4f4 !important;
 }
 
 /* Corner affordance. `.mermaid-container` is a scroll container, so this rides
@@ -4907,14 +5062,6 @@ body.focus-mode .focus-rail {
 /* Jump targets (palette hit, question back-link) land with a little air. */
 #detail-note [data-note-section] {
   scroll-margin-top: 0.75rem;
-}
-
-/* Inline reference links (LeetCode, docs, videos) open in a new tab; the arrow says so. */
-#detail-note .note-ext-link::after {
-  content: '↗';
-  margin-left: 0.125rem;
-  font-size: 0.75em;
-  opacity: 0.7;
 }
 
 /* The untitled lead card (the note's summary line) has no header, so its

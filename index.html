@@ -19,6 +19,16 @@
   <!-- Sanitises marked's output (renderMarkdown in view/app.js). -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <!-- Token-colours fenced code blocks (applySyntaxHighlight in view/app.js).
+       Prism, not highlight.js: hljs's Kotlin grammar tokenizes only declaration
+       signatures (`fun`, `val`, `class`) and comments, leaving a bare block of
+       calls — `lifecycleScope.launch { viewModel.state.collect … }` — as plain
+       unstyled text. Measured on that snippet: hljs 1 token, Prism 13. Core +
+       clike + kotlin, because core ships no languages and kotlin needs clike. -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-clike.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-kotlin.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
   <link rel="stylesheet" href="view/style.css">
   
 </head>

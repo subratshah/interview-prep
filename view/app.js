@@ -4691,7 +4691,47 @@ function renderMarkdown(md) {
   const text = String(md);
   if (typeof marked === 'undefined') return `<p>${escapeHtml(text)}</p>`;
   const html = marked.parse(text);
-  return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : html;
+  // Highlight before sanitising: DOMPurify allows span/class, so the token
+  // spans survive it.
+  const highlighted = applySyntaxHighlight(html);
+  return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(highlighted) : highlighted;
+}
+
+/** Language a marked code fence declares, or '' when it has none. */
+function codeFenceLanguage(codeClass) {
+  const m = /language-([\w-]+)/.exec(codeClass || '');
+  return m ? m[1] : '';
+}
+
+/**
+ * Colour fenced code blocks with Prism (VS Code Dark+ palette in style.css).
+ * marked has no built-in highlighter since v5, so this runs over its output —
+ * one code path for detail cards, notes, palette snippets and deep-dive tiers.
+ *
+ * `language-mermaid` is skipped: runMermaidInContainer swaps that whole <pre>
+ * for the rendered diagram. An unregistered language or a missing Prism
+ * returns the block verbatim, which is the plain rendering.
+ */
+function applySyntaxHighlight(html) {
+  if (typeof Prism === 'undefined' || html.indexOf('<pre>') === -1) return html;
+  return html.replace(
+    /<pre><code(?:\s+class="([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+    (block, cls, code) => {
+      const lang = codeFenceLanguage(cls);
+      // Prism has no `plaintext`, and marked emits that for a bare ``` fence.
+      if (!lang || lang === 'mermaid' || lang === 'plaintext') return block;
+      const grammar = Prism.languages[lang];
+      if (!grammar) return block;
+      // marked HTML-escaped the source; decode once so Prism re-escapes it.
+      const ta = document.createElement('textarea');
+      ta.innerHTML = code;
+      try {
+        return `<pre><code class="language-${lang}">${Prism.highlight(ta.value, grammar, lang)}</code></pre>`;
+      } catch (e) {
+        return block;
+      }
+    }
+  );
 }
 
 function escapeHtml(str) {
