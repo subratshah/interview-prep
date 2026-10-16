@@ -3,7 +3,6 @@
 *NoSQL is a family of non-relational models — key-value, wide-column, graph, document — each fast for the access pattern it was modelled around, and weaker outside it.*
 
 ## ❓ Why NoSQL exists
-<!-- related: sd-46 -->
 
 ### 😣 Relational pain at scale — a blog
 - `posts(id, content, content_type)` where content is image, text or video → separate `images`, `videos`, `texts` tables.
@@ -22,7 +21,6 @@
 > 🔑 "Schemaless" means the schema lives in the application; it still exists and still needs versioning.
 
 ## ⚖️ SQL vs NoSQL — choosing
-<!-- related: sd-46, sd-50 -->
 
 ### 📊 Decision table
 
@@ -34,12 +32,25 @@
 | Queries | Ad-hoc filters, joins, aggregates | Known access patterns: get by key, one partition |
 | Scale | Fits one primary + replicas, or sharded SQL | Very high write volume, easy horizontal scale |
 | Consistency | Strong by default | Tunable — often eventual, strong available per read in many engines |
+| Starting point | Default for most products | Only when a proven access pattern or volume demands it |
+| Scale-out | Shard only on proven need; cross-shard transactions and operations start with the first shard | Built to shard from day one; the shard key is fixed by the access pattern |
+| Schema evolution | Migrations on an enforced schema (expand, then contract) | Flexible fields, but versioning moves into the app; flexibility without discipline is a data-quality bug deferred |
+| Analytics | A separate store fed by change data capture (CDC), so scans never hit the OLTP box | Export through CDC into a warehouse or search index |
+| Multi-hop relationships | JOINs; a graph store where traversal is the core workload | Application-side joins work only for shallow lookups |
+
+> 🔑 ACID transactions with complex queries point to SQL. Massive write throughput or a genuinely flexible schema points to NoSQL. Start with SQL and move on evidence.
 
 ### 🧠 Nuances
 - NoSQL is fast **for the access pattern it was modelled for** (lookup by key, one document), not universally; ad-hoc joins and aggregates are weak.
 - Relational databases shard too (Vitess, CockroachDB, Spanner).
 - "SQL = consistency, NoSQL = availability" is a heuristic: DynamoDB offers strongly consistent reads, MongoDB majority writes.
-- Real systems are **polyglot**: orders in Postgres, sessions in Redis, activity in Cassandra.
+- Real systems are **polyglot**: orders in Postgres, sessions in Redis, activity in Cassandra. Each store is optimised for one access pattern. The cost is operating several systems and keeping them in step.
+- Polyglot systems need one source of truth. Other stores are projections of it, fed through CDC or events. Two stores both treated as truth, written by dual writes, drift apart on the first partial failure.
+- **SQL trade-offs:** a rigid schema (migrations hurt), a vertical scale ceiling, and slower high-volume writes.
+- **NoSQL trade-offs:** eventual consistency by default, limited query flexibility, and no JOINs.
+- **NewSQL** (Spanner, CockroachDB) gives SQL and ACID with horizontal scale. The price is consensus on every write, higher write latency, cost, and fewer operators who know it.
+- **Postgres JSONB** holds flexible fields inside a relational store: one system to run. Indexing deep nesting is weaker, and it is not a scale-out answer.
+- **Operations:** any store that holds the source of truth needs backups, point-in-time recovery and tooling from day one, whichever family it belongs to.
 
 ### 🏢 Commonly cited uses
 
@@ -51,8 +62,15 @@
 | Uber | MongoDB | Flexible real-time data |
 | Twitter / X | Redis | Caching and timelines |
 
+### 🚩 Pitfalls
+
+- Choosing NoSQL without naming the access pattern that justifies it.
+- Modelling a document store like normalised tables. Every screen becomes N lookups with no JOIN to save it. Model the document around how it is read.
+- Choosing Cassandra and then needing ad-hoc queries on non-key columns. The partition key fixes the data model; secondary queries need a separate table or index.
+- Two stores both treated as the source of truth, synced by dual writes. They drift on the first partial failure.
+
 ## 🔑 Key-value stores
-<!-- related: sd-55, sd-64 -->
+<!-- related: sd-64 -->
 
 ### 🧰 Model
 - A **unique key** → an opaque value: string, number, JSON, blob, byte array, list of objects.
@@ -65,7 +83,6 @@
 - No query by value unless you build secondary indexes yourself.
 
 ## 🧮 Wide-column vs columnar analytics
-<!-- related: sd-46, sd-47 -->
 
 ### 📊 Two different things
 
@@ -85,7 +102,6 @@
 - Great for reads and analytics; slower for single-row writes, which touch every column file.
 
 ## 🕸️ Graph databases
-<!-- related: sd-46 -->
 
 ### 🕵️ The detective board
 - Photos pinned on a board = **nodes**; threads between them = **edges** (relationships).
@@ -109,7 +125,6 @@ flowchart LR
 - Graph databases are a storage model; **GraphQL** is an API style — unrelated.
 
 ## 📄 Document databases
-<!-- related: sd-46 -->
 
 ### 🧾 Model
 - JSON/BSON documents of any shape in a collection; nested objects and arrays; indexes on any field.

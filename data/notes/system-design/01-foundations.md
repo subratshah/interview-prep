@@ -3,7 +3,6 @@
 *What system design is, the building blocks every design reuses, and the first diagnostic question: is this path data-intensive or compute-intensive?*
 
 ## 🧭 What system design is
-<!-- related: sd-124 -->
 
 ### 🌱 Natural vs built systems
 - **Natural systems** (digestive, respiratory) were *discovered*, not built: you can barely change them (surgery at most).
@@ -19,7 +18,6 @@
 > 🔑 Rounds are rarely labelled "system design", but every senior round expects the vocabulary.
 
 ## 🏦 The Alien Bank story — five problems, five concepts
-<!-- related: sd-52, sd-53 -->
 
 ### 🧾 Setup
 - One cash counter, one cashier. Customer cycle: visit counter → withdraw/deposit → take receipt → leave.
@@ -51,7 +49,6 @@ flowchart LR
 > 🔑 Order of levers: fix the code first (free), then scale up (cheap, capped), then scale out (needs shared state and a load balancer).
 
 ## 🧱 The seven core components
-<!-- related: sd-55, sd-53, sd-56 -->
 
 ### 🧅 Why layers exist
 - Every app (WhatsApp, Instagram, YouTube, Netflix, Amazon) is about storing and serving **images, video, audio, text**.
@@ -89,7 +86,7 @@ flowchart LR
 > 💡 A college-project app is client → app → DB with **every request hitting the DB**. Each extra component exists to remove one specific pain; name the pain when you add it.
 
 ## ⚖️ Data-intensive vs compute-intensive
-<!-- related: sd-125, sd-11, sd-54 -->
+<!-- related: sd-11 -->
 
 ### 🔍 The scenario
 - Two apps, same users, same network; one is slow. Options: more DBs, more caching, bigger CPU/GPU. **The axis you choose decides whether anything improves.**
@@ -123,7 +120,6 @@ flowchart TD
 > 📝 Pick three features of an app you use daily and classify each; name one lever for each.
 
 ## 🎯 How to open any design round
-<!-- related: sd-124 -->
 
 ### 🪜 Structure
 1. Functional requirements — agree the in-scope subset.

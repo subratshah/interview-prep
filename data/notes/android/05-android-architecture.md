@@ -49,7 +49,7 @@ flowchart LR
 
 - 📖 [SOLID Principles](https://www.geeksforgeeks.org/system-design/solid-principle-in-programming-understand-with-real-life-examples/) with real-life examples.
 - [OOP Concepts](https://www.geeksforgeeks.org/dsa/introduction-of-object-oriented-programming/) pillars: encapsulation, abstraction, inheritance, polymorphism — prefer **composition over inheritance**.
-- Programming paradigms: [OOPs](https://www.geeksforgeeks.org/system-design/object-oriented-programming-oop-concepts-for-designing-sytems/) · [Functional Programming](https://www.geeksforgeeks.org/blogs/functional-programming-paradigm/) · [Reactive Programming](https://www.geeksforgeeks.org/java/what-is-reactive-programming-in-java/) (Flow/RxJava).
+- Programming paradigms: [OOPs](https://www.geeksforgeeks.org/system-design/oops-object-oriented-design/) · [Functional Programming](https://www.geeksforgeeks.org/blogs/functional-programming-paradigm/) · [Reactive Programming](https://www.geeksforgeeks.org/java/what-is-reactive-programming-in-java/) (Flow/RxJava).
 
 ## 🧩 Patterns you already use
 <!-- related: tech-181, tech-182, tech-183, tech-184, tech-185, tech-176 -->

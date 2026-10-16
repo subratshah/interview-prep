@@ -3,7 +3,6 @@
 *Do the must-happen-now work synchronously; hand everything else to a queue that buffers, retries and decouples services.*
 
 ## ⚖️ Sync vs async
-<!-- related: sd-56 -->
 
 ### 🛒 E-commerce purchase
 
@@ -39,7 +38,7 @@ sequenceDiagram
 ```
 
 ## 🧩 Producer, consumer and why a queue
-<!-- related: sd-56, sd-65 -->
+<!-- related: sd-65 -->
 
 - **Producer (publisher)** puts messages in; **consumer (subscriber)** takes them out; broker sits between.
 - Why not call the email service directly? Your request thread waits, and you must handle its outages yourself.
@@ -67,7 +66,6 @@ flowchart LR
 ```
 
 ## 🔢 Ordering and priority
-<!-- related: sd-56 -->
 
 ### ➡️ FIFO
 - **Strict FIFO:** 1 ✓, 2 ✓, 3 fails → the queue **blocks**; 4 waits even after the consumer recovers. Avoid unless order truly matters.
@@ -80,7 +78,6 @@ flowchart LR
 - Risk: starvation of low priority; add aging or separate queues per priority.
 
 ## 📥 Pull vs push
-<!-- related: sd-56 -->
 
 | | Pull | Push |
 |---|---|---|
@@ -88,8 +85,48 @@ flowchart LR
 | Backpressure | Natural — consumer takes what it can | Needs prefetch limits / acks |
 | Examples | **Kafka**, **SQS** | **RabbitMQ**, **SNS**, webhooks |
 
+## 🆚 Kafka vs RabbitMQ
+
+Both brokers buffer and deliver messages, but they start from different ideas: Kafka keeps an ordered, replayable log, while RabbitMQ routes each message to queues and deletes it once acknowledged.
+
+### ⚖️ Side by side
+
+| | Kafka | RabbitMQ |
+|---|---|---|
+| Core model | Distributed, replicated, partitioned **commit log** | Broker that routes from **exchanges** to **queues** |
+| Delivery | Consumers **pull**; each group tracks its own **offset** | Broker **pushes** to consumers, bounded by prefetch |
+| After consumption | Kept for the retention period (e.g. 7 days) and **replayable** | Deleted on ack |
+| Ordering | Per **partition**, chosen by key | Per **queue**; several competing consumers break order |
+| Routing | Topic plus key; no rich routing | Direct, topic, fanout and headers exchanges |
+| Extras | Retention, replay, compaction | Per-message TTL, priority queues, dead-letter exchanges |
+| Throughput | Very high, batch-friendly | Lower ceiling; strong per-message features |
+| Fits | Event streams, analytics, event sourcing, audit log, many consumers at different speeds | Task queues, complex routing, short-lived messages |
+
+> 🔑 Choose Kafka when history matters and several independent consumers read the same events. Choose RabbitMQ when each message is a job to route and finish.
+
+### 🔁 Delivery and failure handling
+- Both default to **at-least-once**: acknowledge after the side effect, and the message is redelivered after a crash.
+- Kafka can do exactly-once inside Kafka: an idempotent producer dedupes retries, and transactions commit the produce and the consumer's offset together. It costs throughput and couples the systems, so the usual choice is at-least-once plus idempotent consumers.
+- Kafka has no built-in retry or dead-letter handling. The pattern is a **retry topic** per delay tier (e.g. `orders.retry-1m`, `orders.retry-10m`) that feeds back to the consumer after its delay, and a **DLQ topic** after N attempts. The partition keeps flowing.
+- RabbitMQ attaches a **dead-letter exchange** to the queue and uses TTL-based delay queues for backoff. Avoid requeue-in-place loops: they hot-cycle a poison message.
+- Commit offsets **after** processing. Committing first drops messages silently if the consumer crashes.
+
+```mermaid
+flowchart LR
+  M[orders topic] --> C[Consumer]
+  C -->|"fail: publish to retry topic"| R1[orders.retry-1m]
+  R1 -->|"after 1 min"| C
+  C -->|"fail after N attempts"| D[(orders.dlq)]
+```
+
+### 🧮 Partitions and retention
+- Partitions cap parallelism: one consumer per partition per group, and any extra consumers sit idle.
+- Size from peak rate ÷ per-consumer throughput, plus headroom. Example: 200K msgs/sec peak at 5K msgs/sec per consumer needs at least 40 partitions.
+- Adding partitions later remaps keys and breaks per-key ordering for in-flight messages. Over-provision at creation rather than repartition a keyed topic.
+- Retention is a cost decision. A 7-day replayable log powers backfills and rebuilding a new consumer; "delete after ack" saves storage but loses replay.
+
 ## ☠️ Failures: poison messages, DLQ, idempotency
-<!-- related: sd-56, sd-65 -->
+<!-- related: sd-65 -->
 
 - **Poison message** — can never succeed (malformed, invalid). Retrying forever wastes consumer and broker capacity and can block a strict queue.
 - **DLQ (dead-letter queue)** — after N retries (with backoff), move it aside; main flow continues. Alert on DLQ depth; inspect, fix, **redrive**.
@@ -107,7 +144,6 @@ flowchart LR
 ```
 
 ## 🎯 When to use and when to avoid
-<!-- related: sd-56, sd-59 -->
 
 ### ✅ Use for
 - Async work: notifications, emails, image/video processing.
@@ -119,4 +155,37 @@ flowchart LR
 - **Low volume** — a broker adds cost and ops; call directly.
 - **Real-time response** needed — the caller would just wait.
 - Caller needs a **per-request result** now — use a sync call (or request/reply with a callback).
+
+## 🩺 Consumer lag and skew
+
+Consumer lag is the newest offset in a partition minus the group's committed offset. Absolute lag means little on a busy topic, which is always a few thousand messages behind; watch the **growth trend** and the **time to drain** instead.
+
+### 🧭 Diagnosis order
+1. **Quantify.** Is lag growing or flat? Compare the produce rate with the consume rate.
+2. **Isolate.** Read lag per partition. Uniform lag is a throughput gap; one hot partition is a skewed key.
+3. **Root-cause.** Producer spike, consumer regression after a deploy, GC pauses, a synchronous downstream call per message, rebalance storms, or a poison message wedging one partition.
+4. **Mitigate**, then **prevent** with a capacity model, lag-trend alerts and a runbook.
+
+| Shape of lag | Likely cause | Fix |
+|---|---|---|
+| Uniform growth | Consumers slower than the produce rate | Add consumers up to the partition count; batch downstream calls |
+| One partition behind | Hot key (one tenant, one celebrity) | Salt or split the key; accept changed ordering for that key |
+| Repeated sawtooth | Rebalance on every restart or deploy | Cooperative rebalancing and static membership |
+| One partition stalled | Poison message or slow handler | Retry topic and DLQ, so one bad event never blocks the partition |
+| Plateau after a spike | Backlog not draining | Raise parallelism, cap the producer, drain on a bounded catch-up plan |
+
+### 🔄 Rebalances
+- **Eager** rebalance stops every consumer in the group until assignments are redistributed; lag grows during the pause.
+- **Cooperative** rebalance moves only the partitions whose owner changes.
+- **Static membership** (a fixed `group.instance.id` per consumer) keeps a restarting consumer's partitions through its session timeout, so a quick restart does not reshuffle the group.
+- Work done inside the poll loop that exceeds `max.poll.interval.ms` gets the consumer kicked out, and the group rebalances again. Keep each poll's work short, or process in bounded batches.
+
+### 🚨 First five minutes of an incident
+1. **Communicate** the impact: dashboards are stale, and by how much.
+2. **Confirm** consumers are still progressing (offsets moving, not frozen).
+3. **Restart** wedged consumers.
+4. **Scale out** if the partition count leaves headroom.
+5. Only then **diagnose** in depth.
+
+> 🔑 Resetting offsets to latest is a last resort: it freshens the view instantly but silently drops the backlog for every other consumer group. Use it only for purely ephemeral views.
 

@@ -188,7 +188,7 @@ NavHost(navController, startDestination = Home) {
 - Pair with edge-to-edge: pad content by `WindowInsets` (`safeDrawing`, `ime`), keep backgrounds full-bleed.
 
 ## 🔁 Interop and migration
-<!-- related: sd-21, tech-130 -->
+<!-- related: tech-130 -->
 
 - **Compose inside Views**: `ComposeView` in XML or a Fragment. In a Fragment set `ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed`, so the composition is disposed with the Fragment's view, not the window.
 - **Views inside Compose**: `AndroidView(factory = { MapView(it) }, update = { it.setX(…) })`; `AndroidViewBinding` for existing XML layouts.

@@ -84,6 +84,8 @@ flowchart LR
 - Libraries: image loader, file downloader, networking client, analytics SDK, caching library.
 - Production: "the app crashes for a slice of users — how do you find and contain it?" → segment by version/OS/device, kill switch, fix, staged re-rollout.
 
-- Practice banks: [Codemia | Master System Design Interviews Through Active Practice](https://codemia.io/?via=javarevisited), [Awesome System Design Resources](https://github.com/ashishps1/awesome-system-design-resources).
+- Practice banks: [Codemia | Master System Design Interviews Through Active Practice](https://codemia.io/?via=javarevisited), [Awesome System Design Resources](https://github.com/ashishps1/awesome-system-design-resources), [12 Essential GitHub Repositories for Technical Interviews | Ankit Pangasa on LinkedIn](https://www.linkedin.com/posts/ankit-pangasa_12-github-repositories-you-should-bookmark-share-7433346383702839296-vQD2).
+- Frameworks: [Hello Interview: Delivery Framework](https://www.hellointerview.com/learn/system-design/in-a-hurry/delivery) — six-step timed structure; [Hello Interview: How to Prepare](https://www.hellointerview.com/learn/system-design/in-a-hurry/how-to-prepare) — what to study and in what order.
+- Books: [System Design Interview, Vol. 1 by Alex Xu](https://www.goodreads.com/book/show/54109255-system-design-interview-an-insider-s-guide) — four-step framework plus worked designs; [Mobile System Design Interview by Manuel Vicente Vivo (ByteByteGo)](https://blog.bytebytego.com/p/our-new-book-mobile-system-design) — five-step mobile framework and mobile designs; [Designing Data-Intensive Applications, 2nd ed. (Kleppmann & Riccomini)](https://martin.kleppmann.com/2026/03/24/designing-data-intensive-applications-2e.html) — depth reference on storage, replication and streaming.
 
 > 📝 Practice: design an analytics SDK — batching, persistence across process death, sampling, battery and privacy limits.

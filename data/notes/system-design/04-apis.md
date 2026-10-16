@@ -3,7 +3,6 @@
 *An API is the contract one application exposes so others can use its data and actions without touching its internals. Pick the style by who calls it, how often, and who needs to start the conversation.*
 
 ## 🤝 What an API is
-<!-- related: sd-120, sd-44 -->
 
 ### 🗺️ Using someone else's system
 - Zomato, Uber, Ola, Rapido and Swiggy show maps without building a mapping engine: they call **Google Maps APIs**.
@@ -32,7 +31,6 @@ flowchart LR
 ```
 
 ## 🧰 The five API styles
-<!-- related: sd-44, sd-43 -->
 
 ### 📊 Comparison
 
@@ -50,10 +48,35 @@ flowchart LR
 - gRPC needs HTTP/2 end to end; browsers need **gRPC-Web** or a gateway.
 - Live-quiz example: scores depend on **response time + correctness**, and results, notifications and GIFs are pushed live — a WebSocket fit.
 
+- GraphQL's **N+1 problem**: a list of 50 posts whose resolver loads each author separately runs 1 + 50 queries. **DataLoader** batches and deduplicates the loads within one request tick, so the author lookups become a single query.
+- GraphQL needs **query depth and complexity limits**; one deeply nested query can work as a denial of service.
+- Because GraphQL is usually a POST, HTTP caches cannot see it. **Persisted queries** (a stored, hashed query sent as a GET) bring CDN caching back for read traffic.
+- gRPC: **never reuse a retired field number**. Old clients decode the reused number as garbage, so mark removed numbers `reserved`.
+- gRPC on a public API is a poor fit: browsers need gRPC-Web plus a proxy, and browser streaming is mostly unary.
+
 > 🔑 Common split: REST (or GraphQL) at the edge for clients, gRPC inside between microservices.
 
+### 🧭 Pick by consumer
+
+| Consumer | Protocol | Why |
+|---|---|---|
+| Public third parties | REST with OpenAPI | HTTP caching and CDN semantics work; partners already know REST |
+| Own web and mobile clients | GraphQL | Clients select exact fields per screen; no over-fetching or request waterfalls |
+| Internal services | gRPC | Protobuf is 3–10× smaller than JSON, typed, streams; latency dominates internally |
+
+- Putting GraphQL on the public API too loses HTTP caching and pushes complexity onto third parties; per-field auth and rate limits are hard.
+- A hybrid is normal: a GraphQL edge whose resolvers call gRPC services, with REST for the public surface.
+
+```mermaid
+flowchart LR
+  Partners[Partners] --> REST[REST public API]
+  Web[Web and mobile] --> GQL[GraphQL edge]
+  GQL -->|resolvers call| Users[gRPC: users]
+  GQL -->|resolvers call| Orders[gRPC: orders]
+  REST --> Users
+```
+
 ## ⏱️ Real-time transports
-<!-- related: sd-121, sd-62 -->
 
 ### 🔄 Four options
 
@@ -78,8 +101,29 @@ flowchart TD
 - WebSockets and SSE both run over **TCP**; UDP-based real-time (games, calls) uses WebRTC or QUIC.
 - Backgrounded mobile apps lose sockets; use push notifications (FCM/APNs) there.
 
+### 🎯 Pick per feature
+
+| Feature | Transport | Why |
+|---|---|---|
+| Notification badge | Short polling every ~30 s; push when backgrounded | Seconds of freshness is enough; stateless and CDN-friendly |
+| Live score or price ticker | SSE | One direction only; built-in reconnect with `Last-Event-ID`; plain HTTP |
+| 1:1 chat | WebSocket | Both sides send often; one open channel beats a request per message |
+
+- **Blocked upgrades**: some corporate proxies strip the WebSocket upgrade. Serve those clients long polling instead of failing them.
+
+### 🔢 Surviving reconnects
+- Sockets drop silently, so an open socket does not prove every message arrived.
+- Give every message a **monotonically increasing sequence number**. The client reconnects with its last sequence number, and the server replays the gap from a log.
+- Heartbeats about every 30 s expose half-open connections, where messages vanish while the socket still looks alive.
+- Reconnect with **exponential backoff and jitter**. Without jitter, every client hammers the servers at the same instant after an outage.
+
+### 🏭 Scaling and deploying the connection tier
+- Gateways hold sockets and are otherwise stateless. At roughly 50–100k connections per node, 1M concurrent clients need about 10–20 gateway nodes.
+- A registry maps user → gateway. A pub/sub bus (Redis, Kafka) delivers each event to the gateway holding that user, and the message log replays anything a disconnected client missed.
+- Long-lived connections and handshakes need **session affinity**; plain round-robin breaks them.
+- **Deploys**: take a gateway node out of the load balancer so it gets no new connections, then send its clients a "reconnect" frame in batches with random jitter. They resume on other nodes from their last sequence number, so nothing is lost and there is no reconnect storm.
+
 ## 🔀 Sync vs async calls
-<!-- related: sd-56 -->
 
 ### 📦 E-commerce order
 

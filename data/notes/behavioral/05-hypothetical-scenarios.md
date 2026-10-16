@@ -38,6 +38,14 @@ flowchart LR
 ### 📶 Scale or capability shift
 - e.g. 10× traffic or offline-first: constraints → bottlenecks → phased plan → rollback path.
 
+### 🌍 Distributed or mixed-style team
+- e.g. "your team spans three time zones and two working styles": shared goal and owners → written-first communication (decision log, design doc) → overlap hours kept for decisions only → async handoffs with a clear definition of done → retro on what slowed you.
+- Differing styles: ask how each person works best, agree norms (response times, review SLAs), play to strengths instead of forcing one style.
+
+### 🤖 Using AI in your workflow
+- e.g. "how would you use AI to speed up your team": pick high-volume, low-risk tasks (boilerplate, test scaffolds, docs, log triage) → keep a human reviewer accountable → set guardrails (no secrets or customer data in prompts, license awareness) → measure (cycle time, defect rate) → share what works.
+- Show judgement: say where you would *not* trust it (security-sensitive code, unfamiliar domains) and how you verify output.
+
 ## 💬 Delivery tips
 
 - Think aloud; asking for a moment to structure is fine.

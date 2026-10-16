@@ -14,7 +14,7 @@
 | Secrets | Keystore-backed encryption | See security note |
 | Legacy | [SharedPreferences](https://www.geeksforgeeks.org/android/shared-preferences-in-android-with-examples/) | Sync disk I/O on main via `apply()` flush → jank/ANR |
 
-- 📖 [Storage & Data Management](https://www.geeksforgeeks.org/android-storage/) — overview of on-device options.
+- 📖 Storage & Data Management — overview of on-device options.
 
 > 🔑 SharedPreferences is superseded by DataStore; never store lists or large JSON in either.
 

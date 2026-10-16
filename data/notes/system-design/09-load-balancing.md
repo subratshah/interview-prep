@@ -3,7 +3,6 @@
 *One server scales only so far; a load balancer spreads requests across many servers and keeps sick ones out of rotation.*
 
 ## ❓ Why and where it sits
-<!-- related: sd-52, sd-53 -->
 
 ### 📈 The ceiling
 - Client → DNS → server → DB works until one server saturates.
@@ -31,7 +30,6 @@ flowchart LR
 2. **Health checks** — send only to servers that can take the request.
 
 ## 🔄 Static algorithms: round robin and weighted
-<!-- related: sd-53 -->
 
 ### 🔁 Round robin
 - Request 1 → S1, 2 → S2, 3 → S3, 4 → S1…
@@ -53,7 +51,6 @@ flowchart LR
 > 🔑 Static algorithms suit homogeneous, short, similar-cost requests.
 
 ## 📊 Dynamic algorithms: least connections and least response time
-<!-- related: sd-53 -->
 
 ### 🔗 Least connections
 - S1 has **30** open connections, S2 has **50** → next request to **S1**.
@@ -62,6 +59,7 @@ flowchart LR
   - Heavy and light requests count the same: S1's 30 heavy AI calls vs S2's 50 light REST calls still sends S1 the next one.
   - LB must keep counts current (50 → 49 on each close).
   - Ignores hardware: weak S1 at **8** vs strong S2 at **16** (could take 100) → S1 still wins. Fix: *weighted* least connections.
+  - A newly added instance is flooded before its caches and JIT warm up. Use slow start: ramp its share of traffic up over time.
 
 ### ⏱️ Least response time
 - S1 averages **50 ms**, S2 **10 ms** over ~1,000 requests → next to **S2**.
@@ -70,8 +68,17 @@ flowchart LR
 
 > 💡 Long-lived connections ≠ "sticky sessions". Sticky = **session affinity** (IP hash or cookie), a separate concern.
 
+### 🎲 Power of two choices
+
+- Pick two servers at random and send the request to the less loaded of the two.
+- Near-optimal spread with minimal state and O(1) decisions. That matters at very high request rates, where scanning every server per request is too costly.
+- Works best when it compares a load signal that reflects in-flight work, such as active requests.
+- Target: no instance above about 1.2× the mean in-flight requests, even when request durations are skewed.
+
+> 💡 Least connections checks the whole pool on every request. Two choices keeps most of that benefit while reading only two servers.
+
 ## 🌍 Affinity algorithms: geo and IP hash
-<!-- related: sd-51, sd-106 -->
+<!-- related: sd-106 -->
 
 ### 🗺️ Geo-based
 - S1 in **India**, S2 in **US** — each user goes to the closest region (cross-region hops add latency).
@@ -100,11 +107,16 @@ flowchart LR
   S2 -.-> R
 ```
 
+### 🍪 Sticky cookie: session affinity without IP hash
+
+- On the first response the balancer sets a cookie that names the server. Later requests carry the cookie, and the balancer routes them to that server.
+- More resilient than IP hash: it works behind NAT and proxies, where many users share one IP, and adding a server does not reshuffle existing users.
+- Affinity still breaks when that server fails. Keep session state shared (see the scaling section) so affinity is an optimisation, not a requirement.
+
 ### 🧬 Hybrids
 - Real LBs combine: IP hash + round robin, least time + least connections, geo + weighted.
 
 ## 🧱 L4 vs L7
-<!-- related: sd-53 -->
 
 | | L4 (transport) | L7 (application) |
 |---|---|---|
@@ -119,7 +131,6 @@ flowchart LR
 - Managed cloud LBs and **anycast** (the same IP announced from many locations) give the same effect without you running the pair.
 
 ## 🩺 Health checks
-<!-- related: sd-122 -->
 
 ### 👀 Passive vs active
 - **Passive** — watch real traffic (errors, timeouts). No extra load; detects only after users hit it.
@@ -152,8 +163,17 @@ sequenceDiagram
   Note over LB: 3 passes in a row, re-add
 ```
 
+### 🧪 Health-check pitfalls
+
+- A check that only returns 200 from the web server passes while the instance's database connection is dead. The probe must exercise what the instance needs to serve.
+- A check that calls a shared dependency fails whenever that dependency is slow, and then every instance leaves rotation together. Gate readiness on the instance's own state; use dependency health for alerts and degraded modes.
+
+### 🔁 Retries
+
+- Retry only idempotent requests.
+- Cap retries with a budget, such as at most 10% extra load. Unbounded retries turn a partial outage into a full one.
+
 ## 📈 Autoscaling
-<!-- related: sd-52 -->
 
 - Health and load metrics show the traffic shape: an India-only app is busy by day, peaks in the evening, quiet at night → **scale down at night**.
 - Scale on CPU, request rate, queue depth or p90 latency; keep a minimum fleet and a cooldown.
@@ -166,4 +186,66 @@ sequenceDiagram
 | **Predictive** | Forecast from past weeks | Regular cycles with a steep ramp | Needs history; still pair with reactive |
 
 > 💡 Combine them: scheduled or predictive capacity for the known peak, reactive on top for surprises.
+
+## 📏 Scaling up vs out
+
+Scale up first while it is cheap and simple. Scale out the stateless tier once a single machine is no longer enough or no longer safe.
+
+### 🪜 Vertical vs horizontal
+
+| | Vertical (scale up) | Horizontal (scale out) |
+|---|---|---|
+| How | Bigger CPU, RAM and disk | More instances behind a balancer |
+| Code change | None | Stateless design, or shared state |
+| Ceiling | Hardware, and it gets expensive at the top end | Practically none; shared dependencies become the limit |
+| Failure | Single point of failure | Losing one instance removes at most 1/N of capacity |
+| Upgrades | Downtime for the swap | Rolling, with no downtime |
+
+- Vertical is the better call when a single-threaded bottleneck dominates (a complex database join), when coordination overhead outweighs the gain, or when the scale does not yet justify distributed complexity.
+- Databases follow the same ladder: vertical first, then read replicas, then sharding, which is the most complex step.
+
+### 🧱 Externalise state
+
+- Stateless services scale out trivially. Any instance serves any request.
+- Session state in instance memory forces sticky sessions, and sticky sessions break scale-in and rebalancing. Move sessions to Redis or into a signed token.
+- Stateful services need stickiness, a distributed cache or consistent hashing to route correctly.
+
+```mermaid
+flowchart LR
+  C[Client] --> LB[Load balancer]
+  LB --> A[Stateless app instances x N]
+  A --> St[(Redis shared state)]
+  A --> DB[(Database - vertical scale up)]
+```
+
+### 📊 Autoscaling signal
+
+- CPU alone lags behind latency during a pile-up. Combine CPU with request latency so the fleet scales earlier. Reference thresholds: scale out above 70% CPU, scale in below 20%.
+- A CPU-only trigger on an I/O-bound service never fires while latency explodes. Use latency or queue depth for those services.
+- Account for warm-up. A new instance should take full traffic only after its caches and JIT are warm, so a scale-out does not spike errors.
+
+### 🚪 Connection draining on scale-in
+
+- Without draining, scale-in kills in-flight requests, and every scale-in becomes a burst of 5xx.
+- Take the instance out of rotation first. Let in-flight requests finish within a grace period (30 s in the reference design), then remove it.
+
+### 🔌 Pool sizing
+
+Each instance has its own connection pool, so adding instances multiplies the connections a database must accept. Scale the application until the database connection limit is hit, and it stops. Put a pooler such as PgBouncer in front of the database.
+
+### ⚖️ Design decisions
+
+| Decision | Chosen | Alternative | Why |
+|---|---|---|---|
+| API tier | Horizontal behind a balancer | Vertical upgrades | Linear capacity, failure isolation, no upgrade downtime |
+| State | Externalised to Redis | Sticky sessions | Sticky sessions break scale-in and rebalancing |
+| Database | Vertical first, then replicas | Immediate sharding | Sharding brings cross-shard transactions and an operations burden |
+| Autoscaling trigger | CPU plus request latency | CPU only | Scales earlier during a pile-up |
+| Instance size | Medium instances, many | Few huge instances | Blast radius and bin-packing beat raw per-instance speed |
+
+### 🚩 Pitfalls
+
+- Scale-in with no draining (see above).
+- Autoscaling on CPU for an I/O-bound service.
+- Scaling out a service whose bottleneck is one downstream dependency. More instances just queue faster.
 

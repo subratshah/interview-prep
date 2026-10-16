@@ -37,7 +37,7 @@ flowchart LR
 
 - Segmenting usually finds the cause: one OEM, one OS version, low RAM, one new feature.
 - Mitigate **first** (kill switch, pause rollout), then fix.
-- 📖 [developer.android.com/topic/quality](https://developer.android.com/topic/quality) — app quality guidelines.
+- 📖 [developer.android.com/topic/quality](https://developer.android.com/quality) — app quality guidelines.
 
 ## 🚩 Flags and rollout
 

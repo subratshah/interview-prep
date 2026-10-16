@@ -3,7 +3,6 @@
 *Resources as plural nouns, HTTP methods as verbs, identifiers in the path, filters in the query, payloads in the body, honest status codes, and responses wrapped so they can grow.*
 
 ## 🧱 JSON and URL anatomy
-<!-- related: sd-120 -->
 
 ### 📄 JSON
 - Objects `{}` of key–value pairs and arrays `[]`: `{"name": "Alice", "age": 25}`.
@@ -16,11 +15,10 @@
 - Resource names are **plural nouns**; the method is the verb — never `/getUser` or `/deleteUser/5`.
 
 ### 🏷️ Versioning
-- URL version (`/v1`, `/v3`) is the most visible; header versioning is the alternative.
+- URL version (`/v1`, `/v3`) is the most visible and easy to route; header versioning is cleaner but easy to forget and harder to test from a browser.
 - Within a version, only **additive** changes; breaking changes get a new version and a deprecation window.
 
 ## ✏️ CRUD and PUT vs PATCH
-<!-- related: sd-120 -->
 
 ### 🗂️ CRUD mapping
 
@@ -43,14 +41,14 @@
 - **GET, PUT, DELETE** are idempotent — repeating them leaves the same state. **POST** is not. **PATCH** need not be (e.g. "increment").
 
 ## 🪆 Nesting vs query params
-<!-- related: sd-120, sd-5 -->
+<!-- related: sd-5 -->
 
 ### 📝 Blog with users, blogs, comments
 - A comment always belongs to one blog and one author.
 - Comments on a blog: `GET /blogs/{blogId}/comments`.
 - Comments by a user: `GET /users/{userId}/comments`.
 - One comment directly: `PATCH` / `DELETE /comments/{commentId}` — no need to nest once you have its id.
-- Weaker alternatives for a direct parent–child read: `blogId` in a body sent to `/comments`, or `GET /comments?blogId=…`.
+- Weaker alternatives for a direct parent–child read: `blogId` in a body sent to `/comments`, or `GET /comments?blogId=…`. A GET body is the worst choice: many proxies drop it, and it cannot be cached or bookmarked.
 
 ### ⚖️ Rule
 - **Nest** when the relationship is clear and direct, one level deep.
@@ -68,7 +66,6 @@
 - HTTPS encrypts path, query and body alike. Secrets still stay **out of URLs** because URLs land in server logs, browser history, proxies and `Referer` headers.
 
 ## 📨 Request anatomy and status codes
-<!-- related: sd-120 -->
 
 ### 🧩 A full request
 ```http
@@ -96,6 +93,7 @@ flowchart LR
 | 200 | OK | Success with a body |
 | 201 | Created | New resource created; return it or its location |
 | 204 | No Content | Success, nothing to return (often DELETE) |
+| 304 | Not Modified | GET with a matching `ETag`: no body, the client reuses its copy |
 | 301 / 308 | Moved Permanently | Permanent redirect (308 keeps the method) |
 | 302 / 307 | Found / Temporary Redirect | Temporary redirect (307 keeps the method) |
 | 400 | Bad Request | Malformed body, missing required field |
@@ -110,7 +108,7 @@ flowchart LR
 > 🔑 4xx = the client must change something; 5xx = the server failed. Bad input is never a 500.
 
 ## 📦 Responses, idempotency keys, pagination
-<!-- related: sd-120, sd-5 -->
+<!-- related: sd-5 -->
 
 ### 🗺️ Request → response map
 
@@ -124,7 +122,12 @@ flowchart LR
 ### 🎁 Always wrap in an object
 - `{"users": [ ... ]}`, not a bare `[ ... ]`; `{"user": { ... }}` for one item.
 - Later you can add `"userCount": 29` or `"next_cursor"` **without breaking** clients; a bare array can't grow.
-- Errors get one consistent envelope: `{"error": {"code": "USERNAME_TAKEN", "message": "..."}}`.
+- Errors get one consistent envelope: `{"error": {"code": "USERNAME_TAKEN", "message": "..."}}`. Add a `details` array for per-field validation errors.
+
+### 🗃️ Caching GETs
+- Send an **`ETag`** (a version fingerprint) and a **`Cache-Control`** header such as `max-age=60` on GETs. The client repeats the request with `If-None-Match`; an unchanged resource answers **304 Not Modified** with no body.
+- Public GETs can be cached at the CDN. Per-user data uses `Cache-Control: private` so shared caches never store it.
+- A `201 Created` response should also carry a `Location` header pointing at the new resource.
 
 ### 🔑 Idempotency keys
 ```mermaid
@@ -143,6 +146,7 @@ sequenceDiagram
   S-->>C: same 201, no second order
 ```
 - Client generates a UUID per logical operation; server stores key → response for ~24 h.
+- PUT and DELETE are idempotent by definition, so only POST (and a non-idempotent PATCH) needs the key.
 
 ### 📄 Pagination
 

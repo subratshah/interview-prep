@@ -3,7 +3,6 @@
 *Once shipped, the job is knowing — before users do — whether every API and machine is healthy, and being able to trace why when it isn't.*
 
 ## ❓ What maintenance must answer
-<!-- related: sd-122 -->
 
 - Are there errors, and are they recorded?
 - Is every server, DB and queue **healthy**?
@@ -25,7 +24,6 @@
 | **Saturation** | How full? | CPU, memory, queue depth |
 
 ## 🌐 API monitoring: throughput, errors, health
-<!-- related: sd-122 -->
 
 ### 📊 Throughput
 - Server tested to **10k rps** → alert at **8–9k** and shift or scale traffic before it tips over.
@@ -37,8 +35,16 @@
 ### 🩺 Health
 - Active probes and passive signals; count successful **200**s too — a drop in success volume is also a signal.
 
+### 🚪 Liveness vs readiness
+
+| Probe | Asks | If it fails |
+|---|---|---|
+| **Liveness** | Is the process up and not wedged? | Restart the instance |
+| **Readiness** | Can it serve right now: dependencies reachable, caches warm? | Remove it from the load balancer; no restart |
+
+> 🔑 The load balancer should use readiness. A live process that cannot reach its database should get no traffic. A health check that reports "OK" while the database is unreachable is a common mistake.
+
 ## ⏱️ Latency percentiles
-<!-- related: sd-122 -->
 
 ### 🔢 Worked example — 10 responses (seconds)
 Sorted: **1, 2, 3, 3, 4, 5, 6, 8, 12, 24**
@@ -62,8 +68,17 @@ flowchart LR
   M --> P["Fleet p50 / p90 / p99"]
 ```
 
+### 🔍 Worked investigation: p50 flat, p99 doubled after a deploy
+
+The median only moves when most requests slow down, so a regression confined to the tail leaves p50 flat.
+
+1. **Slice p99** by endpoint, instance and dependency.
+2. **One endpoint dominates**: pull slow traces for it and find which span grew. Often it is a new N+1 query, a lock, or a slow downstream call.
+3. **One instance dominates**: suspect a noisy neighbour, GC pauses or a bad host.
+4. **Compare with the previous version** using the deploy marker on the dashboard.
+5. **Roll back** if the SLO burn rate is high, then investigate once users are safe.
+
 ## 🖥️ Machine monitoring
-<!-- related: sd-122 -->
 
 | Metric | Example alert | Action |
 |---|---|---|
@@ -75,7 +90,7 @@ flowchart LR
 - Also: disk space, open file descriptors, GC pauses, queue depth / consumer lag.
 
 ## 🔍 Logs, traces and RCA
-<!-- related: sd-99, sd-122 -->
+<!-- related: sd-99 -->
 
 | Pillar | Answers | Tip |
 |---|---|---|
@@ -107,13 +122,16 @@ sequenceDiagram
 
 - Every line carries a **correlation id** (the request / trace id), so one request's logs join up across services and queues.
 - Log as JSON key–values (`"user_id": 42`), not prose — so you can filter and aggregate.
+- **Keep metric labels low-cardinality.** A user id as a metric label creates one time series per user and can overwhelm the metrics store. User ids belong in logs and traces.
+- **Instrument with OpenTelemetry** so the backend can change without re-instrumenting. Managed APM (Datadog, New Relic) is fast to adopt and correlates well, but its cost grows with volume and cardinality. Logs alone are cheap to start, yet slow to aggregate, with no percentiles and fragile alerts.
+- **Retention**: high-resolution metrics for 15 days, downsampled to 13 months; logs for 30 days. Instrumentation should add under 1% CPU.
 
 ### 🤖 Synthetic vs real-user monitoring
 - **Synthetic (active)** — scripted probes hit key flows (login, checkout) every minute from several regions. Catches outages at 3 a.m. when nobody is using the app.
 - **Real-user (passive, RUM)** — measures what real clients see: app start time, screen load, crash rate. Catches what probes miss: slow devices, one carrier, one app version.
 
 ## 🚨 Alerting tiers
-<!-- related: sd-122, sd-99 -->
+<!-- related: sd-99 -->
 
 | Tier | Trigger | Route |
 |---|---|---|
@@ -123,10 +141,11 @@ sequenceDiagram
 
 - Alert on **symptoms** users feel, not every cause; use windows ("5 min over threshold") to avoid flapping.
 - Every page must be actionable and linked to a runbook.
+- Budget the pager: aim for fewer than 2 pages per on-call week. Alert fatigue makes real pages get ignored.
 - **Threshold vs anomaly alerts**: a fixed threshold (5xx > 1%) is simple and predictable; an anomaly alert compares to a learned baseline (this hour last week) and catches "traffic fell 40%", which no fixed threshold sees. Anomaly alerts are noisier — use them for traffic and business metrics, thresholds and SLOs for paging.
 
 ## 🎯 SLIs, SLOs, SLAs and error budgets
-<!-- related: sd-122, sd-99 -->
+<!-- related: sd-99 -->
 
 | Term | What it is | Example |
 |---|---|---|

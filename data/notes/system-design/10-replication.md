@@ -3,7 +3,6 @@
 *Keep copies of the same data on several nodes for failover, locality and read throughput — then manage lag and conflicts.*
 
 ## ❓ Why replicate
-<!-- related: sd-49 -->
 
 - Eventually one DB can't grow vertically, and one DB can't serve every region well.
 - Two ways to distribute: **replication** (copy all data) and **partitioning** (split it). Usually both.
@@ -15,7 +14,6 @@
 4. **Read throughput** — one DB at **10,000 rps** → two replicas ≈ **20,000 rps** of reads (writes don't scale this way).
 
 ## 👑 Single-leader: sync, async, semi-sync
-<!-- related: sd-49 -->
 
 - All writes go to the **leader**; followers replay its changes. Reads may go to followers.
 - Example: user updates a **profile picture** → server → leader → F1, F2.
@@ -47,7 +45,6 @@ sequenceDiagram
 > 🔑 Fully sync is rarely used across many followers; async or semi-sync is the norm.
 
 ## ➕ Adding a follower and failover
-<!-- related: sd-49 -->
 
 ### 🆕 Adding F3
 1. Take a consistent **snapshot** of a node, e.g. F2 at **12:55 pm**, with its position in the replication log.
@@ -74,8 +71,72 @@ flowchart LR
   - Lost async writes the old leader never shipped.
   - **Split brain** — old leader returns and both accept writes. Fix: fencing tokens / epoch numbers, consensus (Raft) for election.
 
+## 🛟 Choosing sync, semi-sync or async
+
+Pick the mode from what a failover may cost. The reference case is a single-region system that needs read scale and high availability, with a replication lag budget, zero loss of acknowledged critical writes and a 20:1 read-to-write ratio.
+
+### 🎯 Targets
+
+| Target | Value | What it implies |
+|---|---|---|
+| Replication lag | Under 500 ms typical; alert above 1 s | Lag-sensitive reads need a fallback to the leader |
+| Durability | Zero acknowledged critical writes lost on failover | At least one replica must acknowledge before the client sees success |
+| Failover | Minutes, automatic | A monitor promotes the replica without a human |
+| Read capacity | Replicas absorb the 20:1 read load | The leader serves writes only |
+
+### 🏗️ Topology
+
+```mermaid
+flowchart LR
+  C[Client] -->|writes| L[Leader]
+  L -->|semi-sync ack| R1[(Replica 1)]
+  L -->|async log ship| R2[(Replica 2)]
+  L -->|async log ship| R3[(Replica 3 - analytics and backups)]
+  C -->|reads, lag-aware| R2
+  M[Failover monitor - consensus] -->|promotes on leader loss| R1
+  M -->|fence| L
+```
+
+- The leader orders the write-ahead log. One replica acknowledges each write synchronously (semi-sync); the rest receive the log asynchronously.
+- One replica is pinned for analytics and backups, so long scans and snapshots never load the leader.
+- The failover monitor promotes only a fully caught-up replica and fences the old leader.
+- Lag is published to the read router, so lag-sensitive reads go to the leader.
+
+### 🔀 Read routing with lag
+
+- Send a read to a replica only while that replica's lag is within budget. Otherwise send it to the leader.
+- A user who has just written reads from the leader for a short window, or carries the write's log position (see the lag anomalies above).
+
+### 🚨 Failover after a semi-sync leader dies
+
+Which replica is promoted, and what happens to writes the old leader had acknowledged?
+
+> 🔑 Promote the semi-sync replica. It holds every acknowledged critical write. Async-only writes that never shipped are lost. Quantify them by diffing log positions (GTIDs or LSNs).
+
+1. Fence the old leader with an epoch bump or STONITH, so it cannot accept writes if it returns.
+2. Re-clone the old leader as a replica instead of reconciling its divergent tail.
+
+### ⚖️ Design decisions
+
+| Decision | Chosen | Alternative | Why |
+|---|---|---|---|
+| Replication mode | Semi-sync (one replica acks) | Full sync to all replicas | Bounds loss without making each write as slow as the slowest replica |
+| Read routing | Replica reads with lag awareness | All reads to the leader | Replicas absorb the read load; the leader stays write-only |
+| Failover | Automatic promotion via monitor | Manual promotion | Minutes of downtime, not hours; fencing prevents split brain |
+| Topology | Single leader | Multi-leader | Avoids conflict resolution; multi-leader pays off only for multi-region writes |
+
+**Alternative: full synchronous replication** — zero loss on failover, but write latency equals the slowest replica, and one slow replica stalls every write.
+
+**Alternative: leaderless quorum (Dynamo-style)** — no failover event and graceful loss of a node, but eventual consistency and read repair complexity (see the quorum section below).
+
+### 🚩 Pitfalls
+
+- Assuming replica data is current. Ignore lag at your peril.
+- Semi-sync silently degrading to async when the only acknowledging replica is slow. "Zero loss" then quietly stops being true. Alert on the fallback.
+- Running the failover monitor on a single node. Its own partition triggers a false promotion and split brain.
+- Treating replication as a write-scaling answer. Replication copies all data; partitioning splits it. Name which problem you are solving.
+
 ## ⏳ Replication lag anomalies
-<!-- related: sd-50 -->
 
 | Anomaly | What the user sees | Fix |
 |---|---|---|
@@ -113,7 +174,7 @@ sequenceDiagram
 | **CRDTs** / operational transform | Data types that merge automatically | Only for supported types (counters, sets, text) |
 
 ## 🕸️ Leaderless and quorums
-<!-- related: sd-49, sd-106 -->
+<!-- related: sd-106 -->
 
 - No leader; client (or coordinator) sends writes and reads to several nodes.
 - Used by **Amazon Dynamo**, **Riak**, **Cassandra**, **Voldemort**.

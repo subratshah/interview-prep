@@ -3,7 +3,6 @@
 *Functional requirements say what the system does; non-functional requirements say how well, in numbers. Estimates turn those numbers into load, storage and bandwidth.*
 
 ## 🧾 Functional vs non-functional
-<!-- related: sd-124 -->
 
 ### 🛒 Amazon as the example
 
@@ -27,7 +26,7 @@
 > 📝 For Instagram, YouTube, Netflix or WhatsApp, write 3–4 functional and 3–4 non-functional requirements, each NFR with a number.
 
 ## ✅ The NFR checklist
-<!-- related: sd-124, sd-11 -->
+<!-- related: sd-11 -->
 
 ### 📋 What to state
 
@@ -45,7 +44,6 @@
 > 🔑 An NFR without a number can't drive a design decision and can't be checked.
 
 ## 📏 SLI, SLO, SLA and the nines
-<!-- related: sd-124 -->
 
 ### 🧮 Three terms
 
@@ -70,7 +68,6 @@
 - Each extra nine costs roughly 10× in redundancy and operations; ask whether the business needs it.
 
 ## 📊 Percentiles, not averages
-<!-- related: sd-122 -->
 
 ### 🧪 Why
 - Ten response times averaging **6.8 s** can have **p50 = 4 s** and **p90 = 12 s**: the average describes no real user.
@@ -79,7 +76,7 @@
 - Percentiles don't average across servers — merge histograms.
 
 ## 🧮 Back-of-envelope estimation
-<!-- related: sd-11, sd-124 -->
+<!-- related: sd-11 -->
 
 ### 🪜 Method
 1. Users: DAU and peak concurrency.
@@ -107,8 +104,49 @@
 
 > 📝 Estimate rps and yearly storage for a chat app: 10M DAU, 40 messages/user/day, 200 bytes each.
 
+## 🔢 Numbers to know
+
+### ⏱️ Latency ladder
+
+Orders of magnitude, not exact figures. Hardware and region change them, so say the figure you assume.
+
+| Operation | Approximate time |
+|---|---|
+| Read from L1 cache | ~1 ns |
+| Uncontended mutex lock and unlock | ~20 ns |
+| Read from main memory | ~100 ns |
+| Read 4 KB at random from SSD | ~10–100 µs |
+| Read 1 MB sequentially from memory | ~250 µs |
+| Read 1 MB sequentially from SSD | ~1 ms |
+| Disk seek on spinning disk | ~10 ms |
+| Round trip inside one datacenter | ~0.5 ms |
+| Round trip between continents | ~100–150 ms |
+
+- Memory is about a thousand times faster than an SSD random read, and a network hop inside a datacenter costs about as much as thousands of memory reads.
+- A cross-region call costs more than any local work. Design to avoid it on the user's request path.
+
+### 🚀 Throughput of the usual components
+
+Single node, simple operations, order of magnitude only. Measure before you quote a number.
+
+| Component | Typical single-node throughput | Scale it when |
+|---|---|---|
+| Cache (Redis, Memcached) | ~50k–200k ops/s | memory is full, or one core is saturated: shard or cluster it |
+| Relational primary | ~1k–10k writes/s; ~10k–50k indexed reads/s | write rate or lag exceeds budget: partition writes; read rate: add replicas |
+| App server (stateless API) | ~500–5k requests/s, depending on work per request | CPU stays above ~60–70% or p99 climbs: add instances behind a load balancer |
+| Log-style broker (Kafka-like) | ~100k+ messages/s per broker with batching | consumer lag grows: add partitions and consumers |
+| Classic queue (RabbitMQ-like) | ~10k–50k messages/s per node | queue depth grows steadily: add consumers, or move to a log |
+
+> 🔑 Scale the component that saturates first, and say which one that is. Adding app servers does nothing when the primary is the bottleneck.
+
+### 📐 Using the numbers
+
+- Convert the estimate into the bottleneck: requests per second against each component above.
+- Reads: cache hit rate decides how many reads reach the database.
+- Writes: writes per second against one primary decides whether to partition.
+- Quote the assumption next to the number: "about 5k writes/s, which one primary handles with headroom."
+
 ## 🎬 Opening the interview
-<!-- related: sd-124 -->
 
 ```mermaid
 flowchart LR

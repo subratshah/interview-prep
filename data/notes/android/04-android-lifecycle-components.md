@@ -44,7 +44,7 @@ flowchart LR
 
 - Singletons, repositories, DB: Application context. Inflating views, dialogs: Activity context.
 - `getSystemService()` — obtain system managers (connectivity, notifications, alarms).
-- 📖 [Context](https://www.geeksforgeeks.org/android/what-is-context-in/android/): Application vs. Activity, getting system services.
+- 📖 [Context](https://www.geeksforgeeks.org/android/what-is-context-in-android/): Application vs. Activity, getting system services.
 
 ## 📨 Intents, filters, back stack
 <!-- related: tech-69, tech-70, tech-71, tech-29, tech-200, tech-199 -->

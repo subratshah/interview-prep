@@ -20,7 +20,7 @@ flowchart TD
   R -->|denied twice| S["Degrade gracefully / link to Settings"]
 ```
 
-- 📖 [Permissions & Security](https://www.geeksforgeeks.org/android-runtime-permissions/) · [Runtime permissions](https://www.geeksforgeeks.org/kotlin/android-run-time-permissions-using-jetpack-compose/) in Compose · [Permission groups](https://www.geeksforgeeks.org/android/what-are-the-different-protection-levels-in-android-permission/): dangerous vs. normal.
+- 📖 [Runtime permissions](https://www.geeksforgeeks.org/kotlin/android-run-time-permissions-using-jetpack-compose/) in Compose · [Permission groups](https://www.geeksforgeeks.org/android/what-are-the-different-protection-levels-in-android-permission/): dangerous vs. normal.
 - Ask **in context**, at the moment of use; use `ActivityResultContracts.RequestPermission`.
 - Location: foreground first, background separately; the user can grant approximate only.
 - Declare data usage in the store's data-safety form.

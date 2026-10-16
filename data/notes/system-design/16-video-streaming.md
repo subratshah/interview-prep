@@ -76,7 +76,7 @@ flowchart LR
 - Real players step up gradually and use buffer level too (avoid oscillation). The quality menu offers **Auto** (ABR) or a pinned rendition.
 
 ## 🏗️ Pipeline: upload to player
-<!-- related: sd-68, sd-54 -->
+<!-- related: sd-68 -->
 
 1. Creator **uploads** the master → **origin object store**.
 2. **Transcoder / segmenter** splits it into segment jobs.
@@ -109,7 +109,7 @@ flowchart LR
 - **Player buffer** — next few segments ahead.
 
 ## 🧮 Back-of-envelope
-<!-- related: sd-68, sd-54 -->
+<!-- related: sd-68 -->
 
 ### 📼 Storage for one video
 - Master: **20-min 4K 60 fps ≈ 50 GB** (~330 Mbps — a production master, not what viewers stream).
@@ -133,7 +133,7 @@ flowchart LR
 - 100 viewers × 20 Mbps (4K) = **2 Gbps**; 100,000 × 20 Mbps = **2 Tbps**.
 
 ## 📈 Scaling from 100 to 100,000 viewers
-<!-- related: sd-54, sd-68, sd-110 -->
+<!-- related: sd-68, sd-110 -->
 
 | Viewers | Egress (4K ~20 Mbps) | Design |
 |---|---|---|

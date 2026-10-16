@@ -3,7 +3,6 @@
 *When the network between replicas breaks, a distributed store must choose: refuse (consistent) or answer with possibly stale data (available).*
 
 ## 🔤 The three letters
-<!-- related: sd-50 -->
 
 | Letter | Meaning |
 |---|---|
@@ -27,7 +26,7 @@ flowchart LR
 ```
 
 ## 🧭 CA, CP, AP
-<!-- related: sd-50, sd-106 -->
+<!-- related: sd-106 -->
 
 | Combo | Behaviour | Example |
 |---|---|---|
@@ -39,7 +38,7 @@ flowchart LR
 - Systems: CP — ZooKeeper, etcd, Spanner, HBase; AP — Cassandra, DynamoDB (default), Riak.
 
 ## ⚡ PACELC
-<!-- related: sd-50, sd-106 -->
+<!-- related: sd-106 -->
 
 - **If Partition**: A or C. **Else** (normal operation): **Latency** or **Consistency**.
 - Partitions are rare; the latency/consistency trade is paid on every request (sync replication, quorum reads).
@@ -51,7 +50,6 @@ flowchart LR
 | MongoDB (majority) | C | C |
 
 ## 📶 Consistency levels
-<!-- related: sd-50, sd-49 -->
 
 | Level | Guarantee | Typical way |
 |---|---|---|
@@ -60,6 +58,7 @@ flowchart LR
 | **Monotonic reads** | Never go back in time | Stick a user to one replica |
 | **Causal** | Cause seen before effect | Version vectors, same partition |
 | **Eventual** | Replicas converge if writes stop | Async replication |
+| **Weak** | No guarantee a read sees a recent write | Fire-and-forget updates; the next update supersedes a missed one |
 
 ```mermaid
 flowchart LR
@@ -70,4 +69,49 @@ flowchart LR
 ```
 
 > 🔑 Pick the weakest level the feature tolerates; stronger costs latency and availability.
+
+## 🧾 Pick consistency per data type
+
+One system usually holds data with different needs. Decide per dependency, and state its partition behaviour explicitly.
+
+| Data | Partition behaviour | Consistency | Why |
+|---|---|---|---|
+| Balances, inventory, locks | CP: block or error | Strong (quorum) | A stale balance or oversold stock breaks money and stock invariants; stale lock ownership corrupts them |
+| Carts, feeds | AP: serve possibly stale data | Eventual, with read-your-writes for the user | Seconds of staleness is a smaller cost than an outage |
+| Likes, view counts, DNS answers | AP | Eventual | Paying a quorum round trip for a counter users accept as stale is a bad trade |
+| Game positions, live video frames | AP | Weak | The next update supersedes the missed one; delivering stale data late is worthless |
+
+### ⏱️ What each level costs
+
+- A strong write pays one quorum round trip. An eventual write pays one local write.
+- Many stores let each request choose its level (ONE, QUORUM, ALL in Cassandra-style systems). Hot paths opt into consistency without a second system.
+- Convergence window: replicas typically converge within about 1 s of lag. Alert past that.
+- Strong reads need a quorum overlap: with N = 3, R = 2 and W = 2, R + W > N.
+
+### 🔁 Read-your-writes on an async store
+
+A user edits their profile, and the next page load shows the old value. Options:
+
+- Route that user's reads to the leader for a short window after the write.
+- Carry the write's log position or timestamp in the session. A replica serves the read only once it has applied that position; otherwise the read goes to the leader.
+- Pin the user's reads to one replica. This holds until that replica fails over.
+
+### 🧠 Eventual means convergence, not no guarantee
+
+Given no new writes, every node converges to the same value. Reads may be stale during the convergence window. That is a specific guarantee, not an absence of one.
+
+Why is eventual consistency acceptable for a shopping cart but not for a bank balance? A stale cart costs some friction, such as two devices showing slightly different carts. A stale balance drives wrong overdraft decisions, which carries financial and regulatory risk. The business consequence sets the consistency requirement.
+
+### ⚖️ Design alternatives
+
+**CP everywhere (Spanner-style)** — no reconciliation logic, and reads are always current. Availability drops during partitions, and cross-region writes are slower.
+
+**AP everywhere with CRDTs** — never rejects a write and merges deterministically. The domain has to fit CRDTs, and linearizable operations are not available.
+
+### 🚩 Pitfalls
+
+- Claiming all three CAP properties hold at once in a distributed system.
+- Applying CAP to steady state. CAP constrains partitions only; steady-state latency versus consistency is PACELC.
+- Failing to name a real system in each camp, with the reason it sits there.
+- Treating CAP's linearizable "C" and ACID's "C" (invariants) as the same thing. See the transactions material in SQL & relational modelling.
 
