@@ -49,6 +49,7 @@ const THEME_STORAGE_KEY = 'interview-theme';
 const ZOOM_STORAGE_KEY = 'interview-ui-zoom';
 const ZOOM_MIGRATION_KEY = 'interview-ui-zoom-v2';
 const ROADMAP_STORAGE_KEY = 'interview-roadmap-mode';
+const FOCUS_MODE_STORAGE_KEY = 'interview-focus-mode'; // '1' = sidebar + feed hidden
 const LEARNING_MODE_STORAGE_KEY = 'interview-learning-mode'; // '1' Learn, '0' Quiz
 // Set while a progress change has not yet reached the API (the PUT is pending or
 // failed). Only then is localStorage an unsynced delta worth merging at boot —
@@ -852,7 +853,8 @@ function renderSidebar() {
  * The "📚 Notes" row: one section-like row under the question sections that
  * selects the notes section of the active topic (feed = one card per note).
  * Facets (difficulty / tags / memory) never touch it — a note has none of
- * those properties. Absent when the topic has no registered notes.
+ * those properties; only the ⭐ filter narrows it, to the notes starred in
+ * the registry. Absent when the topic has no registered notes.
  */
 function appendSidebarNotes(root) {
   const notes = NotesDB.byTopic(state.activeTab);
@@ -869,7 +871,7 @@ function appendSidebarNotes(root) {
   row.innerHTML = `
     <div class="sb-item-row">
       <span class="sb-item-label">📚 Notes</span>
-      <span class="sb-item-count">${notes.length}</span>
+      <span class="sb-item-count">${notesForFeed(state.activeTab).length}</span>
     </div>
   `;
   const open = () => selectNotesSection();
@@ -1030,7 +1032,8 @@ function memoryCardIndicatorMarkup(diffCode, memLevel, memLabel) {
   return `<div class="qcard-memory rm-diff-${diffCode} rm-mem-${memLevel}" role="img" aria-label="${escapeHtml(memLabel)}"></div>`;
 }
 
-function createFeedQuestionCard(q) {
+/** `position` (1-based place in the feed list) adds a "Q<n>" chip; the palette omits it. */
+function createFeedQuestionCard(q, position) {
   const memLabel = `Memory: ${memoryStatusPhraseForId(q.id)}`;
 
   const starBadge = q.star
@@ -1057,6 +1060,7 @@ function createFeedQuestionCard(q) {
     <div class="qcard-body">
       <div class="qcard-title">${escapeHtml(q.title)}</div>
       <div class="qcard-footer">
+        ${position ? `<span class="qcard-note-chip qcard-pos" aria-label="Question ${position}">Q${position}</span>` : ""}
         <div class="qcard-tags">${tagStr || '<span class="qcard-tag-empty"></span>'}</div>
       </div>
     </div>
@@ -1176,7 +1180,7 @@ function renderList() {
     return;
   }
 
-  feedQs.forEach(q => list.appendChild(createFeedQuestionCard(q)));
+  feedQs.forEach((q, i) => list.appendChild(createFeedQuestionCard(q, i + 1)));
 
   renderSidebar();
 }
@@ -1195,12 +1199,12 @@ const SD_SECTIONS = [
   { key: 'functional',  icon: '⚙️', label: 'Functional Requirements' },
   { key: 'nfr',         icon: '📊', label: 'Non-Functional Requirements' },
   { key: 'capacity',    icon: '📈', label: 'Capacity Estimation' },
-  { key: 'architecture', icon: '🏗️', label: 'High-Level Architecture' },
-  { key: 'dataModel',   icon: '🗄️', label: 'Data Model' },
-  { key: 'api',         icon: '🔌', label: 'API Design' },
-  { key: 'tradeoffs',   icon: '⚖️', label: 'Key Trade-offs' },
-  { key: 'approach',    icon: '📋', label: 'Interview Approach' },
-  { key: 'followUp',    icon: '🧵', label: 'Follow-ups' },
+  { key: 'entities',    icon: '🧩', label: 'Core Entities' },
+  { key: 'api',         icon: '🔌', label: 'API / System Interface' },
+  { key: 'architecture', icon: '🏗️', label: 'High-Level Design' },
+  // Virtual split of `deepDives` (see splitDeepDives): one card per dive,
+  // keyed `deepDive-N` and labelled by the dive's question.
+  { key: 'deepDives',   icon: '🔬', label: 'Deep Dives' },
   { key: 'pitfalls',    icon: '🚩', label: 'Common Pitfalls' },
 ];
 
@@ -1236,16 +1240,22 @@ const TECH_SECTIONS = [
 // the topic's layout still renders, appended as its own full-width row (see
 // buildDetailRows). Silently dropping content was the original clipping bug.
 const DETAIL_LAYOUT = {
+  // Hello Interview delivery order. `{ stage, minutes }` is a fifth row form: a
+  // full-width, non-sticky divider, emitted only when a card follows it before
+  // the next stage. `deepDive-*` expands to one full card per dive.
   'system-design': [
+    { stage: 'Requirements', minutes: 5 },
     { full: 'scope' }, // only when the blob has no assumptions marker
     { cols: ['scope-q', 'scope-a'] },
     { cols: ['functional', 'nfr'] },
     { half: 'capacity' },
+    { stage: 'Setup', minutes: 7 },
+    { cols: ['entities', 'api'] },
+    { stage: 'High-Level Design', minutes: 15 },
     { full: 'architecture' },
-    { cols: ['dataModel', 'api'] },
-    { full: 'tradeoffs' },
-    { full: 'approach' },
-    { cols: ['followUp', 'pitfalls'] },
+    { stage: 'Deep Dives', minutes: 10 },
+    { full: 'deepDive-*' },
+    { full: 'pitfalls' },
   ],
   android: [
     { full: 'answer' },
@@ -1304,7 +1314,61 @@ function detailLayoutFor(type) {
   return DETAIL_LAYOUT[type] || DETAIL_LAYOUT.android;
 }
 
+// `deepDives` is one markdown blob: `### N) question` per dive, each holding
+// `#### Bad|Good|Great: name` tiers and an optional `**Verdict:**` tail.
+// Splits into virtual cards `deepDive-1…N`; the title rides in `deepDiveTitles`.
+function splitDeepDives(md) {
+  const out = [];
+  String(md).split(/^###\s+/m).slice(1).forEach(part => {
+    const nl = part.indexOf('\n');
+    const title = (nl < 0 ? part : part.slice(0, nl)).trim();
+    const body = nl < 0 ? '' : part.slice(nl + 1).trim();
+    if (title) out.push({ title, body });
+  });
+  return out;
+}
+
+const DEEP_DIVE_TIER = /^####\s*(Bad|Good|Great)\s*:\s*(.*)$/i;
+
+/** Dive markdown → HTML: preamble, `.dd-tiers` grid, then the verdict tail. */
+function renderDeepDive(md) {
+  const lines = String(md).split('\n');
+  const pre = [];
+  const tiers = [];
+  const tail = [];
+  let cur = null;
+  let inTail = false;
+  lines.forEach(line => {
+    const m = line.match(DEEP_DIVE_TIER);
+    if (m) {
+      cur = { kind: m[1].toLowerCase(), name: m[2].trim(), body: [] };
+      tiers.push(cur);
+      inTail = false;
+    } else if (cur && /^\*\*\s*Verdict/i.test(line.trim())) {
+      inTail = true;
+      tail.push(line);
+    } else if (inTail) {
+      tail.push(line);
+    } else if (cur) {
+      cur.body.push(line);
+    } else {
+      pre.push(line);
+    }
+  });
+  if (!tiers.length) return renderMarkdown(cleanRedundantTitles(md));
+  const labels = { bad: 'Bad', good: 'Good', great: 'Great' };
+  const grid = tiers.map(t => `<section class="dd-tier dd-tier--${t.kind}">`
+    + `<div class="dd-tier-head"><span class="dd-tier-kind">${labels[t.kind]}</span>`
+    + `<span class="dd-tier-name">${escapeHtml(t.name)}</span></div>`
+    + `<div class="dd-tier-body">${renderMarkdown(t.body.join('\n').trim())}</div></section>`).join('');
+  const preHtml = pre.join('\n').trim() ? renderMarkdown(pre.join('\n').trim()) : '';
+  const tailHtml = tail.join('\n').trim()
+    ? `<div class="dd-verdict">${renderMarkdown(tail.join('\n').trim())}</div>` : '';
+  return `${preHtml}<div class="dd-tiers" style="--dd-cols:${tiers.length}">${grid}</div>${tailHtml}`;
+}
+
 function detailSectionMeta(type, key) {
+  if (/^deepDive-\d+$/.test(key)) return { key, icon: '🔬', label: 'Deep Dive' };
   return detailSectionsFor(type).find(sec => sec.key === key)
     || { key, icon: '📄', label: key };
 }
@@ -1349,6 +1413,14 @@ function collectDetailValues(q) {
   if (q.type === 'system-design' && q.scope) {
     Object.assign(values, splitScopeSection(q.scope));
   }
+  if (q.type === 'system-design' && values.deepDives) {
+    // Virtual cards keep the dive's `### title` line so the card header and the
+    // palette index (cmdCleanBodyText over values) both see it.
+    splitDeepDives(values.deepDives).forEach((dive, i) => {
+      values[`deepDive-${i + 1}`] = `### ${dive.title}\n${dive.body}`;
+    });
+    delete values.deepDives;
+  }
   return values;
 }
 
@@ -1360,9 +1432,15 @@ function collectDetailValues(q) {
  * stored card state is consulted (see purgeCollapsedCardStorage).
  */
 function createDetailCard(q, values, key, width, rowStart) {
-  const raw = values[key];
+  let raw = values[key];
+  const sec = Object.assign({}, detailSectionMeta(q.type, key));
+  const isDive = /^deepDive-\d+$/.test(key);
+  if (isDive) {
+    const nl = raw.indexOf('\n');
+    sec.label = raw.slice(0, nl).replace(/^###\s+/, '');
+    raw = raw.slice(nl + 1);
+  }
   const cleanedRaw = cleanRedundantTitles(raw);
-  const sec = detailSectionMeta(q.type, key);
   const isCollapsed = !state.learningMode;
 
   const block = document.createElement('div');
@@ -1381,7 +1459,18 @@ function createDetailCard(q, values, key, width, rowStart) {
   const body = document.createElement('div');
   body.className = 'notion-block-body' + (isCollapsed ? ' collapsed' : '');
   body.hidden = isCollapsed;
-  body.innerHTML = renderMarkdown(cleanedRaw);
+  const hldSplit = key === 'architecture' && q.type === 'system-design'
+    ? cleanedRaw.split(/^###\s+Final design\s*$/im) : null;
+  if (isDive) {
+    body.innerHTML = renderDeepDive(cleanedRaw);
+  } else if (hldSplit && hldSplit.length === 2 && hldSplit[0].trim()) {
+    // High-Level Design: steps left, `### Final design` diagram right (stacked
+    // below the container query in style.css). No Final design → plain card.
+    body.innerHTML = `<div class="hld-cols"><div class="hld-steps">${renderMarkdown(hldSplit[0].trim())}</div>`
+      + `<div class="hld-diagram"><h3>Final design</h3>${renderMarkdown(hldSplit[1].trim())}</div></div>`;
+  } else {
+    body.innerHTML = renderMarkdown(cleanedRaw);
+  }
 
   wireCardToggle(block, head, body);
 
@@ -1432,13 +1521,22 @@ function wireCardToggle(block, head, body) {
 function buildDetailRows(q, values) {
   const layout = detailLayoutFor(q.type);
   const has = key => values[key] !== undefined && values[key] !== '';
-  const referenced = new Set();
+  const referenced = new Set(['deepDives']);
   layout.forEach(row => {
+    if (row.stage) return;
     if (row.cols) row.cols.forEach(k => referenced.add(k));
     else referenced.add(row.half || row.full || row.pack);
   });
 
   const rows = [];
+  // A `{ stage }` divider waits in `pendingStage` until a card of its stage
+  // appears (touchStage), so a stage with no cards renders nothing.
+  let pendingStage = null;
+  const touchStage = () => {
+    if (pendingStage) rows.push({ stage: pendingStage.stage, minutes: pendingStage.minutes, num: pendingStage.num });
+    pendingStage = null;
+  };
+  let stageNum = 0;
   let run = [];
   const flushRun = () => {
     if (run.length > 1) {
@@ -1449,9 +1547,15 @@ function buildDetailRows(q, values) {
     run = [];
   };
   layout.forEach(row => {
+    if (row.stage) {
+      flushRun();
+      pendingStage = { stage: row.stage, minutes: row.minutes, num: ++stageNum };
+      return;
+    }
     if (row.cols) {
       const present = row.cols.filter(key => has(key));
       if (!present.length) return;
+      touchStage();
       if (present.length === 1) {
         run.push(present[0]);
         return;
@@ -1463,13 +1567,23 @@ function buildDetailRows(q, values) {
       return;
     }
     if (row.pack && has(row.pack)) {
+      touchStage();
       run.push(row.pack);
       return;
     }
     if (row.half && has(row.half)) {
+      touchStage();
       flushRun();
       rows.push({ key: row.half, width: 'db-half', rowStart: true });
+    } else if (row.full && row.full.endsWith('-*')) {
+      const prefix = row.full.slice(0, -1);
+      Object.keys(values).filter(k => k.startsWith(prefix)).forEach(key => {
+        touchStage();
+        flushRun();
+        rows.push({ key, width: 'db-full', rowStart: true });
+      });
     } else if (row.full && has(row.full)) {
+      touchStage();
       flushRun();
       rows.push({ key: row.full, width: 'db-full', rowStart: true });
     }
@@ -1854,7 +1968,8 @@ function openNote(id, sectionIdx) {
 /** Move across the active topic's notes. `wrap` is the feed's ↑/↓ behaviour. */
 function stepNote(delta, wrap) {
   if (!state.notesSelected) return;
-  const notes = NotesDB.byTopic(state.activeTab);
+  // Step through the list the feed shows (the ⭐ filter narrows it).
+  const notes = notesForFeed(state.activeTab);
   if (!notes.length) return;
   let idx = notes.findIndex(n => n.id === state.activeNoteId);
   if (idx === -1) idx = delta > 0 ? 0 : notes.length - 1;
@@ -1871,13 +1986,81 @@ function noteSnippet(md, max) {
   return text.length > max ? text.slice(0, max).replace(/\s+\S*$/, '') + '…' : text;
 }
 
+/**
+ * A note is important when its registry entry says `star: true` — a curated
+ * "most asked" set. Deriving it from starred related questions marked almost
+ * every note, so the signal meant nothing.
+ */
+function noteIsImportant(note) {
+  return note.star === true;
+}
+
+/** The topic's notes as the feed lists them; the ⭐ Important filter keeps only important ones. */
+function notesForFeed(topic) {
+  const notes = NotesDB.byTopic(topic);
+  return state.statusFilter === 'star' ? notes.filter(note => noteIsImportant(note)) : notes;
+}
+
+/** Section title without its leading emoji, which the feed chips omit. */
+const NOTE_PILL_MAX_ROWS = 2;
+
+/** Trim each note card's section pills to NOTE_PILL_MAX_ROWS lines, ending in "+N". */
+function fitNotePillRows(root) {
+  root.querySelectorAll('.qcard-note .qcard-tags').forEach(row => {
+    row.querySelector('.qcard-tag-more')?.remove();
+    const pills = [...row.querySelectorAll('.qcard-tag')];
+    pills.forEach(p => { p.style.display = ''; });
+    if (!pills.length) return;
+    const rowTops = [];
+    const fits = el => {
+      const top = el.offsetTop;
+      if (!rowTops.includes(top)) rowTops.push(top);
+      return rowTops.indexOf(top) < NOTE_PILL_MAX_ROWS;
+    };
+    let cut = pills.findIndex(p => !fits(p));
+    if (cut === -1) return;
+    pills.slice(cut).forEach(p => { p.style.display = 'none'; });
+    const more = document.createElement('span');
+    more.className = 'qcard-tag qcard-tag-more';
+    row.appendChild(more);
+    // The "+N" pill itself must also fit; give back pills until it does.
+    for (;;) {
+      more.textContent = `+${pills.length - cut}`;
+      if (more.offsetTop <= rowTops[NOTE_PILL_MAX_ROWS - 1] || cut === 0) break;
+      pills[--cut].style.display = 'none';
+    }
+  });
+}
+
+// Re-fit whenever the feed's width settles or changes (late font load, window
+// resize, focus mode): the first fit can run before the final layout.
+let notePillObserver = null;
+function observeNotePillRows(list) {
+  if (notePillObserver || typeof ResizeObserver === 'undefined') return;
+  let lastWidth = -1;
+  notePillObserver = new ResizeObserver(entries => {
+    const width = Math.round(entries[0].contentRect.width);
+    if (width === lastWidth || !width) return;
+    lastWidth = width;
+    fitNotePillRows(list);
+  });
+  notePillObserver.observe(list);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitNotePillRows(list));
+}
+
+function noteSectionTitleLabel(title) {
+  const m = NOTE_LEADING_EMOJI_RE.exec(title);
+  return (m ? title.slice(m[0].length) : title) || title;
+}
+
 /** Feed for the notes section: one .qcard-note per note of the topic. False = no notes. */
 function renderNoteFeed(list) {
-  const notes = NotesDB.byTopic(state.activeTab);
-  if (!notes.length) {
+  const allNotes = NotesDB.byTopic(state.activeTab);
+  if (!allNotes.length) {
     clearNotesSelection();
     return false;
   }
+  const notes = notesForFeed(state.activeTab);
 
   const feedTitle = document.getElementById('feed-title');
   if (feedTitle) feedTitle.textContent = '📚 Notes';
@@ -1892,34 +2075,53 @@ function renderNoteFeed(list) {
 
   if (list) {
     list.innerHTML = '';
+    if (!notes.length) {
+      const div = document.createElement('div');
+      div.className = 'empty-list';
+      div.textContent = 'No important notes.';
+      list.appendChild(div);
+    }
     notes.forEach(note => {
+      const chapter = allNotes.findIndex(n => n.id === note.id) + 1;
       const entry = notesCache.get(note.id);
       const failed = Boolean(entry && entry.status === 'error');
       const sections = noteSections(note.id);
-      const summary = entry
-        ? (failed ? "Couldn't load this note." : noteSnippet(entry.summary || (sections[0] && sections[0].md) || '', 160))
-        : 'Loading…';
-      const meta = entry && !failed
-        ? `${sections.length} ${sections.length === 1 ? 'section' : 'sections'}`
-        : '';
+      const starred = noteIsImportant(note);
+      // Section titles as chips, all rendered; fitNotePillRows trims them to two
+      // lines once laid out. Loading and failure keep their own text in this row.
+      const chips = sections
+        .map(section => `<span class="qcard-tag">${escapeHtml(noteSectionTitleLabel(section.title))}</span>`)
+        .join('');
+      const tagRow = !entry
+        ? '<span class="qcard-note-status">Loading…</span>'
+        : failed
+          ? '<span class="qcard-note-status">Couldn\'t load this note.</span>'
+          : `<div class="qcard-tags">${chips}</div>`;
       const card = document.createElement('div');
       card.className = 'qcard qcard-note'
         + (note.id === state.activeNoteId ? ' selected' : '')
+        + (starred ? ' starred' : '')
         + (failed ? ' qcard-note-failed' : '');
       card.dataset.note = note.id;
       card.innerHTML = `
+        ${starred ? '<span class="qcard-star" aria-hidden="true">⭐</span>' : ''}
         <div class="qcard-body">
           <div class="qcard-note-head">
             <span class="qcard-note-icon" aria-hidden="true">${escapeHtml(note.icon || '📄')}</span>
             <div class="qcard-title">${escapeHtml(note.title)}</div>
           </div>
-          <div class="qcard-note-snippet">${escapeHtml(summary)}</div>
-          ${meta ? `<div class="qcard-note-foot"><span class="qcard-note-chip">${escapeHtml(meta)}</span></div>` : ''}
+          ${tagRow}
+          <div class="qcard-note-foot">
+            <span class="qcard-note-chip" aria-label="Chapter ${chapter}">Ch. ${chapter}</span>
+          </div>
         </div>
       `;
       card.addEventListener('click', () => openNote(note.id));
       list.appendChild(card);
     });
+    // The cards are in the document, so measuring now forces layout; no frame wait.
+    fitNotePillRows(list);
+    observeNotePillRows(list);
   }
   return true;
 }
@@ -1999,9 +2201,14 @@ function renderNotePane(note) {
   const sections = noteSections(note.id);
 
   if (badge) badge.textContent = '📚 Note';
-  if (pos) pos.textContent = nIdx >= 0 ? `${nIdx + 1} / ${topicNotes.length}` : '';
-  if (prevBtn) prevBtn.disabled = nIdx <= 0;
-  if (nextBtn) nextBtn.disabled = nIdx === -1 || nIdx >= topicNotes.length - 1;
+  const star = document.getElementById('note-star');
+  if (star) star.textContent = noteIsImportant(note) ? '⭐' : '';
+  if (pos) pos.textContent = nIdx >= 0 ? `Ch. ${nIdx + 1} / ${topicNotes.length}` : '';
+  // The chapter number is the registry position; ‹ › walk the visible feed list.
+  const feedNotes = notesForFeed(note.topic);
+  const fIdx = feedNotes.findIndex(n => n.id === note.id);
+  if (prevBtn) prevBtn.disabled = fIdx <= 0;
+  if (nextBtn) nextBtn.disabled = fIdx === -1 || fIdx >= feedNotes.length - 1;
   if (titleEl) titleEl.textContent = `${note.icon || '📄'} ${note.title}`;
 
   body.innerHTML = '';
@@ -2142,7 +2349,6 @@ function selectQuestion(id) {
   // Scroll selected into view
   const el = document.querySelector('.q-item.selected');
   if (el) el.scrollIntoView({ block: 'nearest' });
-  updateHistoryButtons();
 }
 
 // ── Render main panel ──────────────────────────────────────────
@@ -2199,6 +2405,15 @@ function renderMainPanel() {
   // Header strip (unchanged ids for rating buttons / history)
   const qvNum = document.getElementById('qv-num');
   if (qvNum) qvNum.textContent = `#${q.num}`;
+  // Same numbering as the feed card chip: place in the sorted feed list.
+  const qvPos = document.getElementById('qv-pos');
+  if (qvPos) {
+    const feedQs = getSortedFeedQuestions();
+    const qIdx = feedQs.findIndex(x => x.id === q.id);
+    qvPos.hidden = qIdx < 0;
+    qvPos.textContent = qIdx < 0 ? '' : `Q${qIdx + 1} / ${feedQs.length}`;
+  }
+  updateQuestionStepButtons();
   const diffBadge = document.getElementById('qv-diff');
   if (diffBadge) {
     diffBadge.className = `diff-badge ${q.difficulty}`;
@@ -2240,6 +2455,16 @@ function renderMainPanel() {
     const rows = buildDetailRows(q, values);
 
     rows.forEach(row => {
+      if (row.stage) {
+        const stage = document.createElement('div');
+        stage.className = 'db-stage';
+        stage.setAttribute('role', 'separator');
+        const circled = ['①', '②', '③', '④', '⑤', '⑥'][row.num - 1] || String(row.num);
+        stage.innerHTML = `<span class="db-stage-label">${circled} ${escapeHtml(row.stage)}`
+          + `${row.minutes ? ` · ${row.minutes} min` : ''}</span>`;
+        cardsContainer.appendChild(stage);
+        return;
+      }
       if (row.band) {
         // Packed run of single-card rows (see buildDetailRows): one grid
         // item spanning the body and hosting its own two columns, filled in
@@ -3180,13 +3405,12 @@ function initializeHashRouting() {
   });
 }
 
-// ── History navigation ─────────────────────────────────────────
+// ── History navigation (keyboard ← / →) ───────────────────────
 function historyBack() {
   if (state.historyIdx <= 0) return;
   state.historyIdx--;
   state._historyNav = true;
   selectQuestion(state.history[state.historyIdx]);
-  updateHistoryButtons();
 }
 
 function historyForward() {
@@ -3194,14 +3418,26 @@ function historyForward() {
   state.historyIdx++;
   state._historyNav = true;
   selectQuestion(state.history[state.historyIdx]);
-  updateHistoryButtons();
 }
 
-function updateHistoryButtons() {
-  const backBtn = document.getElementById('hist-back');
-  const fwdBtn = document.getElementById('hist-fwd');
-  if (backBtn) backBtn.disabled = state.historyIdx <= 0;
-  if (fwdBtn) fwdBtn.disabled = state.historyIdx >= state.history.length - 1;
+// ‹ › in the question header: neighbours in the feed's sorted order, no wrap.
+// Disabled at the ends and when the open question is not in the current feed.
+function updateQuestionStepButtons() {
+  const prevBtn = document.getElementById('q-prev');
+  const nextBtn = document.getElementById('q-next');
+  const feedQs = getSortedFeedQuestions();
+  const idx = feedQs.findIndex(q => q.id === state.selectedId);
+  if (prevBtn) prevBtn.disabled = idx <= 0;
+  if (nextBtn) nextBtn.disabled = idx === -1 || idx >= feedQs.length - 1;
+}
+
+/** Opens the feed neighbour through selectQuestion, the same path a feed click takes. */
+function stepQuestion(delta) {
+  const feedQs = getSortedFeedQuestions();
+  const idx = feedQs.findIndex(q => q.id === state.selectedId);
+  if (idx === -1) return;
+  const next = feedQs[idx + delta];
+  if (next) selectQuestion(next.id);
 }
 
 // ── Command palette (⌘⇧F / Ctrl+Shift+F; ⌘E / Ctrl+E kept) ────
@@ -4128,6 +4364,7 @@ async function initializeApp() {
   questions = QuestionDB.all();
   loadLearningMode();
   loadRoadmapMode();
+  loadFocusMode();
   buildCmdSearchStructures();
   // Concept notes load in the background: the first render never waits on
   // them (init() re-renders once they land — see onNotesLoaded).
@@ -4367,6 +4604,13 @@ function handleMainKeyboardShortcuts(e) {
   // the card, and Space on a topbar switch never toggled it.
   if (e.key === ' ' && (consumed || isActivatableTarget(e.target))) return;
 
+  // Bare F only: ⌘F / Ctrl+F stay the browser's find.
+  if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    toggleFocusMode();
+    return;
+  }
+
   const shortcuts = {
     'ArrowDown': () => navigateList(1),
     'ArrowUp': () => navigateList(-1),
@@ -4456,6 +4700,35 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ── Focus mode ─────────────────────────────────────────────────
+// Hides the sections sidebar and the feed so the detail pane takes the whole
+// workspace. Only the layout changes: ↑/↓ still walk the hidden feed, and the
+// palette, history and roadmap behave as before. Persisted per viewer.
+function setFocusMode(on, { moveFocus = false } = {}) {
+  document.body.classList.toggle('focus-mode', on);
+  const btn = document.getElementById('focus-btn');
+  const rail = document.getElementById('focus-rail');
+  if (btn) btn.setAttribute('aria-expanded', String(!on));
+  if (rail) rail.setAttribute('aria-expanded', String(!on));
+  try {
+    localStorage.setItem(FOCUS_MODE_STORAGE_KEY, on ? '1' : '0');
+  } catch (e) {}
+  // The control that was clicked disappears; hand focus to its counterpart.
+  if (moveFocus) (on ? rail : btn)?.focus();
+}
+
+function toggleFocusMode(fromControl = false) {
+  setFocusMode(!document.body.classList.contains('focus-mode'), { moveFocus: fromControl });
+}
+
+function loadFocusMode() {
+  let on = false;
+  try {
+    on = localStorage.getItem(FOCUS_MODE_STORAGE_KEY) === '1';
+  } catch (e) {}
+  setFocusMode(on);
 }
 
 // ── Resizable Sidebar ──────────────────────────────────────────

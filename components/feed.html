@@ -6,6 +6,10 @@
           <span id="feed-count-total" class="feed-count-total"></span>
           <span id="feed-count-important" class="feed-count-important"></span>
         </div>
+        <button type="button" class="hist-btn focus-btn" id="focus-btn" onclick="toggleFocusMode(true)" aria-controls="main-panel" aria-expanded="true" title="Hide sections and feed (F)" aria-label="Hide sections and feed">⇤</button>
       </div>
       <div id="feed-list" class="feed-list"></div>
     </section>
+
+    <!-- Focus mode: the only control left of the detail pane while sidebar + feed are hidden -->
+    <button type="button" class="focus-rail" id="focus-rail" onclick="toggleFocusMode(true)" aria-expanded="false" title="Show sections and feed (F)" aria-label="Show sections and feed">⇥</button>
