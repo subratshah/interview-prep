@@ -560,7 +560,7 @@ QuestionDB.register('behavioral', [
     section: 'Leadership',
     title: 'Tell me about driving a large-scale technical migration (architecture change, framework swap, platform upgrade). How did you plan it, maintain momentum, and handle resistance?',
     tags: [ 'staff', 'leadership', 'migration', 'technical-direction' ],
-    related: [ 'behav-30', 'behav-35', 'sd-21' ],
+    related: [ 'behav-30', 'behav-35' ],
     listenFor: `- Phased plan with clear milestones — not a big-bang rewrite that requires stopping all feature work
 - Made the case in terms of user impact, engineering velocity, or reliability — not just "it's technically better"
 - Strangler-fig / interop period: new and old coexist (ComposeView/AndroidView interop, a dual-read network layer, KAPT and KSP side by side) and teams migrate on their own schedule
