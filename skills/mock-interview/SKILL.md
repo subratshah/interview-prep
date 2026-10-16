@@ -42,8 +42,9 @@ Use this skill to run an interviewer-led mock interview or focused interview-pre
      android / data-structures -> `answer` (short summary), `keyPoints` (full detail),
      `complexity` (data-structures only), `followUp`, `redFlags`;
      behavioral -> `listenFor`, `starGuide`, `redFlags`;
-     system-design -> `scope`, `functional`, `nfr`, `capacity`, `architecture`, `dataModel`, `api`,
-     `tradeoffs`, `approach`, `followUp`, `pitfalls` (only some questions fill the optional ones).
+     system-design -> `scope`, `functional`, `nfr`, `capacity` (optional), `entities`, `api`,
+     `architecture`, `deepDives`, `pitfalls`. Probe with the `deepDives` questions (`### 1) …?`)
+     and grade against their Bad / Good / Great tiers: a Great-tier answer is the strong signal.
    - Give concise, constructive feedback.
    - Distinguish between incorrect facts, missing depth, communication issues, and strong signals.
 

@@ -143,32 +143,35 @@ questions as `answer` + `keyPoints`.
 }
 ```
 
-**System Design** (`system-design.js` → `SD_SECTIONS`, Codemia-aligned 11 fields):
+**System Design** (`system-design.js` → `SD_SECTIONS`, Hello Interview delivery order — every
+question is a *design*; concept questions live in notes, not here):
 
 ```javascript
 {
-  scope: "**Clarifying Questions**\n...", // one blob → two cards (see below)
+  scope: "**Clarifying questions:**\n...\n**Assumptions:**\n...\n**Below the line (out of scope):**\n...", // → ❓ + ❗ cards
   functional: "- ...",       // functional requirements
   nfr: "- ...",              // non-functional requirements
-  capacity: "- ...",         // optional — back-of-envelope numbers (rare)
-  architecture: "...",       // mermaid diagram + pipeline
-  dataModel: "| Entity | ...", // optional — table (rare)
-  api: "...",                // optional — endpoints (rare)
-  tradeoffs: "| Decision |...", // table + "### Alternatives"
-  approach: "**How to Structure the 45 Min**\n...",
-  followUp: "**Follow-up:** ...\n> ...", // 🧵 Follow-ups
+  capacity: "- ...",         // optional — only when the numbers change the design
+  entities: "- **Name**: key fields; relationship", // 3–7 bullets (+ optional **Storage** table)
+  api: "```\nPOST /plural ...\n```", // endpoints; mobile = client↔server contract + on-device interface
+  architecture: "### 1) <FR>\n1. ...\n### Final design\n```mermaid ...", // steps left, diagram right
+  deepDives: "### 1) How do we ...?\n#### Bad: ...\n- **Approach:** ...\n- **Challenges:** ...\n#### Great: ...\n**Verdict:** ...",
   pitfalls: "- ...",
 }
 ```
 
-`capacity` / `dataModel` / `api` are optional in the strict sense that the renderer omits an absent
-field: only a few system-design questions fill them, and the other eight fields are required on every question — so adding them is per-question authoring, not a rendering
-requirement. `scope` is one blob that becomes two cards sharing the first row — **Clarifying
+Every field except `capacity` is required (`validate-data.mjs`), and the retired keys `approach`,
+`tradeoffs`, `followUp` and `dataModel` are errors: trade-offs and follow-ups belong inside deep
+dives, a storage table under Core Entities. `deepDives` holds 2–4 dives, each a `### ` question with
+≥ 2 `#### Bad|Good|Great: <name>` tiers in that order (each with **Approach** and **Challenges**,
+1–2 short bullets — they render side by side) and a closing `**Verdict:**` line; the renderer splits
+it into one card per dive. The pane is staged by `{ stage, minutes }` divider rows: ① Requirements ·
+② Setup (Entities | API) · ③ High-Level Design · ④ Deep Dives. `scope` is one blob that becomes two cards sharing the first row — **Clarifying
 Questions** (❓) and **Assumptions** (❗) — split by `SCOPE_ASSUMPTIONS_HEADING` on a bold
 `**Declared assumptions:**`-style marker anywhere in it (the wording, case and trailing colon vary,
 and it may sit inline with its first bullet); every blob carries a marker today, so the standalone
-🎯 `scope` card is a live code path with no data behind it. Follow-ups are 🧵 — ❓ belongs to
-Clarifying Questions now.
+🎯 `scope` card is a live code path with no data behind it. ❓ belongs to Clarifying Questions; the
+🧵 Follow-ups card exists only for technical topics now.
 
 ## Code Style
 
@@ -231,7 +234,7 @@ personal stories, private links or logistics. Verify with `node --check data/not
 
 ## Architecture Notes
 
-- **SPA with hash routing** — two accepted forms: `#<questionId>` (e.g. `#sd-75`) and the
+- **SPA with hash routing** — two accepted forms: `#<questionId>` (e.g. `#sd-63`) and the
   canonical `#tab=<topic>&q=<questionId>` written by `pushURLState`. `restoreStateFromURL` parses
   both (the short form only when the id matches a real question); `initializeHashRouting` adds a
   `hashchange` listener so a link pasted into an already-open tab re-renders. A bare `#<topic>` is
@@ -244,17 +247,32 @@ personal stories, private links or logistics. Verify with `node --check data/not
   `file`, so they need a served origin — `file://` cannot load them. Navigation mirrors a question
   section: when the topic has notes, the sidebar ends with **one** `.sb-item` row "📚 Notes"
   (count = notes in the topic, no progress bar; absent otherwise). It sets `state.notesSelected`,
-  and the feed then shows one `.qcard-note` per note in registry order (icon + title, the italic
-  summary line under the H1 — else the first section's text — and a section-count chip); ↑/↓ move
-  across those cards. Opening one sets `state.activeNoteId` and renders the **whole note** in
+  and the feed then shows one `.qcard-note` per note in registry order; ↑/↓ move across those cards.
+  Feed cards share one anatomy — title → pill row → footer starting with the position chip. A
+  question card is title · tag pills · `Q<n>` chip (position in the feed list; palette cards carry no
+  chip). A note card is icon + title · the note's H2 section titles as `.qcard-tag` pills (as many as fit in two lines,
+  then `+N`; "Loading…" until fetched) · `Ch. <n>` chip (position in the topic's registry order, the
+  `NN-` file prefix). The old summary snippet and "N sections" chip are gone; notes have no difficulty
+  and no left stripe. A note is **important** (⭐ on its card corner and in its header) only when its
+  registry entry in `data/notes.js` sets `star: true` — a hand-picked set of the
+  most-asked topics (no fixed share). Do not derive it from starred related questions: that marked 29 of 37
+  system-design notes. The ⭐ Important filter (`statusFilter === 'star'`) filters the notes feed too, and
+  the sidebar "📚 Notes" count drops to match. Opening one sets `state.activeNoteId` and renders the **whole note** in
   `#detail-note` — a third sibling `.detail-inner` of `#detail-question` and `#detail-roadmap`
   (its own scroller is `#note-body`): the summary as a headerless lead card, then one full-width
   `.notion-block` per H2 (`data-note-section`), with its H3s rendered inline — its header is a
   toggle button shared with question cards (`wireCardToggle`), every render starts expanded and no
   collapse state is stored, so a palette or back-link jump always lands on an open card —
   and a "Related questions" block = registry `related` ∪ every section's `<!-- related: -->` ids,
-  deduped in order. The header's ‹ › step to the previous/next note. Notes ignore Learn/Quiz;
-  ←/→ keep their question-history meaning. Selecting a question section, opening a question
+  deduped in order. Question and note detail views share one header order: `‹ ›` · position chip ·
+  identity · meta. A question header is ‹ › · `Q2 / 31` (`#qv-pos`, position in the sorted feed,
+  hidden when the question is not in the current feed) · `#63` (`#qv-num`) · ⭐ · difficulty ·
+  section · tags. A note header is ‹ › · `Ch. 8 / 37` (`#note-pos`) · `📚 Note` (`#note-badge`) ·
+  ⭐ (`#note-star`, when important). `‹ ›` means previous/next item in the current list in both
+  views: on questions `#q-prev`/`#q-next` (`stepQuestion`) walk `getSortedFeedQuestions()` order,
+  with no wrap, disabled at the ends and when the open question is not in the current feed; on notes
+  `#note-prev`/`#note-next` (`stepNote`). History back/forward is keyboard-only (← / →); there are no
+  history buttons. Notes ignore Learn/Quiz. Selecting a question section, opening a question
   (feed, palette, back-link, history) or switching topic clears the notes state; opening notes
   ends roadmap mode. Questions named in a note's effective related ids show a "📚 Notes"
   back-link block (one row per note; it scrolls to the first section naming the id), and the
@@ -266,7 +284,7 @@ personal stories, private links or logistics. Verify with `node --check data/not
   (`loadProgressWithServerFallback`, called from `initializeApp`, with a one-time
   `POST /api/import` of whatever localStorage held). Other keys stay localStorage-only:
   `interview-theme`, `interview-ui-zoom` (`interview-ui-zoom-v2` marks that the old forced
-  `zoom: 1.5` was retired once), `interview-roadmap-mode`, `interview-hidden`, plus the unprefixed
+  `zoom: 1.5` was retired once), `interview-roadmap-mode`, `interview-focus-mode` (sidebar + feed hidden), `interview-hidden`, plus the unprefixed
   `sidebar-width` drag. **Learn/Quiz mode is not persisted at all** — `state.learningMode` starts
   `true` on every load, so a "restore the mode" key would be new behaviour, not a bug fix. The
   endpoint contract is in `skills/mock-interview/reference/progress-api.md`. The client talks to the
@@ -287,9 +305,10 @@ personal stories, private links or logistics. Verify with `node --check data/not
 - **Markdown rendering** — marked.js for answers, Mermaid for diagrams (mermaid is configured
   in `runMermaidInContainer` with the live root font size so diagrams track the ladder)
 - **Detail pane layout is declared, not inferred** — `DETAIL_LAYOUT` in `view/app.js` lists the
-  ordered rows per topic in four forms: `{ cols: [a, b] }` (two cards share a row), `{ half: k }`
-  (one card; the row's other column stays empty), `{ full: k }` (a spanning card), and
-  `{ pack: k }` (one card that joins packing). `buildDetailRows` flattens that into cards carrying
+  ordered rows per topic in five forms: `{ cols: [a, b] }` (two cards share a row), `{ half: k }`
+  (one card; the row's other column stays empty), `{ full: k }` (a spanning card),
+  `{ pack: k }` (one card that joins packing) and `{ stage, minutes }` (a full-width, non-sticky
+  divider, emitted only when a card follows it before the next stage; system design only). `buildDetailRows` flattens that into cards carrying
   `db-half` / `db-full` / `db-band`, with `db-row-start` on the first card of every row: two or more
   *consecutive* one-card rows (a `cols` row whose partner is absent, or a `pack` row) collapse into
   one `.db-band` — a single grid item whose inner grid is filled column-first, so lone cards stack
@@ -371,7 +390,7 @@ personal stories, private links or logistics. Verify with `node --check data/not
   `RoadmapDB`, app state). Load order in `index.template.html` is load-bearing: `view/app.js`
   defines `window.QuestionDB` before any `/data/*.js` registers into it, and `data/roadmaps.js`
   comes last because it derives bands from the finished registry.
-- **Accessibility** — keyboard navigation (↑/↓, Space reveal, 1/2/3 rate, ←/→ history),
+- **Accessibility** — keyboard navigation (↑/↓, Space reveal, 1/2/3 rate, ←/→ history, F focus mode — hides sidebar + feed; the ⇤ button in the feed header and the ⇥ rail toggle it too; the detail header's ‹ › buttons step to the previous/next item in the current list),
   ARIA labels, a real focus trap while the palette is open (`aria-modal="true"`), and roadmap cells
   carrying full state in their `aria-label`.
 
@@ -392,7 +411,7 @@ static deployment.
   (`node --check data/<topic>.js`)
 - **A question seems missing from the feed** — usually section-scoping, not bad data: the feed shows
   exactly one section at a time (`getFeedQuestions`), and the sidebar lists the sections for the
-  active topic in `SECTION_ORDER` order (unlisted sections last, in data order) — for system design that is Mobile, Classic, Infrastructure,
+  active topic in `SECTION_ORDER` order (unlisted sections last, in data order) — for system design that is Mobile, Classic,
   Architecture, Frontend and Staff / Platform (counts drop under active facets). Pick the section in
   the sidebar, or let ⌘⇧F find it: the palette searches every question across topics by title,
   section, tags, type/id/num and the text of every answer card

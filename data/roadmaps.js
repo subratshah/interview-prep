@@ -50,7 +50,6 @@ const RoadmapDB = (() => {
     'system-design': [
       'Mobile',
       'Classic',
-      'Infrastructure',
       'Architecture',
       'Frontend',
       'Staff / Platform',

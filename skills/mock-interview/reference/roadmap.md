@@ -44,10 +44,9 @@ Band order (from `SECTION_ORDER` at the time of writing; re-read that file if it
 
 1. Mobile
 2. Classic
-3. Infrastructure
-4. Architecture
-5. Frontend
-6. Staff / Platform
+3. Architecture
+4. Frontend
+5. Staff / Platform
 
 The app's roadmap pane orders cells within a band starred-first, then E -> M -> H
 (`roadmapColumnOrder` in `view/app.js`); follow the same order when picking the next question.

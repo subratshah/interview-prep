@@ -15,9 +15,16 @@ const REQUIRED = {
   android: ['answer', 'keyPoints', 'redFlags'],
   'data-structures': ['answer', 'keyPoints', 'redFlags', 'complexity'],
   behavioral: ['listenFor', 'starGuide', 'redFlags'],
-  'system-design': ['scope', 'functional', 'nfr', 'architecture', 'tradeoffs', 'approach', 'followUp', 'pitfalls'],
+  'system-design': ['scope', 'functional', 'nfr', 'entities', 'api', 'architecture', 'deepDives', 'pitfalls'],
 };
-const FORBIDDEN = { android: ['complexity', 'expectedAnswer'], 'data-structures': ['expectedAnswer'], behavioral: ['expectedAnswer'] };
+// System design follows the Hello Interview order: trade-offs and follow-ups live inside deep
+// dives and a storage table under Core Entities, so the retired keys are errors.
+const FORBIDDEN = {
+  android: ['complexity', 'expectedAnswer'],
+  'data-structures': ['expectedAnswer'],
+  behavioral: ['expectedAnswer'],
+  'system-design': ['approach', 'tradeoffs', 'followUp', 'dataModel'],
+};
 const SCOPE_MARKER = /\*\*[^*\n]*assumption[^*\n]*\*\*/i;
 
 const registry = {};
